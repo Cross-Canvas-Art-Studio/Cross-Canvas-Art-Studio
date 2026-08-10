@@ -1,0 +1,126 @@
+# ----------------------------------------------------------------------
+# Sentinel Security Enhancement: Prevent Exposure of Secrets & Artifacts
+# ----------------------------------------------------------------------
+
+# Sensitive files / Secrets / API keys / Credentials
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+*.env.*
+*.pem
+*.key
+*.pub
+*.cert
+*.pfx
+*.p12
+credentials.json
+secrets.json
+config/secrets/*
+.npmrc
+.yarnrc
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Node.js
+node_modules/
+jspm_packages/
+web_modules/
+.npm
+.eslintcache
+.stylelintcache
+.prettiercache
+.parcel-cache
+.cache/
+.next/
+.nuxt/
+.vuepress/dist
+.serverless/
+out/
+dist/
+build/
+coverage/
+*.lcov
+.pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+npm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv/
+venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Rust / Cargo
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# Go
+/bin/
+/pkg/
+/src/
+*.exe
+*.test
+*.prof
+
+# Java / Gradle / Maven
+.gradle/
+/build/
+!/src/
+out/
+.pnp/
+.pnp.js
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+*.zip
+*.tar.gz
+*.rar
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.next
+release.properties
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
