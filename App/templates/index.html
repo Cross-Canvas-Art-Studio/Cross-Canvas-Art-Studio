@@ -44,7 +44,7 @@
                     <label>Width
                         <input type="number" id="gridWidth" min="5" max="200" value="60">
                     </label>
-                    <button id="arLockBtn" class="ar-lock-btn" type="button" title="Lock aspect ratio" aria-label="Lock aspect ratio">
+                    <button id="arLockBtn" class="ar-lock-btn" type="button" title="Lock aspect ratio">
                         <svg id="arLockIcon" width="11" height="14" viewBox="0 0 11 14" fill="currentColor" aria-hidden="true">
                             <rect x="2" y="6" width="7" height="7" rx="1.2"/>
                             <path id="arLockShackle" d="M2.5 6V4a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
@@ -151,9 +151,9 @@
                     </button>
                 </div>
                 <div class="tool-group">
-                    <button id="zoomOut" class="tool" type="button" title="Zoom out" aria-label="Zoom out">&minus;</button>
+                    <button id="zoomOut" class="tool" type="button" title="Zoom out">&minus;</button>
                     <span id="zoomLevel" class="zoom-level">100%</span>
-                    <button id="zoomIn" class="tool" type="button" title="Zoom in" aria-label="Zoom in">+</button>
+                    <button id="zoomIn" class="tool" type="button" title="Zoom in">+</button>
                     <button id="zoomFit" class="tool" type="button" title="Fit to view">Fit</button>
                 </div>
                 <div class="tool-group">
@@ -223,11 +223,11 @@
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <!-- Help modal -->
-    <div id="helpModal" class="app-modal" aria-hidden="true" role="dialog" aria-modal="true">
+    <div id="helpModal" class="app-modal" aria-hidden="true" role="dialog">
         <div class="app-modal-dialog">
             <div class="app-modal-header">
                 <h2>How it works</h2>
-                <button class="icon-btn" id="helpClose" type="button" title="Close" aria-label="Close help modal">&times;</button>
+                <button class="icon-btn" id="helpClose" type="button" title="Close">&times;</button>
             </div>
             <div class="app-modal-body">
                 <ol class="help-steps">

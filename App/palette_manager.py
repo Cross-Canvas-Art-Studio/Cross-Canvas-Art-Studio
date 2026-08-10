@@ -166,15 +166,7 @@ def nearest_indices(rgb, allowed=None):
     broadcast, so it stays cheap even for a 200x200 grid.
     """
     _ensure_cache()
-    rgb_arr = np.asarray(rgb, dtype=np.float64)
-    if rgb_arr.size == 0:
-        return np.array([], dtype=np.int64)
-
-    # Optimization (Bolt): Deduplicate RGB values to drastically reduce the number
-    # of CIELAB conversions and expensive loop-based distance comparisons.
-    unique_rgb, inverse_indices = np.unique(rgb_arr, axis=0, return_inverse=True)
-
-    lab = rgb_to_lab(unique_rgb)
+    lab = rgb_to_lab(np.asarray(rgb, dtype=np.float64))
     n = lab.shape[0]
     candidates = list(allowed) if allowed is not None else range(len(_PALETTE))
 
@@ -187,7 +179,7 @@ def nearest_indices(rgb, allowed=None):
         mask = dist < best_dist
         best_dist[mask] = dist[mask]
         best_idx[mask] = i
-    return best_idx[inverse_indices]
+    return best_idx
 
 
 def build_legend(index_counts):
