@@ -14,6 +14,7 @@ on:
 env:
   REGISTRY: docker.io
   IMAGE_NAME: cross-canvas-art-studio
+  DOCKER_USER: ${{ secrets.DOCKER_USERNAME != '' && secrets.DOCKER_USERNAME || 'jonesckevin' }}
 
 jobs:
   build-and-push:
@@ -39,7 +40,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ env.DOCKER_USER }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}
@@ -55,5 +56,5 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:buildcache
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.DOCKER_USER }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}/{1}/{2}:buildcache,mode=max', env.REGISTRY, env.DOCKER_USER, env.IMAGE_NAME) || '' }}
