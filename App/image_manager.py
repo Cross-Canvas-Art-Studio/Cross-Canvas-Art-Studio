@@ -63,8 +63,6 @@ def analyze(image_bytes, width, height, max_colors=16, alpha_threshold=128,
     alpha = arr[:, 3]
 
     empty_mask = alpha < alpha_threshold
-    # Optimization (Bolt): Skip nearest color checking and CIELAB conversions
-    # completely for transparent / empty cells (very common in logos, cutouts).
     idx = np.full(rgb.shape[0], -1, dtype=np.int64)
     if not empty_mask.all():
         idx[~empty_mask] = palette_manager.nearest_indices(rgb[~empty_mask]).astype(np.int64)

@@ -291,7 +291,7 @@ def create_guest_user():
     now = datetime.now(timezone.utc).isoformat()
     user_id = str(uuid.uuid4())
     display_name = 'Guest_' + uuid.uuid4().hex[:8]
-    unusable_hash = '!!' + bcrypt.hashpw(uuid.uuid4().bytes, bcrypt.gensalt()).decode('utf-8')
+    unusable_hash = '!!unusable-' + uuid.uuid4().hex
     with _write_lock, _connect() as conn:
         conn.execute(
             'INSERT INTO users (user_id, username, email, password_hash, role, status, '
@@ -433,7 +433,7 @@ def create_user_passwordless(username, email=None, role='user', forced_id=None):
         role = 'user'
     now = datetime.now(timezone.utc).isoformat()
     user_id = forced_id or str(uuid.uuid4())
-    unusable_hash = '!!' + bcrypt.hashpw(uuid.uuid4().bytes, bcrypt.gensalt()).decode('utf-8')
+    unusable_hash = '!!unusable-' + uuid.uuid4().hex
     with _write_lock, _connect() as conn:
         try:
             conn.execute(

@@ -331,11 +331,6 @@ def validate_image_upload(file_storage):
         raise ValueError('File is not a valid image')
     return data
 
-
-# ============================================================================
-# Security headers
-# ============================================================================
-
 @app.after_request
 def add_security_headers(response):
     response.headers.setdefault('X-Content-Type-Options', 'nosniff')
@@ -507,8 +502,6 @@ def passkey_register_options():
         return jsonify({'error': err}), 400
     existing = user_manager.get_user_by_username(username)
     if existing:
-        # Security: Prevent account takeover. Only allow registering a new passkey
-        # for an existing user if they are currently logged in as that exact user.
         curr_user = auth_manager.get_current_user()
         if not curr_user or curr_user.get('sub') != existing['user_id']:
             return jsonify({'error': 'Username already exists'}), 400
@@ -833,6 +826,8 @@ def create_project():
 @app.route('/api/projects/<project_id>', methods=['GET'])
 def get_project(project_id):
     owner, is_admin = current_owner()
+    if REQUIRE_AUTH and owner is None:
+        return jsonify({'error': 'Authentication required'}), 401
     project = project_manager.get_project(project_id)
     if project is None:
         return jsonify({'error': 'Project not found'}), 404
@@ -845,6 +840,8 @@ def get_project(project_id):
 @limiter.limit("60 per minute")
 def update_project(project_id):
     owner, is_admin = current_owner()
+    if REQUIRE_AUTH and owner is None:
+        return jsonify({'error': 'Authentication required'}), 401
     data = request.get_json(silent=True) or {}
     try:
         meta = project_manager.update_project(
@@ -861,6 +858,8 @@ def update_project(project_id):
 @app.route('/api/projects/<project_id>', methods=['DELETE'])
 def delete_project(project_id):
     owner, is_admin = current_owner()
+    if REQUIRE_AUTH and owner is None:
+        return jsonify({'error': 'Authentication required'}), 401
     try:
         ok = project_manager.delete_project(project_id, owner=owner, is_admin=is_admin)
     except PermissionError as exc:

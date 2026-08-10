@@ -1,6 +1,3 @@
-# ----------------------------------------------------------------------
-# Sentinel Security Enhancement: Prevent Exposure of Secrets & Artifacts
-# ----------------------------------------------------------------------
 
 # Sensitive files / Secrets / API keys / Credentials
 .env

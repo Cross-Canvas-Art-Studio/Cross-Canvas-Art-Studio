@@ -149,6 +149,19 @@
                     <button id="toolErase" class="tool" type="button" title="Erase (right click)">
                         <svg width="15" height="11" viewBox="0 0 15 11" aria-hidden="true" style="vertical-align:-2px;margin-right:3px"><rect x=".5" y=".5" width="14" height="10" rx="1.5" fill="currentColor" opacity=".85"/><rect x=".5" y="5.5" width="6" height="5" rx="1" fill="#a855f7"/><line x1=".5" y1="5.5" x2="14.5" y2="5.5" stroke="rgba(0,0,0,.35)" stroke-width="1"/></svg>Erase
                     </button>
+                    <button id="toolFill" class="tool" type="button" title="Fill (flood fill)">&#128396; Fill</button>
+                </div>
+                <div class="tool-group">
+                    <label class="brush-size-label" style="display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text-faint);">
+                        Size:
+                        <select id="brushSize" style="background: var(--bg-3); color: var(--text); border: 1px solid var(--border-2); border-radius: 4px; padding: 2px 4px; font-size: 12px; cursor: pointer;">
+                            <option value="1">1px</option>
+                            <option value="2">2px</option>
+                            <option value="3">3px</option>
+                            <option value="4">4px</option>
+                            <option value="5">5px</option>
+                        </select>
+                    </label>
                 </div>
                 <div class="tool-group">
                     <button id="zoomOut" class="tool" type="button" title="Zoom out" aria-label="Zoom out">&minus;</button>

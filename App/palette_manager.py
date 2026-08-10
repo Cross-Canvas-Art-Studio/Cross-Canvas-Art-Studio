@@ -170,8 +170,6 @@ def nearest_indices(rgb, allowed=None):
     if rgb_arr.size == 0:
         return np.array([], dtype=np.int64)
 
-    # Optimization (Bolt): Deduplicate RGB values to drastically reduce the number
-    # of CIELAB conversions and expensive loop-based distance comparisons.
     unique_rgb, inverse_indices = np.unique(rgb_arr, axis=0, return_inverse=True)
 
     lab = rgb_to_lab(unique_rgb)
