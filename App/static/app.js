@@ -740,6 +740,11 @@
       ? "/api/projects/" + state.currentProjectId
       : "/api/projects";
     var method = isUpdate ? "PUT" : "POST";
+
+    els.saveProjectBtn.disabled = true;
+    var originalText = els.saveProjectBtn.textContent;
+    els.saveProjectBtn.textContent = "Saving...";
+
     fetch(url, {
       method: method,
       headers: { "Content-Type": "application/json" },
@@ -751,15 +756,21 @@
         });
       })
       .then(function (res) {
+        els.saveProjectBtn.disabled = false;
+        els.saveProjectBtn.textContent = originalText;
         if (!res.ok) {
           toast(res.d.error || "Save failed", "error");
           return;
         }
+        var savedTitle = res.d.project.title || "Untitled Design";
+        els.projectTitle.value = savedTitle;
         state.currentProjectId = res.d.project.id;
         toast(isUpdate ? "Project updated" : "Project saved", "ok");
         loadProjects();
       })
       .catch(function () {
+        els.saveProjectBtn.disabled = false;
+        els.saveProjectBtn.textContent = originalText;
         toast("Save failed", "error");
       });
   }
@@ -873,12 +884,21 @@
       toast("Nothing to export", "error");
       return;
     }
-    state.canvas.exportBlob(function (blob) {
-      downloadBlob(
-        blob,
-        (els.projectTitle.value.trim() || "cross-canvas") + ".png",
-      );
-    }, 18);
+    els.exportPngBtn.disabled = true;
+    var originalText = els.exportPngBtn.textContent;
+    els.exportPngBtn.textContent = "Exporting...";
+
+    setTimeout(function () {
+      state.canvas.exportBlob(function (blob) {
+        downloadBlob(
+          blob,
+          (els.projectTitle.value.trim() || "cross-canvas") + ".png",
+        );
+        els.exportPngBtn.disabled = false;
+        els.exportPngBtn.textContent = originalText;
+        toast("PNG chart exported", "ok");
+      }, 18);
+    }, 50);
   }
 
   function exportJson() {
@@ -1081,6 +1101,7 @@
     });
     els.importJsonInput.addEventListener("change", function () {
       if (this.files[0]) importJson(this.files[0]);
+      this.value = "";
     });
 
     // help modal Focus Management (Palette Accessibility)

@@ -1,0 +1,3 @@
+## 2025-08-10 - Asynchronous buttons without loading states and unreset file inputs
+Learning: Long-running asynchronous operations (like exporting canvases or network calls) without disabling buttons or displaying intermediate text can lead to rapid double-clicks, duplicate requests, and a frozen feel. Additionally, not resetting the file input `value` in vanilla JS prevents the `change` event from firing if the same file is imported consecutively.
+Action: Always disable submit/action buttons, provide "ing..." loading texts immediately, and reset file input values on change listeners to keep user interactions responsive and robust.

@@ -833,6 +833,8 @@ def create_project():
 @app.route('/api/projects/<project_id>', methods=['GET'])
 def get_project(project_id):
     owner, is_admin = current_owner()
+    if REQUIRE_AUTH and owner is None:
+        return jsonify({'error': 'Authentication required'}), 401
     project = project_manager.get_project(project_id)
     if project is None:
         return jsonify({'error': 'Project not found'}), 404
@@ -845,6 +847,8 @@ def get_project(project_id):
 @limiter.limit("60 per minute")
 def update_project(project_id):
     owner, is_admin = current_owner()
+    if REQUIRE_AUTH and owner is None:
+        return jsonify({'error': 'Authentication required'}), 401
     data = request.get_json(silent=True) or {}
     try:
         meta = project_manager.update_project(
@@ -861,6 +865,8 @@ def update_project(project_id):
 @app.route('/api/projects/<project_id>', methods=['DELETE'])
 def delete_project(project_id):
     owner, is_admin = current_owner()
+    if REQUIRE_AUTH and owner is None:
+        return jsonify({'error': 'Authentication required'}), 401
     try:
         ok = project_manager.delete_project(project_id, owner=owner, is_admin=is_admin)
     except PermissionError as exc:
