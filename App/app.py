@@ -331,6 +331,11 @@ def validate_image_upload(file_storage):
         raise ValueError('File is not a valid image')
     return data
 
+
+# ============================================================================
+# Security headers
+# ============================================================================
+
 @app.after_request
 def add_security_headers(response):
     response.headers.setdefault('X-Content-Type-Options', 'nosniff')
@@ -502,6 +507,8 @@ def passkey_register_options():
         return jsonify({'error': err}), 400
     existing = user_manager.get_user_by_username(username)
     if existing:
+        # Security: Prevent account takeover. Only allow registering a new passkey
+        # for an existing user if they are currently logged in as that exact user.
         curr_user = auth_manager.get_current_user()
         if not curr_user or curr_user.get('sub') != existing['user_id']:
             return jsonify({'error': 'Username already exists'}), 400

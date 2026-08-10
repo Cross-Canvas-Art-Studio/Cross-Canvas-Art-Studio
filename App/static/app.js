@@ -66,6 +66,8 @@
       "toolErase",
       "toolFill",
       "brushSize",
+      "btnUndo",
+      "btnRedo",
       "zoomOut",
       "zoomIn",
       "zoomLevel",
@@ -730,6 +732,20 @@
     els.zoomLevel.textContent = state.canvas.zoomPercent() + "%";
   }
 
+  function undoAction() {
+    if (state.canvas.undo()) {
+      toast("Undo", "ok");
+      onDesignChange();
+    }
+  }
+
+  function redoAction() {
+    if (state.canvas.redo()) {
+      toast("Redo", "ok");
+      onDesignChange();
+    }
+  }
+
   // ---------- projects ----------
   function saveProject() {
     if (state.canvas.isEmpty()) {
@@ -1021,6 +1037,16 @@
     els.imgMaxColors.addEventListener("input", function () {
       els.imgMaxColorsVal.textContent = this.value;
     });
+    els.imgMaxColors.addEventListener("change", function () {
+      if (state.selectedFile) {
+        analyzeImage();
+      }
+    });
+    els.resampleMode.addEventListener("change", function () {
+      if (state.selectedFile) {
+        analyzeImage();
+      }
+    });
     els.analyzeBtn.addEventListener("click", analyzeImage);
     els.autoSizeBtn.addEventListener("click", autoSizeFromImage);
     els.arLockBtn.addEventListener("click", toggleArLock);
@@ -1084,6 +1110,18 @@
     els.zoomFit.addEventListener("click", function () {
       state.canvas.fitToView();
       updateZoomLabel();
+    });
+    els.btnUndo.addEventListener("click", undoAction);
+    els.btnRedo.addEventListener("click", redoAction);
+    window.addEventListener("keydown", function (e) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        undoAction();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        redoAction();
+      }
     });
     els.toggleGridLines.addEventListener("change", function () {
       state.canvas.setOption("showGrid", this.checked);
