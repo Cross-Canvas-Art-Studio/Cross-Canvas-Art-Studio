@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en" data-require-auth="{{ 'true' if require_auth else 'false' }}" data-ai-enabled="{{ 'true' if ai_enabled else 'false' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ app_title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%237c3aed'/%3E%3Cpath d='M8 8l16 16M24 8L8 24' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+</head>
+<body>
+    <header class="app-header">
+        <div class="brand">
+            <span class="brand-logo" aria-hidden="true">
+                <svg viewBox="0 0 32 32" width="28" height="28">
+                    <rect width="32" height="32" rx="6" fill="url(#g)"></rect>
+                    <defs>
+                        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0" stop-color="#a855f7"></stop>
+                            <stop offset="1" stop-color="#7c3aed"></stop>
+                        </linearGradient>
+                    </defs>
+                    <path d="M9 9l14 14M23 9L9 23" stroke="#fff" stroke-width="3" stroke-linecap="round"></path>
+                </svg>
+            </span>
+            <div class="brand-text">
+                <h1>{{ app_title }}</h1>
+                <p id="brandSubtitle">Cross-stitch yarn canvas designer</p>
+            </div>
+        </div>
+        <div class="header-actions">
+            <button id="helpBtn" class="btn-ghost" type="button" title="How it works">Help</button>
+            <div id="authHeader" class="auth-header" style="display:none"></div>
+        </div>
+    </header>
+
+    <main class="layout">
+        <!-- ============ LEFT: CONTROLS ============ -->
+        <aside class="sidebar" aria-label="Design controls">
+            <section class="panel">
+                <div class="panel-head">
+                    <h2>Canvas size</h2>
+                </div>
+                <div class="grid-size-row">
+                    <label>Width
+                        <input type="number" id="gridWidth" min="5" max="200" value="60">
+                    </label>
+                    <button id="arLockBtn" class="ar-lock-btn" type="button" title="Lock aspect ratio">
+                        <svg id="arLockIcon" width="11" height="14" viewBox="0 0 11 14" fill="currentColor" aria-hidden="true">
+                            <rect x="2" y="6" width="7" height="7" rx="1.2"/>
+                            <path id="arLockShackle" d="M2.5 6V4a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                    <label>Height
+                        <input type="number" id="gridHeight" min="5" max="200" value="80">
+                    </label>
+                    <button id="autoSizeBtn" class="btn-ghost auto-size-btn" type="button"
+                        title="Fit grid to uploaded image aspect ratio within current max size" disabled>Auto</button>
+                    <span class="hint" id="sizeHint">stitches (max 200)</span>
+                    <span class="hint" id="imgDimsHint" hidden></span>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="tabs" role="tablist">
+                    <button class="tab active" data-source-tab="upload" role="tab" type="button">Image</button>
+                    <button class="tab" data-source-tab="ai" role="tab" type="button">AI Design</button>
+                    <button class="tab" data-source-tab="blank" role="tab" type="button">Blank</button>
+                </div>
+
+                <!-- Upload image -->
+                <div class="source-panel" id="sourceUpload">
+                    <div class="drop-zone" id="dropZone" tabindex="0">
+                        <input type="file" id="imageInput" accept="image/*" hidden>
+                        <div class="drop-inner">
+                            <span class="drop-icon" aria-hidden="true">&#128247;</span>
+                            <p><strong>Drop an image</strong> or click to browse</p>
+                            <p class="hint">PNG, JPG, GIF, BMP, WEBP</p>
+                        </div>
+                        <img id="uploadPreview" alt="Selected image preview" hidden>
+                    </div>
+                    <label class="slider-label">Max yarn colours: <output id="imgMaxColorsVal">16</output>
+                        <input type="range" id="imgMaxColors" min="2" max="52" value="16">
+                    </label>
+                    <label class="select-label">Detail
+                        <select id="resampleMode">
+                            <option value="smooth" selected>Smooth (blend colours)</option>
+                            <option value="balanced">Balanced</option>
+                            <option value="blocky">Blocky (sharp pixels)</option>
+                        </select>
+                    </label>
+                    <button id="analyzeBtn" class="btn-primary full" type="button" disabled>Render to canvas</button>
+                </div>
+
+                <!-- AI design -->
+                <div class="source-panel" id="sourceAI" hidden>
+                    <div class="field-row">
+                        <label class="select-label">Provider
+                            <select id="aiProvider"></select>
+                        </label>
+                        <button id="aiTestBtn" class="btn-secondary" type="button" title="Test connection &amp; load models">Test</button>
+                    </div>
+                    <label class="select-label">Model
+                        <select id="aiModel"><option value="">Test connection to load models</option></select>
+                    </label>
+                    <div id="aiKeyRow" class="field-row" hidden>
+                        <label class="select-label full">API key
+                            <input type="password" id="aiApiKey" placeholder="Stored in your browser only" autocomplete="off">
+                        </label>
+                    </div>
+                    <label class="area-label">Describe your design
+                        <textarea id="aiDescription" rows="4" placeholder="e.g. A white Christian cross in a stained-glass window with blue, green and red panels"></textarea>
+                    </label>
+                    <label class="slider-label">Max yarn colours: <output id="aiMaxColorsVal">10</output>
+                        <input type="range" id="aiMaxColors" min="2" max="24" value="10">
+                    </label>
+                    <p class="hint">The AI describes shapes that the server renders at your exact canvas size &mdash; no size limit. Start at 32&times;32 then enlarge.</p>
+                    <button id="generateBtn" class="btn-primary full" type="button">Generate design</button>
+                    <p class="ai-status" id="aiStatus" role="status"></p>
+                </div>
+
+                <!-- Blank -->
+                <div class="source-panel" id="sourceBlank" hidden>
+                    <p class="hint">Start from an empty canvas and paint it by hand with the yarn palette below.</p>
+                    <button id="newBlankBtn" class="btn-primary full" type="button">New blank canvas</button>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-head">
+                    <h2>Yarn palette</h2>
+                    <input type="search" id="paletteSearch" placeholder="Filter…" class="mini-search">
+                </div>
+                <div class="selected-yarn">
+                    <span class="swatch lg" id="selectedSwatch"></span>
+                    <div>
+                        <strong id="selectedName">&mdash;</strong>
+                    </div>
+                </div>
+                <div id="codeFormats" class="code-formats" aria-label="Colour label format"></div>
+                <div id="paletteGroups" class="palette-groups"></div>
+            </section>
+        </aside>
+
+        <!-- ============ CENTER: CANVAS ============ -->
+        <section class="canvas-area">
+            <div class="canvas-toolbar">
+                <div class="tool-group">
+                    <button id="toolPaint" class="tool active" type="button" title="Paint (left click)">&#9998; Paint</button>
+                    <button id="toolErase" class="tool" type="button" title="Erase (right click)">
+                        <svg width="15" height="11" viewBox="0 0 15 11" aria-hidden="true" style="vertical-align:-2px;margin-right:3px"><rect x=".5" y=".5" width="14" height="10" rx="1.5" fill="currentColor" opacity=".85"/><rect x=".5" y="5.5" width="6" height="5" rx="1" fill="#a855f7"/><line x1=".5" y1="5.5" x2="14.5" y2="5.5" stroke="rgba(0,0,0,.35)" stroke-width="1"/></svg>Erase
+                    </button>
+                </div>
+                <div class="tool-group">
+                    <button id="zoomOut" class="tool" type="button" title="Zoom out">&minus;</button>
+                    <span id="zoomLevel" class="zoom-level">100%</span>
+                    <button id="zoomIn" class="tool" type="button" title="Zoom in">+</button>
+                    <button id="zoomFit" class="tool" type="button" title="Fit to view">Fit</button>
+                </div>
+                <div class="tool-group">
+                    <label class="check"><input type="checkbox" id="toggleGridLines" checked> Grid</label>
+                    <label class="check"><input type="checkbox" id="toggleSymbols"> Codes</label>
+                    <label class="check"><input type="checkbox" id="toggleStitch" checked> Cross stitch</label>
+                </div>
+                <div class="tool-group right">
+                    <button id="clearBtn" class="tool danger" type="button" title="Clear canvas">Clear</button>
+                </div>
+            </div>
+
+            <div class="canvas-wrap" id="canvasWrap">
+                <div class="canvas-empty" id="canvasEmpty">
+                    <div>
+                        <div class="empty-cross" aria-hidden="true">&#10011;</div>
+                        <p>Upload an image, generate an AI design, or start a blank canvas.</p>
+                    </div>
+                </div>
+                <canvas id="stitchCanvas" hidden></canvas>
+            </div>
+
+            <div class="canvas-info" id="canvasInfo">
+                <span id="infoDims">&mdash;</span>
+                <span id="infoStitches"></span>
+                <span id="infoColors"></span>
+                <span class="paint-hint">Left-click paints • Right-click erases • Drag to fill</span>
+            </div>
+        </section>
+
+        <!-- ============ RIGHT: LEGEND + PROJECTS ============ -->
+        <aside class="sidebar right" aria-label="Legend and projects">
+            <section class="panel">
+                <div class="panel-head">
+                    <h2>Yarn legend</h2>
+                    <span class="badge" id="legendCount">0</span>
+                </div>
+                <p class="hint">Colours used in your design. Click a row to paint with it.</p>
+                <div id="legendList" class="legend-list"></div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-head">
+                    <h2>Export</h2>
+                </div>
+                <div class="btn-row">
+                    <button id="exportPngBtn" class="btn-secondary" type="button">PNG chart</button>
+                    <button id="exportJsonBtn" class="btn-secondary" type="button">JSON</button>
+                    <button id="importJsonBtn" class="btn-secondary" type="button">Import</button>
+                    <input type="file" id="importJsonInput" accept="application/json,.json" hidden>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-head">
+                    <h2>Projects</h2>
+                </div>
+                <div class="save-row">
+                    <input type="text" id="projectTitle" placeholder="Design name" maxlength="120">
+                    <button id="saveProjectBtn" class="btn-primary" type="button">Save</button>
+                </div>
+                <div id="projectList" class="project-list"></div>
+            </section>
+        </aside>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <!-- Help modal -->
+    <div id="helpModal" class="app-modal" aria-hidden="true" role="dialog">
+        <div class="app-modal-dialog">
+            <div class="app-modal-header">
+                <h2>How it works</h2>
+                <button class="icon-btn" id="helpClose" type="button" title="Close">&times;</button>
+            </div>
+            <div class="app-modal-body">
+                <ol class="help-steps">
+                    <li><strong>Choose a canvas size</strong> — up to 200&times;200 stitches.</li>
+                    <li><strong>Image tab</strong> — upload a picture; it pixelates and matches colours.</li>
+                    <li><strong>Blank tab</strong> — start empty and paint by hand.</li>
+                    <li><strong>Custom mode</strong> — pickc a colour and click a cell to stitch it; <em>right-click</em> to clear it.</li>
+                    <li><strong>Legend</strong> — shows exactly which yarns and stitch count of each.</li>
+                    <li><strong>Export / Save</strong> — download a PNG or JSON, or save it on the server.</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='api-manager.js') }}"></script>
+    <script src="{{ url_for('static', filename='auth-widget.js') }}"></script>
+    <script src="{{ url_for('static', filename='canvas-renderer.js') }}"></script>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

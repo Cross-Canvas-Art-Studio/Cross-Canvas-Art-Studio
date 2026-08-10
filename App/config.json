@@ -1,0 +1,97 @@
+{
+    "app": {
+        "title": "Cross Canvas Art Studio",
+        "subtitle": "Turn images and ideas into cross-stitch yarn canvas patterns",
+        "footer_text": "Cross Canvas Art Studio"
+    },
+    "upload": {
+        "max_file_size_mb": 25,
+        "allowed_extensions": [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"],
+        "allowed_mime_types": [
+            "image/png", "image/jpeg", "image/gif", "image/bmp",
+            "image/webp", "image/x-bmp", "image/x-ms-bmp"
+        ]
+    },
+    "grid": {
+        "default_width": 60,
+        "default_height": 80,
+        "min_size": 5,
+        "max_size": 200,
+        "max_llm_size": 32,
+        "default_max_colors": 16,
+        "min_colors": 2,
+        "max_colors": 52,
+        "alpha_threshold": 128
+    },
+    "llm": {
+        "default_provider": "ollama",
+        "request_timeout_seconds": 120,
+        "providers": {
+            "ollama": {
+                "name": "Ollama",
+                "default_host": "localhost",
+                "default_port": 11434,
+                "default_protocol": "http",
+                "requires_key": false
+            },
+            "lmstudio": {
+                "name": "LM Studio",
+                "default_host": "localhost",
+                "default_port": 1234,
+                "default_protocol": "http",
+                "requires_key": false
+            },
+            "openai": {
+                "name": "OpenAI",
+                "base_url": "https://api.openai.com/v1",
+                "default_model": "gpt-4o-mini",
+                "requires_key": true
+            },
+            "anthropic": {
+                "name": "Anthropic",
+                "base_url": "https://api.anthropic.com/v1",
+                "default_model": "claude-sonnet-4-5-20250929",
+                "requires_key": true
+            },
+            "gemini": {
+                "name": "Google Gemini",
+                "base_url": "https://generativelanguage.googleapis.com/v1beta",
+                "default_model": "gemini-1.5-flash",
+                "requires_key": true
+            },
+            "deepseek": {
+                "name": "DeepSeek",
+                "base_url": "https://api.deepseek.com/v1",
+                "default_model": "deepseek-chat",
+                "requires_key": true
+            },
+            "cohere": {
+                "name": "Cohere",
+                "base_url": "https://api.cohere.ai/compatibility/v1",
+                "default_model": "command-r-plus",
+                "requires_key": true
+            },
+            "grok": {
+                "name": "Grok (X.AI)",
+                "base_url": "https://api.x.ai/v1",
+                "default_model": "grok-beta",
+                "requires_key": true
+            },
+            "mistral": {
+                "name": "Mistral AI",
+                "base_url": "https://api.mistral.ai/v1",
+                "default_model": "mistral-small-latest",
+                "requires_key": true
+            },
+            "perplexity": {
+                "name": "Perplexity",
+                "base_url": "https://api.perplexity.ai",
+                "default_model": "sonar",
+                "requires_key": true
+            }
+        }
+    },
+    "storage": {
+        "max_projects": 200
+    }
+}

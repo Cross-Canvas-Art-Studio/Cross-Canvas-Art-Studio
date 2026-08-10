@@ -1,0 +1,42 @@
+---
+
+services:
+  cross-canvas-art:
+    build:
+      context: .
+    container_name: cross-canvas-art
+    ports:
+      - "${DOCKER_PORT:-9016}:5000"
+    volumes:
+      # Persistent storage
+      - ${DATA_DIR:-./data}:/data
+    extra_hosts:
+      # Allow container to reach local LLM servers (Ollama, LM Studio)
+      - "host.docker.internal:host-gateway"
+    environment:
+      # Core
+      - MAX_UPLOAD_MB=25      # Maximum upload size in MB
+      
+      # Authentication
+      - REQUIRE_SECRETS=${REQUIRE_SECRETS:-false}
+      - ALLOW_AUTH=${ALLOW_AUTH:-true}
+      - REQUIRE_AUTH=${REQUIRE_AUTH:-true}
+      - ALLOW_USER_REGISTRATION=${ALLOW_USER_REGISTRATION:-true}
+      - ALLOW_GUEST_LOGIN=${ALLOW_GUEST_LOGIN:-true}
+      
+      # WebAuthn/Passkeys
+      - RP_ID=localhost       # yarn.example.com
+      - ORIGIN=localhost,yarn # https://yarn.example.com
+      
+      # AI (optional local LLM servers)
+      - AI_ENABLED=false
+      - OLLAMA_HOST=http://host.docker.internal:11434
+      - LMSTUDIO_HOST=http://host.docker.internal:1234
+      - ALLOW_CLIENT_API_KEYS=false
+      
+      # Security
+      - CORS_ALLOWED_ORIGINS=   # production, set to your domain(s), e.g. https://yarn.example.com
+      - TRUST_PROXY=true        # production, set to true if behind a reverse proxy
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true

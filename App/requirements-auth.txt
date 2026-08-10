@@ -1,0 +1,5 @@
+# Additional runtime dependencies for the optional authentication system.
+# Installed in a dedicated Docker layer so bumping them does not invalidate the
+# main dependency cache layer.
+PyJWT==2.10.1
+bcrypt==4.2.1
