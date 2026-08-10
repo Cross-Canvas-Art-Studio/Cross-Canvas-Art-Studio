@@ -64,6 +64,8 @@
       "paletteGroups",
       "toolPaint",
       "toolErase",
+      "toolFill",
+      "brushSize",
       "zoomOut",
       "zoomIn",
       "zoomLevel",
@@ -722,6 +724,7 @@
     state.canvas.setMode(mode);
     els.toolPaint.classList.toggle("active", mode === "paint");
     els.toolErase.classList.toggle("active", mode === "erase");
+    els.toolFill.classList.toggle("active", mode === "fill");
   }
   function updateZoomLabel() {
     els.zoomLevel.textContent = state.canvas.zoomPercent() + "%";
@@ -1063,6 +1066,12 @@
     });
     els.toolErase.addEventListener("click", function () {
       setMode("erase");
+    });
+    els.toolFill.addEventListener("click", function () {
+      setMode("fill");
+    });
+    els.brushSize.addEventListener("change", function () {
+      state.canvas.setBrushSize(this.value);
     });
     els.zoomIn.addEventListener("click", function () {
       state.canvas.setZoom(2);

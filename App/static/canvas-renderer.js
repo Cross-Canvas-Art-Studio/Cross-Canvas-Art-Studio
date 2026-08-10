@@ -63,6 +63,7 @@
       this.showStitch = true;
       this.selectedIndex = -1;
       this.mode = "paint";
+      this.brushSize = 1;
       this._codeFormatter = null;
       this._painting = false;
       this._paintValue = -1;
@@ -276,6 +277,9 @@
     setMode(mode) {
       this.mode = mode;
     }
+    setBrushSize(size) {
+      this.brushSize = parseInt(size, 10) || 1;
+    }
 
     clearAll() {
       this.cells.fill(-1);
@@ -319,7 +323,68 @@
       var key = cell.r * this.width + cell.c;
       if (key === this._lastCell) return;
       this._lastCell = key;
-      if (this._applyCell(cell.r, cell.c, this._paintValue)) {
+
+      var anyApplied = false;
+      var S = this.brushSize || 1;
+      var halfStart = -Math.floor((S - 1) / 2);
+      var halfEnd = Math.ceil((S - 1) / 2);
+
+      for (var dr = halfStart; dr <= halfEnd; dr++) {
+        for (var dc = halfStart; dc <= halfEnd; dc++) {
+          var nr = cell.r + dr;
+          var nc = cell.c + dc;
+          if (nr >= 0 && nr < this.height && nc >= 0 && nc < this.width) {
+            if (this._applyCell(nr, nc, this._paintValue)) {
+              anyApplied = true;
+            }
+          }
+        }
+      }
+      if (anyApplied) {
+        this._notify();
+      }
+    }
+
+    _floodFill(startR, startC, targetValue) {
+      var i = startR * this.width + startC;
+      var startValue = this.cells[i];
+      if (startValue === targetValue) return;
+
+      var queue = [{ r: startR, c: startC }];
+      var anyApplied = false;
+      var width = this.width;
+      var height = this.height;
+      var visited = new Uint8Array(width * height);
+      visited[i] = 1;
+
+      while (queue.length > 0) {
+        var curr = queue.shift();
+
+        if (this._applyCell(curr.r, curr.c, targetValue)) {
+          anyApplied = true;
+        }
+
+        var directions = [
+          { r: -1, c: 0 },
+          { r: 1, c: 0 },
+          { r: 0, c: -1 },
+          { r: 0, c: 1 },
+        ];
+
+        for (var d = 0; d < directions.length; d++) {
+          var nr = curr.r + directions[d].r;
+          var nc = curr.c + directions[d].c;
+          if (nr >= 0 && nr < height && nc >= 0 && nc < width) {
+            var nidx = nr * width + nc;
+            if (!visited[nidx] && this.cells[nidx] === startValue) {
+              visited[nidx] = 1;
+              queue.push({ r: nr, c: nc });
+            }
+          }
+        }
+      }
+
+      if (anyApplied) {
         this._notify();
       }
     }
@@ -343,7 +408,16 @@
         var erase = e.button === 2 || (self.mode === "erase" && e.button === 0);
         self._paintValue = erase ? -1 : self.selectedIndex;
         if (self._paintValue === undefined) self._paintValue = -1;
-        self._paintAt(e);
+
+        if (self.mode === "fill") {
+          var cell = self._cellFromEvent(e);
+          if (cell) {
+            self._floodFill(cell.r, cell.c, self._paintValue);
+          }
+          self._painting = false; // Don't drag-paint on fill
+        } else {
+          self._paintAt(e);
+        }
       });
       window.addEventListener("mousemove", function (e) {
         if (self._painting) self._paintAt(e);
