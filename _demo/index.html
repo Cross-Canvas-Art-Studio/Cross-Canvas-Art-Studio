@@ -44,7 +44,7 @@
                     <label>Width
                         <input type="number" id="gridWidth" min="5" max="200" value="60">
                     </label>
-                    <button id="arLockBtn" class="ar-lock-btn" type="button" title="Lock aspect ratio">
+                    <button id="arLockBtn" class="ar-lock-btn" type="button" title="Lock aspect ratio" aria-label="Lock aspect ratio">
                         <svg id="arLockIcon" width="11" height="14" viewBox="0 0 11 14" fill="currentColor" aria-hidden="true">
                             <rect x="2" y="6" width="7" height="7" rx="1.2"/>
                             <path id="arLockShackle" d="M2.5 6V4a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
@@ -151,9 +151,9 @@
                     </button>
                 </div>
                 <div class="tool-group">
-                    <button id="zoomOut" class="tool" type="button" title="Zoom out">&minus;</button>
+                    <button id="zoomOut" class="tool" type="button" title="Zoom out" aria-label="Zoom out">&minus;</button>
                     <span id="zoomLevel" class="zoom-level">100%</span>
-                    <button id="zoomIn" class="tool" type="button" title="Zoom in">+</button>
+                    <button id="zoomIn" class="tool" type="button" title="Zoom in" aria-label="Zoom in">+</button>
                     <button id="zoomFit" class="tool" type="button" title="Fit to view">Fit</button>
                 </div>
                 <div class="tool-group">
@@ -223,39 +223,26 @@
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <!-- Help modal -->
-    <div id="helpModal" class="app-modal" aria-hidden="true" role="dialog">
+    <div id="helpModal" class="app-modal" aria-hidden="true" role="dialog" aria-modal="true">
         <div class="app-modal-dialog">
             <div class="app-modal-header">
                 <h2>How it works</h2>
-                <button class="icon-btn" id="helpClose" type="button" title="Close">&times;</button>
+                <button class="icon-btn" id="helpClose" type="button" title="Close" aria-label="Close help modal">&times;</button>
             </div>
             <div class="app-modal-body">
                 <ol class="help-steps">
                     <li><strong>Choose a canvas size</strong> — up to 200&times;200 stitches.</li>
-                    <li><strong>Image tab</strong> — upload a picture; it is pixelated and matched to real yarn colours.</li>
-                    <li><strong>AI Design tab</strong> — describe an idea and a local or cloud LLM drafts a chart for you.</li>
+                    <li><strong>Image tab</strong> — upload a picture; it pixelates and matches colours.</li>
                     <li><strong>Blank tab</strong> — start empty and paint by hand.</li>
-                    <li><strong>Custom mode</strong> — pick a yarn colour, then <em>left-click</em> a cell to stitch it and <em>right-click</em> to remove it. Drag to fill.</li>
-                    <li><strong>Legend</strong> — shows exactly which yarns and how many stitches of each you need.</li>
-                    <li><strong>Export / Save</strong> — download a PNG chart or JSON, or save the project on the server.</li>
+                    <li><strong>Custom mode</strong> — pickc a colour and click a cell to stitch it; <em>right-click</em> to clear it.</li>
+                    <li><strong>Legend</strong> — shows exactly which yarns and stitch count of each.</li>
+                    <li><strong>Export / Save</strong> — download a PNG or JSON, or save it on the server.</li>
                 </ol>
-                <p class="hint">Everything except the AI helper works fully offline. For offline AI, run Ollama or LM Studio on your machine.</p>
             </div>
         </div>
     </div>
     <script src="demo-adapter.js"></script>
     <script src="canvas-renderer.js"></script>
     <script src="app.js"></script>
-
-    <footer class="app-footer">
-        <div class="footer-content">
-            <span class="footer-brand">Cross Canvas Art Studio</span>
-            <a href="https://github.com/jonesckevin/cross-canvas-art-studio" target="_blank" rel="noopener noreferrer" title="View on GitHub" class="footer-github">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="20" height="20" fill="currentColor" aria-hidden="true">
-                    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
-                </svg>
-            </a>
-        </div>
-    </footer>
 </body>
 </html>
