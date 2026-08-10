@@ -64,6 +64,8 @@
       this.selectedIndex = -1;
       this.mode = "paint";
       this.brushSize = 1;
+      this.history = [];
+      this.historyIndex = -1;
       this._codeFormatter = null;
       this._painting = false;
       this._paintValue = -1;
@@ -103,6 +105,9 @@
         }
       }
       this._recount();
+      this.history = [];
+      this.historyIndex = -1;
+      this._pushHistory();
       this.fitToView();
     }
 
@@ -111,6 +116,9 @@
       this.height = height;
       this.cells = new Int16Array(width * height).fill(-1);
       this._recount();
+      this.history = [];
+      this.historyIndex = -1;
+      this._pushHistory();
       this.fitToView();
     }
 
@@ -284,6 +292,7 @@
     clearAll() {
       this.cells.fill(-1);
       this._recount();
+      this._pushHistory();
       this.render();
       this._notify();
     }
@@ -385,8 +394,44 @@
       }
 
       if (anyApplied) {
+        this._pushHistory();
         this._notify();
       }
+    }
+
+    _pushHistory() {
+      if (this.historyIndex < this.history.length - 1) {
+        this.history = this.history.slice(0, this.historyIndex + 1);
+      }
+      this.history.push(new Int16Array(this.cells));
+      if (this.history.length > 50) {
+        this.history.shift();
+      }
+      this.historyIndex = this.history.length - 1;
+    }
+
+    undo() {
+      if (this.historyIndex > 0) {
+        this.historyIndex--;
+        this.cells.set(this.history[this.historyIndex]);
+        this._recount();
+        this.render();
+        this._notify();
+        return true;
+      }
+      return false;
+    }
+
+    redo() {
+      if (this.historyIndex < this.history.length - 1) {
+        this.historyIndex++;
+        this.cells.set(this.history[this.historyIndex]);
+        this._recount();
+        this.render();
+        this._notify();
+        return true;
+      }
+      return false;
     }
 
     _notify() {
@@ -423,7 +468,10 @@
         if (self._painting) self._paintAt(e);
       });
       window.addEventListener("mouseup", function () {
-        self._painting = false;
+        if (self._painting) {
+          self._painting = false;
+          self._pushHistory();
+        }
         self._lastCell = -1;
       });
     }
