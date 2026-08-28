@@ -1,5 +1,5 @@
 /**
- * app.js - main UI controller for Cross Canvas Art Studio.
+ * app.js - main UI controller for Stitchee (Cross Canvas Art Studio).
  *
  * Loads config, builds the yarn palette + provider UI, and wires the three
  * design sources (image upload, AI description, blank canvas) plus the custom

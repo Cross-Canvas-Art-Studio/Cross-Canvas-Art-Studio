@@ -1,5 +1,5 @@
 """
-Cross Canvas Art Studio - Flask backend.
+Stitchee - Flask backend (Cross Canvas Art Studio).
 
 Converts uploaded images (and LLM-generated descriptions) into cross-stitch yarn
 canvas charts, matched against a curated worsted-weight yarn palette. Ships with
@@ -168,7 +168,7 @@ ALLOWED_MIME = set(UPLOAD_CFG.get('allowed_mime_types',
 #   yarn                → accept any http(s)://yarn.<DOMAIN>[:<PORT>]
 #   https://example.com → accept that exact origin
 RP_ID = os.environ.get('RP_ID', 'localhost')
-RP_NAME = os.environ.get('RP_NAME', config.get('app', {}).get('title', 'Cross Canvas Art Studio'))
+RP_NAME = os.environ.get('RP_NAME', config.get('app', {}).get('title', 'Stitchee'))
 
 _PK_EXACT_ORIGINS: set = set()
 _PK_ALLOW_LOCALHOST = False
@@ -233,7 +233,7 @@ if ALLOW_AUTH:
         logger.warning('Startup auth cleanup failed: %s', exc)
 
 logger.info('=' * 60)
-logger.info('Cross Canvas Art Studio starting')
+logger.info('Stitchee (Cross Canvas Art Studio) starting')
 logger.info('Palette colours: %d | Auth: %s | Max upload: %dMB',
             palette_manager.palette_size(), ALLOW_AUTH, MAX_UPLOAD_MB)
 logger.info('=' * 60)
@@ -365,7 +365,7 @@ def health_check():
 def index():
     return render_template(
         'index.html',
-        app_title=config.get('app', {}).get('title', 'Cross Canvas Art Studio'),
+        app_title=config.get('app', {}).get('title', 'Stitchee'),
         require_auth=REQUIRE_AUTH,
         ai_enabled=AI_ENABLED,
     )

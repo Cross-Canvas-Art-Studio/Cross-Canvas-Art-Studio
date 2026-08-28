@@ -349,8 +349,8 @@
   function handleConfig() {
     return resp({
       app: {
-        title: "Cross Canvas Art Studio",
-        subtitle: "Static demo — no server required",
+        title: "Stitchee",
+        subtitle: "Cross Canvas Art Studio · Static demo — no server required",
       },
       grid: {
         min_size: 5,

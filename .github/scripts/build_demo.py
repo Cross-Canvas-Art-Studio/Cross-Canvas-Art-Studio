@@ -14,6 +14,7 @@ The resulting _demo/ directory is a fully self-contained static site:
   - No accounts; localStorage is used for project storage.
   - No AI features.
   - Image upload works client-side via the Canvas API.
+  - Google Analytics (GA4) is injected into the <head> when GA_MEASUREMENT_ID is set.
 """
 
 import os
@@ -24,6 +25,41 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 SRC_STATIC   = os.path.join(ROOT, 'App', 'static')
 SRC_TEMPLATE = os.path.join(ROOT, 'App', 'templates', 'index.html')
 OUT_DIR      = os.path.join(ROOT, '_demo')
+
+# ── Google Analytics (GA4) ──────────────────────────────────────────────
+# ⬇⬇  ADD YOUR MEASUREMENT ID HERE  ⬇⬇
+# Paste the "G-XXXXXXXXXX" tag from Google Analytics → Admin → Data Streams.
+# Leave as-is to build the demo WITHOUT analytics (tag stays commented out).
+# You can also set it via the GA_MEASUREMENT_ID env var (e.g. in CI).
+GA_MEASUREMENT_ID = os.environ.get('GA_MEASUREMENT_ID', 'G-2962YBBV7F')
+
+
+def ga_snippet(ga_id):
+    """Standard GA4 gtag.js snippet. The tag only activates once a real ID is set."""
+    placeholder = 'G-XXXXXXXXXX'
+    if not ga_id or ga_id.strip() == placeholder or ga_id.strip().lower() in ('none', 'false', ''):
+        return (
+            '\n'
+            '    <!-- ════════════════════════════════════════════════════════ -->\n'
+            '    <!-- GOOGLE ANALYTICS (GA4) — not enabled                   -->\n'
+            '    <!-- To enable, replace G-XXXXXXXXXX with your Measurement ID  -->\n'
+            '    <!-- (Google Analytics → Admin → Data Streams) and rebuild.   -->\n'
+            '    <!-- ════════════════════════════════════════════════════════ -->\n'
+        )
+    return (
+        '\n'
+        '    <!-- ════════════════════════════════════════════════════════ -->\n'
+        '    <!-- GOOGLE ANALYTICS (GA4)                                    -->\n'
+        '    <!-- Tag: ' + ga_id + '                                         -->\n'
+        '    <!-- ════════════════════════════════════════════════════════ -->\n'
+        '    <script async src="https://www.googletagmanager.com/gtag/js?id=' + ga_id + '"></script>\n'
+        '    <script>\n'
+        '      window.dataLayer = window.dataLayer || [];\n'
+        '      function gtag(){dataLayer.push(arguments);}\n'
+        "      gtag('js', new Date());\n"
+        "      gtag('config', '" + ga_id + "');\n"
+        '    </script>\n'
+    )
 
 os.makedirs(OUT_DIR, exist_ok=True)
 
@@ -45,7 +81,7 @@ for fname in STATIC_FILES:
 with open(SRC_TEMPLATE, 'r', encoding='utf-8') as f:
     html = f.read()
 
-APP_TITLE = 'Cross Canvas Art Studio'
+APP_TITLE = 'Stitchee'
 
 # Replace Jinja template variables
 html = html.replace("{{ app_title }}", APP_TITLE)
@@ -71,6 +107,9 @@ html = html.replace(
     '<script src="canvas-renderer.js"></script>',
     '<script src="demo-adapter.js"></script>\n    <script src="canvas-renderer.js"></script>',
 )
+
+# Inject Google Analytics (GA4) into <head> — demo only, not the live Flask app
+html = html.replace('</head>', ga_snippet(GA_MEASUREMENT_ID) + '\n</head>', 1)
 
 # ── 3. Write the generated index.html ──
 out_html = os.path.join(OUT_DIR, 'index.html')

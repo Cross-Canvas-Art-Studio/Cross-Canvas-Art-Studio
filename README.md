@@ -1,6 +1,6 @@
-# Cross Canvas Art Studio
+# Stitchee
 
-Turn photos and ideas into **cross-stitch yarn canvas patterns**. Upload an
+**Cross Canvas Art Studio** — turn photos and ideas into **cross-stitch yarn canvas patterns**. Upload an
 image and the app pixelates it to a grid of yarn colours, renders each stitch as a woven cross, and produces a printable colour legend telling you exactly which yarns and how many stitches of each are needed.
 
 ![Example](example.png)  

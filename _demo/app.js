@@ -1,5 +1,5 @@
 /**
- * app.js - main UI controller for Cross Canvas Art Studio.
+ * app.js - main UI controller for Stitchee (Cross Canvas Art Studio).
  *
  * Loads config, builds the yarn palette + provider UI, and wires the three
  * design sources (image upload, AI description, blank canvas) plus the custom
@@ -64,6 +64,10 @@
       "paletteGroups",
       "toolPaint",
       "toolErase",
+      "toolFill",
+      "brushSize",
+      "btnUndo",
+      "btnRedo",
       "zoomOut",
       "zoomIn",
       "zoomLevel",
@@ -722,9 +726,24 @@
     state.canvas.setMode(mode);
     els.toolPaint.classList.toggle("active", mode === "paint");
     els.toolErase.classList.toggle("active", mode === "erase");
+    els.toolFill.classList.toggle("active", mode === "fill");
   }
   function updateZoomLabel() {
     els.zoomLevel.textContent = state.canvas.zoomPercent() + "%";
+  }
+
+  function undoAction() {
+    if (state.canvas.undo()) {
+      toast("Undo", "ok");
+      onDesignChange();
+    }
+  }
+
+  function redoAction() {
+    if (state.canvas.redo()) {
+      toast("Redo", "ok");
+      onDesignChange();
+    }
   }
 
   // ---------- projects ----------
@@ -740,6 +759,11 @@
       ? "/api/projects/" + state.currentProjectId
       : "/api/projects";
     var method = isUpdate ? "PUT" : "POST";
+
+    els.saveProjectBtn.disabled = true;
+    var originalText = els.saveProjectBtn.textContent;
+    els.saveProjectBtn.textContent = "Saving...";
+
     fetch(url, {
       method: method,
       headers: { "Content-Type": "application/json" },
@@ -751,15 +775,21 @@
         });
       })
       .then(function (res) {
+        els.saveProjectBtn.disabled = false;
+        els.saveProjectBtn.textContent = originalText;
         if (!res.ok) {
           toast(res.d.error || "Save failed", "error");
           return;
         }
+        var savedTitle = res.d.project.title || "Untitled Design";
+        els.projectTitle.value = savedTitle;
         state.currentProjectId = res.d.project.id;
         toast(isUpdate ? "Project updated" : "Project saved", "ok");
         loadProjects();
       })
       .catch(function () {
+        els.saveProjectBtn.disabled = false;
+        els.saveProjectBtn.textContent = originalText;
         toast("Save failed", "error");
       });
   }
@@ -873,12 +903,21 @@
       toast("Nothing to export", "error");
       return;
     }
-    state.canvas.exportBlob(function (blob) {
-      downloadBlob(
-        blob,
-        (els.projectTitle.value.trim() || "cross-canvas") + ".png",
-      );
-    }, 18);
+    els.exportPngBtn.disabled = true;
+    var originalText = els.exportPngBtn.textContent;
+    els.exportPngBtn.textContent = "Exporting...";
+
+    setTimeout(function () {
+      state.canvas.exportBlob(function (blob) {
+        downloadBlob(
+          blob,
+          (els.projectTitle.value.trim() || "cross-canvas") + ".png",
+        );
+        els.exportPngBtn.disabled = false;
+        els.exportPngBtn.textContent = originalText;
+        toast("PNG chart exported", "ok");
+      }, 18);
+    }, 50);
   }
 
   function exportJson() {
@@ -998,6 +1037,16 @@
     els.imgMaxColors.addEventListener("input", function () {
       els.imgMaxColorsVal.textContent = this.value;
     });
+    els.imgMaxColors.addEventListener("change", function () {
+      if (state.selectedFile) {
+        analyzeImage();
+      }
+    });
+    els.resampleMode.addEventListener("change", function () {
+      if (state.selectedFile) {
+        analyzeImage();
+      }
+    });
     els.analyzeBtn.addEventListener("click", analyzeImage);
     els.autoSizeBtn.addEventListener("click", autoSizeFromImage);
     els.arLockBtn.addEventListener("click", toggleArLock);
@@ -1044,6 +1093,12 @@
     els.toolErase.addEventListener("click", function () {
       setMode("erase");
     });
+    els.toolFill.addEventListener("click", function () {
+      setMode("fill");
+    });
+    els.brushSize.addEventListener("change", function () {
+      state.canvas.setBrushSize(this.value);
+    });
     els.zoomIn.addEventListener("click", function () {
       state.canvas.setZoom(2);
       updateZoomLabel();
@@ -1055,6 +1110,18 @@
     els.zoomFit.addEventListener("click", function () {
       state.canvas.fitToView();
       updateZoomLabel();
+    });
+    els.btnUndo.addEventListener("click", undoAction);
+    els.btnRedo.addEventListener("click", redoAction);
+    window.addEventListener("keydown", function (e) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        undoAction();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        redoAction();
+      }
     });
     els.toggleGridLines.addEventListener("change", function () {
       state.canvas.setOption("showGrid", this.checked);
@@ -1081,6 +1148,7 @@
     });
     els.importJsonInput.addEventListener("change", function () {
       if (this.files[0]) importJson(this.files[0]);
+      this.value = "";
     });
 
     // help modal Focus Management (Palette Accessibility)

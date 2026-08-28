@@ -1,8 +1,8 @@
 {
     "app": {
-        "title": "Cross Canvas Art Studio",
-        "subtitle": "Turn images and ideas into cross-stitch yarn canvas patterns",
-        "footer_text": "Cross Canvas Art Studio"
+        "title": "Stitchee",
+        "subtitle": "Cross Canvas Art Studio",
+        "footer_text": "Stitchee \u00b7 Cross Canvas Art Studio"
     },
     "upload": {
         "max_file_size_mb": 25,
