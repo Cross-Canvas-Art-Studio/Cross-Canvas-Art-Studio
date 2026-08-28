@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-build_demo.py - generates the static GitHub Pages demo from the live Flask app.
+build_site.py - generates the static GitHub Pages site from the live Flask app.
 
 What it does
 ------------
 1. Reads App/templates/index.html and strips all Flask template syntax.
 2. Removes the AI Design tab and auth-related script tags.
-3. Injects demo-adapter.js (static API shim) before canvas-renderer.js.
-4. Copies the required static assets into _demo/.
+3. Injects static-adapter.js (client-side API shim) before canvas-renderer.js.
+4. Copies the required static assets into _site/.
 
-The resulting _demo/ directory is a fully self-contained static site:
+The resulting _site/ directory is a fully self-contained static site:
   - No Python / Flask required.
   - No accounts; localStorage is used for project storage.
   - No AI features.
@@ -24,12 +24,12 @@ import shutil
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SRC_STATIC   = os.path.join(ROOT, 'App', 'static')
 SRC_TEMPLATE = os.path.join(ROOT, 'App', 'templates', 'index.html')
-OUT_DIR      = os.path.join(ROOT, '_demo')
+OUT_DIR      = os.path.join(ROOT, '_site')
 
 # ── Google Analytics (GA4) ──────────────────────────────────────────────
 # ⬇⬇  ADD YOUR MEASUREMENT ID HERE  ⬇⬇
 # Paste the "G-XXXXXXXXXX" tag from Google Analytics → Admin → Data Streams.
-# Leave as-is to build the demo WITHOUT analytics (tag stays commented out).
+# Leave as-is to build the site WITHOUT analytics (tag stays commented out).
 # You can also set it via the GA_MEASUREMENT_ID env var (e.g. in CI).
 GA_MEASUREMENT_ID = os.environ.get('GA_MEASUREMENT_ID', 'G-2962YBBV7F')
 
@@ -68,7 +68,7 @@ STATIC_FILES = [
     'style.css',
     'canvas-renderer.js',
     'app.js',
-    'demo-adapter.js',
+    'static-adapter.js',
 ]
 for fname in STATIC_FILES:
     src = os.path.join(SRC_STATIC, fname)
@@ -95,20 +95,20 @@ html = re.sub(
     html,
 )
 
-# Remove api-manager.js and auth-widget.js script tags (not needed in demo)
+# Remove api-manager.js and auth-widget.js script tags (not needed in static build)
 html = re.sub(
     r'\s*<script[^>]*(?:api-manager|auth-widget)\.js[^>]*></script>',
     '',
     html,
 )
 
-# Inject demo-adapter.js before canvas-renderer.js
+# Inject static-adapter.js before canvas-renderer.js
 html = html.replace(
     '<script src="canvas-renderer.js"></script>',
-    '<script src="demo-adapter.js"></script>\n    <script src="canvas-renderer.js"></script>',
+    '<script src="static-adapter.js"></script>\n    <script src="canvas-renderer.js"></script>',
 )
 
-# Inject Google Analytics (GA4) into <head> — demo only, not the live Flask app
+# Inject Google Analytics (GA4) into <head> — static site only, not the server app
 html = html.replace('</head>', ga_snippet(GA_MEASUREMENT_ID) + '\n</head>', 1)
 
 # ── 3. Write the generated index.html ──
@@ -117,4 +117,4 @@ with open(out_html, 'w', encoding='utf-8') as f:
     f.write(html)
 print(f'  wrote   index.html')
 
-print(f'\nDemo built → {OUT_DIR}')
+print(f'\nSite built → {OUT_DIR}')

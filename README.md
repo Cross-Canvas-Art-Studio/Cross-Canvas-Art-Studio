@@ -3,11 +3,39 @@
 **Cross Canvas Art Studio** — turn photos and ideas into **cross-stitch yarn canvas patterns**. Upload an
 image and the app pixelates it to a grid of yarn colours, renders each stitch as a woven cross, and produces a printable colour legend telling you exactly which yarns and how many stitches of each are needed.
 
-![Example](example.png)  
+![Example](example.png)
 
 ---
 
-## Quick start
+## Live site — minimal production
+
+**Stitchee is live at [https://stitchee.ca](https://stitchee.ca)** — a lightweight,
+client-side build with no server, no accounts, and no backend storage. Pixelation, the
+yarn legend, and saved projects all run in your browser (projects are kept in
+`localStorage`).
+
+Deployment is GitHub Pages via
+[`.github/workflows/pages.yml`](.github/workflows/pages.yml), which runs
+[`.github/scripts/build_site.py`](.github/scripts/build_site.py) to generate the static
+site into `_site/` — a stripped-down build of the full app (no auth, no AI, no upload
+backend).
+
+### Rebuild locally
+
+```sh
+python .github/scripts/build_site.py   # regenerates ./_site
+```
+
+### Deploy
+
+The Pages workflow redeploys automatically on every push to `main`, or run it manually
+from **Actions → Stitchee - GitHub Pages → Run workflow**.
+
+---
+
+## Self-hosted (full app)
+
+The full-featured app (accounts, AI design, file storage) runs in Docker:
 
 ### Docker Compose
 

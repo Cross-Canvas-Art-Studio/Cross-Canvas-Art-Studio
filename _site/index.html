@@ -8,10 +8,16 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%237c3aed'/%3E%3Cpath d='M8 8l16 16M24 8L8 24' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
 
     <!-- ════════════════════════════════════════════════════════ -->
-    <!-- GOOGLE ANALYTICS (GA4) — not enabled                   -->
-    <!-- To enable, replace G-XXXXXXXXXX with your Measurement ID  -->
-    <!-- (Google Analytics → Admin → Data Streams) and rebuild.   -->
+    <!-- GOOGLE ANALYTICS (GA4)                                    -->
+    <!-- Tag: G-2962YBBV7F                                         -->
     <!-- ════════════════════════════════════════════════════════ -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-2962YBBV7F"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-2962YBBV7F');
+    </script>
 
 </head>
 <body>
@@ -217,6 +223,7 @@
                 </div>
                 <p class="hint">Colours used in your design. Click a row to paint with it.</p>
                 <div id="legendList" class="legend-list"></div>
+                <a id="buyYarnBtn" class="btn-primary full buy-yarn" href="#" target="_blank" rel="sponsored noopener" style="display:none">Buy these yarns</a>
             </section>
 
             <section class="panel">
@@ -265,7 +272,7 @@
             </div>
         </div>
     </div>
-    <script src="demo-adapter.js"></script>
+    <script src="static-adapter.js"></script>
     <script src="canvas-renderer.js"></script>
     <script src="app.js"></script>
 </body>

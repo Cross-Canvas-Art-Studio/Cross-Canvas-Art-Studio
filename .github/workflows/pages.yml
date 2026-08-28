@@ -1,4 +1,4 @@
-name: Demo - GitHub Pages
+name: Stitchee - GitHub Pages
 
 # GitHub Pages whenever main is pushed, or on demand.
 # Requirements (one-time, in repo Settings → Pages):
@@ -25,13 +25,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build static demo
-        run: python3 .github/scripts/build_demo.py
+      - name: Build site
+        run: python3 .github/scripts/build_site.py
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./_demo
+          path: ./_site
 
   # ── Deploy ──
   deploy:

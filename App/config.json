@@ -2,7 +2,14 @@
     "app": {
         "title": "Stitchee",
         "subtitle": "Cross Canvas Art Studio",
-        "footer_text": "Stitchee \u00b7 Cross Canvas Art Studio"
+        "footer_text": "Stitchee \u00b7 Cross Canvas Art Studio",
+        "affiliate": {
+            "enabled": true,
+            "label": "Buy these yarns",
+            "tag": "YOUR_AFFILIATE_TAG",
+            "base_query": "worsted weight yarn",
+            "url_template": "https://www.amazon.com/s?k={query}&tag={tag}"
+        }
     },
     "upload": {
         "max_file_size_mb": 25,

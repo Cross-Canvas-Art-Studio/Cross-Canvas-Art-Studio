@@ -1,5 +1,5 @@
 /**
- * demo-adapter.js – static API shim for the GitHub Pages demo.
+ * static-adapter.js – client-side API shim for the GitHub Pages site.
  *
  * Intercepts window.fetch() before app.js runs and provides client-side
  * implementations of every backend endpoint the UI calls:
@@ -10,7 +10,7 @@
  *   /api/projects/:id    → load / update / delete single project
  *
  * Also provides a stub window.llmAPIManager (api-manager.js is excluded from
- * the demo build, but app.js still references it).
+ * the static build, but app.js still references it).
  */
 (function () {
   "use strict";
@@ -292,7 +292,7 @@
     return PALETTE[best].index;
   }
 
-  // ── llmAPIManager stub (api-manager.js is excluded from demo build) ──
+  // ── llmAPIManager stub (api-manager.js is excluded from static build) ──
   window.llmAPIManager = {
     setServerKeys: function () {},
     requiresKey: function () {
@@ -317,10 +317,20 @@
   };
 
   // ── localStorage project store ──
-  var PROJ_KEY = "cca_demo_projects";
+  // One-time migration from the legacy "cca_demo_projects" key so saved
+  // projects survive the rename to the production store.
+  var LEGACY_PROJ_KEY = "cca_demo_projects";
+  var PROJ_KEY = "stitchee_projects";
 
   function loadStore() {
     try {
+      if (
+        localStorage.getItem(PROJ_KEY) === null &&
+        localStorage.getItem(LEGACY_PROJ_KEY) !== null
+      ) {
+        localStorage.setItem(PROJ_KEY, localStorage.getItem(LEGACY_PROJ_KEY));
+        localStorage.removeItem(LEGACY_PROJ_KEY);
+      }
       return JSON.parse(localStorage.getItem(PROJ_KEY) || "{}");
     } catch (e) {
       return {};
@@ -350,7 +360,14 @@
     return resp({
       app: {
         title: "Stitchee",
-        subtitle: "Cross Canvas Art Studio · Static demo — no server required",
+        subtitle: "Cross Canvas Art Studio",
+        affiliate: {
+          enabled: true,
+          label: "Buy these yarns",
+          tag: "jonesckevin-20",
+          base_query: "worsted weight yarn",
+          url_template: "https://www.amazon.com/s?k={query}&tag={tag}",
+        },
       },
       grid: {
         min_size: 5,

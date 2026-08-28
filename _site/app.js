@@ -84,6 +84,7 @@
       "infoColors",
       "legendList",
       "legendCount",
+      "buyYarnBtn",
       "exportPngBtn",
       "exportJsonBtn",
       "importJsonBtn",
@@ -649,6 +650,37 @@
     toast("Blank " + gs.w + "×" + gs.h + " canvas ready", "ok");
   }
 
+  // ---------- affiliate "buy these yarns" ----------
+  function affiliateConfig() {
+    return (state.config && state.config.app && state.config.app.affiliate) || null;
+  }
+
+  function updateBuyYarn(used) {
+    var btn = els.buyYarnBtn;
+    if (!btn) return;
+    var af = affiliateConfig();
+    var isConfigured =
+      af && af.enabled && af.tag && af.tag !== "YOUR_AFFILIATE_TAG" && af.tag.indexOf("YOUR_") !== 0;
+    if (!isConfigured || !used.length) {
+      btn.style.display = "none";
+      return;
+    }
+    var names = used
+      .slice(0, 5)
+      .map(function (u) {
+        return u.name;
+      })
+      .join(" ");
+    var query = ((af.base_query || "worsted weight yarn") + " " + names).trim();
+    var template =
+      af.url_template || "https://www.amazon.com/s?k={query}&tag={tag}";
+    btn.href = template
+      .replace("{query}", encodeURIComponent(query))
+      .replace("{tag}", encodeURIComponent(af.tag));
+    btn.textContent = af.label || "Buy these yarns";
+    btn.style.display = "block";
+  }
+
   // ---------- legend + info ----------
   function onDesignChange() {
     var counts = state.canvas.getCounts();
@@ -698,6 +730,8 @@
         els.legendList.appendChild(row);
       });
     }
+
+    updateBuyYarn(used);
 
     if (!state.canvas.isEmpty()) {
       els.infoDims.textContent =
