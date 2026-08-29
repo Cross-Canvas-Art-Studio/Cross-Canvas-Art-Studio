@@ -1043,6 +1043,7 @@ body.modal-open {
     grid-template-columns: 1fr;
     grid-template-rows: none;
     overflow: visible;
+    padding: 8px;
   }
   .sidebar {
     position: static;
@@ -1053,6 +1054,11 @@ body.modal-open {
   }
   .canvas-area {
     order: 2;
+    overflow: visible;
+    /* Explicit min-height so the drawing area can't collapse on mobile
+       (auto-height flex panel + grid row sizing ignores the canvas-wrap's
+       min-height, which made the canvas overflow the panel). */
+    min-height: 70vh;
   }
 }
 ::-webkit-scrollbar {
