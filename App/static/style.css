@@ -82,6 +82,15 @@ textarea {
 }
 
 /* ---------- Header ---------- */
+.app-shell {
+  /* Fixed full-viewport app column; the About section and footer scroll
+     below it on the page (no hardcoded header-height guess). */
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 .app-header {
   display: flex;
   align-items: center;
@@ -119,15 +128,14 @@ textarea {
 
 /* ---------- Layout ---------- */
 .layout {
-  flex: 0 0 auto;
-  height: calc(100vh - 54px);
-  min-height: 480px;
+  flex: 1;
   display: grid;
   grid-template-columns: 280px 1fr 270px;
   grid-template-rows: minmax(0, 1fr);
   gap: 10px;
   padding: 10px;
   align-items: stretch;
+  min-height: 0;
   overflow: hidden;
 }
 .sidebar {
@@ -1057,13 +1065,14 @@ body.modal-open {
   body {
     overflow-y: auto;
   }
+  .app-shell {
+    height: auto;
+  }
   .layout {
     grid-template-columns: 1fr;
     grid-template-rows: none;
     overflow: visible;
     padding: 8px;
-    height: auto;
-    flex: 1 1 auto;
   }
   .sidebar {
     position: static;
