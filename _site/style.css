@@ -332,8 +332,10 @@ textarea {
   cursor: pointer;
   min-height: 100px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 6px;
 }
 .drop-zone.dragover {
   border-color: var(--brand);
@@ -352,6 +354,12 @@ textarea {
   max-height: 180px;
   border-radius: 8px;
   object-fit: contain;
+  width: auto;
+  margin: 0 auto;
+}
+/* When a photo is uploaded, show only the preview and hide the "Drop an image" prompt. */
+.drop-zone:has(#uploadPreview:not([hidden])) .drop-inner {
+  display: none;
 }
 
 /* ---------- Selected yarn + palette ---------- */
@@ -381,7 +389,6 @@ textarea {
 }
 
 .palette-groups {
-  /* No height cap — always show every yarn colour so the palette is fully available. */
   padding-right: 4px;
 }
 .palette-family {
@@ -394,12 +401,12 @@ textarea {
 .swatch-grid {
   display: grid;
   grid-template-columns: repeat(9, 1fr);
-  gap: 5px;
+  gap: 4px;
 }
 .swatch-btn {
   aspect-ratio: 1;
   border-radius: 5px;
-  border: 2px solid transparent;
+  border: 2px solid;
   padding: 0;
   cursor: pointer;
   position: relative;

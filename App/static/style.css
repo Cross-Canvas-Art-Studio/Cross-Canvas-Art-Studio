@@ -332,8 +332,10 @@ textarea {
   cursor: pointer;
   min-height: 100px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 6px;
 }
 .drop-zone.dragover {
   border-color: var(--brand);
@@ -352,6 +354,12 @@ textarea {
   max-height: 180px;
   border-radius: 8px;
   object-fit: contain;
+  width: auto;
+  margin: 0 auto;
+}
+/* When a photo is uploaded, show only the preview and hide the "Drop an image" prompt. */
+.drop-zone:has(#uploadPreview:not([hidden])) .drop-inner {
+  display: none;
 }
 
 /* ---------- Selected yarn + palette ---------- */
