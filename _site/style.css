@@ -381,8 +381,7 @@ textarea {
 }
 
 .palette-groups {
-  max-height: 260px;
-  overflow-y: auto;
+  /* No height cap — always show every yarn colour so the palette is fully available. */
   padding-right: 4px;
 }
 .palette-family {
