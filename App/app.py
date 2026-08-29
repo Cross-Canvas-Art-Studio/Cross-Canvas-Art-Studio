@@ -363,9 +363,15 @@ def health_check():
 
 @app.route('/')
 def index():
+    _seo = config.get('seo', {})
     return render_template(
         'index.html',
         app_title=config.get('app', {}).get('title', 'Stitchee'),
+        seo_title=_seo.get('title', 'Stitchee \u2014 Free Cross-Stitch Pattern Maker and Yarn Canvas Designer'),
+        seo_description=_seo.get('description', 'Turn photos and ideas into cross-stitch yarn canvas patterns.'),
+        seo_url=_seo.get('url', ''),
+        seo_image=_seo.get('image', ''),
+        seo_site_name=_seo.get('site_name', 'Stitchee'),
         require_auth=REQUIRE_AUTH,
         ai_enabled=AI_ENABLED,
     )

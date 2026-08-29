@@ -3,9 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stitchee</title>
+    <title>Stitchee — Free Cross-Stitch Pattern Maker and Yarn Canvas Designer</title>
+    <meta name="description" content="Turn photos and ideas into cross-stitch yarn canvas patterns. Upload an image, pick your yarn colours, and generate a printable chart with exact stitch counts.">
+    <link rel="canonical" href="https://stitchee.ca/">
     <link rel="stylesheet" href="style.css">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%237c3aed'/%3E%3Cpath d='M8 8l16 16M24 8L8 24' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Stitchee">
+    <meta property="og:title" content="Stitchee — Free Cross-Stitch Pattern Maker and Yarn Canvas Designer">
+    <meta property="og:description" content="Turn photos and ideas into cross-stitch yarn canvas patterns. Upload an image, pick your yarn colours, and generate a printable chart with exact stitch counts.">
+    <meta property="og:url" content="https://stitchee.ca/">
+    <meta property="og:image" content="https://stitchee.ca/og-image.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Stitchee — Free Cross-Stitch Pattern Maker and Yarn Canvas Designer">
+    <meta name="twitter:description" content="Turn photos and ideas into cross-stitch yarn canvas patterns. Upload an image, pick your yarn colours, and generate a printable chart with exact stitch counts.">
+    <meta name="twitter:image" content="https://stitchee.ca/og-image.png">
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Stitchee",
+      "url": "https://stitchee.ca/",
+      "description": "Turn photos and ideas into cross-stitch yarn canvas patterns. Upload an image, pick your yarn colours, and generate a printable chart with exact stitch counts.",
+      "applicationCategory": "MultimediaApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "CAD"
+      }
+    }
+    </script>
 
     <!-- ════════════════════════════════════════════════════════ -->
     <!-- GOOGLE ANALYTICS (GA4)                                    -->
@@ -26,7 +55,7 @@
     <!-- ════════════════════════════════════════════════════════ -->
 
 </head>
-<body>
+<body id="top">
     <header class="app-header">
         <div class="brand">
             <span class="brand-logo" aria-hidden="true">
@@ -42,7 +71,7 @@
                 </svg>
             </span>
             <div class="brand-text">
-                <h1>Stitchee</h1>
+                <h1>Stitchee<span class="visually-hidden"> — Free cross-stitch pattern maker and yarn canvas designer</span></h1>
                 <p id="brandSubtitle">Cross-stitch yarn canvas designer</p>
             </div>
         </div>
@@ -257,6 +286,56 @@
         </aside>
     </main>
 
+    <!-- ============ ABOUT / SEO CONTENT ============ -->
+    <section class="site-about" id="about" aria-labelledby="aboutHeading">
+        <div class="about-inner">
+            <h2 id="aboutHeading">Turn photos into cross-stitch patterns</h2>
+            <p>Stitchee is a free, browser-based cross-stitch pattern maker. Upload a photo and it is
+            pixelated into a grid of yarn colours, with every stitch rendered as a woven cross on a
+            virtual canvas. Pick your own palette, paint by hand, or start from a blank canvas.</p>
+            <p>When you are happy with your design, Stitchee builds a yarn legend that shows exactly
+            which colours you need and how many stitches of each, then exports it as a crisp PNG
+            chart you can print or share. Everything runs in your browser, so your projects stay
+            private and there is nothing to install.</p>
+            <div class="feature-grid" id="features">
+                <div class="feature">
+                    <h3>Photo to pattern</h3>
+                    <p>Drop in any image and Stitchee pixelates it and matches every cell to the
+                    nearest yarn colour in your palette.</p>
+                </div>
+                <div class="feature">
+                    <h3>Yarn colour matching</h3>
+                    <p>Choose from a rich palette of real yarn colours, or filter to find the exact
+                    shade you have in your stash.</p>
+                </div>
+                <div class="feature">
+                    <h3>Printable legend</h3>
+                    <p>Get an automatic yarn legend with the exact colours and stitch counts you need
+                    for every part of your design.</p>
+                </div>
+                <div class="feature">
+                    <h3>Export and save</h3>
+                    <p>Download your chart as a high-resolution PNG, save your project as JSON, and
+                    come back to it later — all in your browser.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="app-footer">
+        <div class="footer-inner">
+            <p class="footer-blurb">Stitchee · Cross Canvas Art Studio — turn photos and ideas into
+            printable cross-stitch yarn canvas patterns, free and straight in your browser.</p>
+            <nav class="footer-nav" aria-label="Footer">
+                <a href="#about">About</a>
+                <a href="#features">Features</a>
+                <a href="#top">Back to top</a>
+                <a href="https://github.com/Cross-Canvas-Art-Studio/Cross-Canvas-Art-Studio" target="_blank" rel="noopener">GitHub</a>
+            </nav>
+            <p class="footer-meta">&copy; <span id="footerYear">2026</span> Stitchee. Projects are stored in your browser only.</p>
+        </div>
+    </footer>
+
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <!-- Help modal -->
@@ -278,8 +357,6 @@
             </div>
         </div>
     </div>
-    <script src="static-adapter.js"></script>
-    <script src="canvas-renderer.js"></script>
-    <script src="app.js"></script>
+    <script src="app.bundle.js"></script>
 </body>
 </html>

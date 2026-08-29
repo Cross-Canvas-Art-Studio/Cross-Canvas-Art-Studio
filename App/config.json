@@ -11,6 +11,14 @@
             "url_template": "https://www.amazon.com/s?k={query}&tag={tag}"
         }
     },
+    "seo": {
+        "title": "Stitchee \u2014 Free Cross-Stitch Pattern Maker and Yarn Canvas Designer",
+        "description": "Turn photos and ideas into cross-stitch yarn canvas patterns. Upload an image, pick your yarn colours, and generate a printable chart with exact stitch counts.",
+        "url": "https://stitchee.ca/",
+        "image": "https://stitchee.ca/og-image.png",
+        "site_name": "Stitchee",
+        "github_url": "https://github.com/Cross-Canvas-Art-Studio/Cross-Canvas-Art-Studio"
+    },
     "upload": {
         "max_file_size_mb": 25,
         "allowed_extensions": [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"],

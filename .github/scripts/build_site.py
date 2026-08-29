@@ -16,8 +16,12 @@ The resulting _site/ directory is a fully self-contained static site:
   - Image upload works client-side via the Canvas API.
   - Google Analytics (GA4) is injected into the <head> when GA_MEASUREMENT_ID is set.
   - Cloudflare Web Analytics is injected into the <head> when CF_ANALYTICS_TOKEN is set.
+  - SEO meta (title, description, canonical, OG/Twitter, JSON-LD) comes from App/config.json.
+  - The three local scripts are bundled into a single app.bundle.js.
+  - A CNAME file pins the stitchee.ca custom domain for GitHub Pages.
 """
 
+import json
 import os
 import re
 import shutil
@@ -25,6 +29,7 @@ import shutil
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SRC_STATIC   = os.path.join(ROOT, 'App', 'static')
 SRC_TEMPLATE = os.path.join(ROOT, 'App', 'templates', 'index.html')
+CONFIG_PATH  = os.path.join(ROOT, 'App', 'config.json')
 OUT_DIR      = os.path.join(ROOT, '_site')
 
 # ── Google Analytics (GA4) ──────────────────────────────────────────────
@@ -91,14 +96,32 @@ def cf_snippet(token):
         "data-cf-beacon='{\"token\": \"" + token + "\"}'></script>\n"
     )
 
+
+# ── SEO meta (title, description, canonical, social) ──────────────────
+# Read from App/config.json so the Flask app and the static site stay in
+# sync. Values are substituted into the <head> of the generated index.html.
+def load_seo():
+    try:
+        with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+            return json.load(f).get('seo', {})
+    except Exception:
+        return {}
+
+
+SEO = load_seo()
+SEO_TITLE       = SEO.get('title', 'Stitchee \u2014 Free Cross-Stitch Pattern Maker and Yarn Canvas Designer')
+SEO_DESCRIPTION = SEO.get('description', '')
+SEO_URL         = SEO.get('url', 'https://stitchee.ca/')
+SEO_IMAGE       = SEO.get('image', 'https://stitchee.ca/og-image.png')
+SEO_SITE_NAME   = SEO.get('site_name', 'Stitchee')
+
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # ── 1. Copy required static assets ──
 STATIC_FILES = [
     'style.css',
-    'canvas-renderer.js',
-    'app.js',
-    'static-adapter.js',
+    'apple-touch-icon.png',
+    'og-image.png',
 ]
 for fname in STATIC_FILES:
     src = os.path.join(SRC_STATIC, fname)
@@ -118,6 +141,13 @@ html = html.replace("{{ app_title }}", APP_TITLE)
 html = html.replace("{{ 'true' if require_auth else 'false' }}", "false")
 html = html.replace("{{ 'true' if ai_enabled else 'false' }}",   "false")
 
+# Replace SEO Jinja variables (title, description, canonical, social)
+html = html.replace("{{ seo_title }}", SEO_TITLE)
+html = html.replace("{{ seo_description }}", SEO_DESCRIPTION)
+html = html.replace("{{ seo_url }}", SEO_URL)
+html = html.replace("{{ seo_image }}", SEO_IMAGE)
+html = html.replace("{{ seo_site_name }}", SEO_SITE_NAME)
+
 # Replace url_for() with plain relative paths
 html = re.sub(
     r"\{\{ url_for\('static', filename='([^']+)'\) \}\}",
@@ -132,10 +162,30 @@ html = re.sub(
     html,
 )
 
-# Inject static-adapter.js before canvas-renderer.js
+# ── 2b. Bundle the local scripts into a single app.bundle.js ──
+# Order matters: static-adapter.js (API shim) first, then canvas-renderer.js
+# (defines CrossStitchCanvas), then app.js (UI controller). All three are
+# IIFEs, so concatenation is safe.
+bundle_parts = []
+for fname in ('static-adapter.js', 'canvas-renderer.js', 'app.js'):
+    with open(os.path.join(SRC_STATIC, fname), 'r', encoding='utf-8') as f:
+        bundle_parts.append(f.read())
+bundle = '\n'.join(bundle_parts)
+with open(os.path.join(OUT_DIR, 'app.bundle.js'), 'w', encoding='utf-8') as f:
+    f.write(bundle)
+print(f'  wrote   app.bundle.js ({len(bundle)} bytes)')
+
+# Remove any stale copies of the individual scripts from a previous build
+for stale in ('static-adapter.js', 'canvas-renderer.js', 'app.js'):
+    stale_path = os.path.join(OUT_DIR, stale)
+    if os.path.exists(stale_path):
+        os.remove(stale_path)
+
+# Replace the individual <script> tags (canvas-renderer.js + app.js, the
+# static-adapter.js tag is added by this build) with the single bundle tag
 html = html.replace(
-    '<script src="canvas-renderer.js"></script>',
-    '<script src="static-adapter.js"></script>\n    <script src="canvas-renderer.js"></script>',
+    '<script src="canvas-renderer.js"></script>\n    <script src="app.js"></script>',
+    '<script src="app.bundle.js"></script>',
 )
 
 # Inject Google Analytics (GA4) and Cloudflare Web Analytics into <head> —
@@ -151,5 +201,10 @@ out_html = os.path.join(OUT_DIR, 'index.html')
 with open(out_html, 'w', encoding='utf-8') as f:
     f.write(html)
 print(f'  wrote   index.html')
+
+# ── 4. Custom domain file for GitHub Pages (pins the stitchee.ca domain) ──
+with open(os.path.join(OUT_DIR, 'CNAME'), 'w', encoding='utf-8') as f:
+    f.write('stitchee.ca\n')
+print('  wrote   CNAME')
 
 print(f'\nSite built → {OUT_DIR}')
