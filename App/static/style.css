@@ -381,7 +381,6 @@ textarea {
 }
 
 .palette-groups {
-  /* No height cap — always show every yarn colour so the palette is fully available. */
   padding-right: 4px;
 }
 .palette-family {
@@ -394,12 +393,12 @@ textarea {
 .swatch-grid {
   display: grid;
   grid-template-columns: repeat(9, 1fr);
-  gap: 5px;
+  gap: 4px;
 }
 .swatch-btn {
   aspect-ratio: 1;
   border-radius: 5px;
-  border: 2px solid transparent;
+  border: 2px solid;
   padding: 0;
   cursor: pointer;
   position: relative;
