@@ -25,6 +25,8 @@ import json
 import os
 import re
 import shutil
+import subprocess
+import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SRC_STATIC   = os.path.join(ROOT, 'App', 'static')
@@ -195,6 +197,29 @@ html = html.replace(
     ga_snippet(GA_MEASUREMENT_ID) + cf_snippet(CF_ANALYTICS_TOKEN) + '\n</head>',
     1,
 )
+
+# ── 2c. Cache-busting ───────────────────────────────────────────────
+# GitHub Pages serves assets with max-age=14400 (4h) and asset filenames
+# never change, so returning visitors keep a stale stylesheet/script after
+# each deploy (e.g. new footer HTML with old CSS). Append a per-build
+# version to the CSS/JS URLs so every deploy gets a fresh asset URL.
+def build_version():
+    try:
+        sha = subprocess.check_output(
+            ['git', 'rev-parse', '--short', 'HEAD'],
+            cwd=ROOT, stderr=subprocess.DEVNULL,
+        ).decode().strip()
+        if sha:
+            return sha
+    except Exception:
+        pass
+    return time.strftime('%Y%m%d%H%M%S')
+
+
+VERSION = build_version()
+html = html.replace('href="style.css"', 'href="style.css?v=' + VERSION + '"')
+html = html.replace('src="app.bundle.js"', 'src="app.bundle.js?v=' + VERSION + '"')
+print(f'  cache-bust v{VERSION}')
 
 # ── 3. Write the generated index.html ──
 out_html = os.path.join(OUT_DIR, 'index.html')
