@@ -33,6 +33,7 @@ body {
   margin: 0;
   padding: 0;
   height: 100%;
+  overflow: hidden;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
@@ -104,17 +105,21 @@ textarea {
   flex: 1;
   display: grid;
   grid-template-columns: 280px 1fr 270px;
+  grid-template-rows: minmax(0, 1fr);
   gap: 10px;
   padding: 10px;
-  align-items: start;
+  align-items: stretch;
   min-height: 0;
+  overflow: hidden;
 }
 .sidebar {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  position: sticky;
-  top: 70px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
 }
 .canvas-area {
   display: flex;
@@ -124,7 +129,8 @@ textarea {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 10px;
-  min-height: 70vh;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* ---------- Panels ---------- */
@@ -532,7 +538,7 @@ textarea {
     -10px 0;
   background-color: #0c0e14;
   border-radius: 8px;
-  min-height: 55vh;
+  min-height: 0;
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
@@ -1024,11 +1030,17 @@ body.modal-open {
 
 /* ---------- Responsive ---------- */
 @media (max-width: 1100px) {
+  body {
+    overflow-y: auto;
+  }
   .layout {
     grid-template-columns: 1fr;
+    grid-template-rows: none;
+    overflow: visible;
   }
   .sidebar {
     position: static;
+    overflow: visible;
   }
   .sidebar.right {
     order: 3;

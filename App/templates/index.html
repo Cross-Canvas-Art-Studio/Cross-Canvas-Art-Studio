@@ -38,6 +38,21 @@
         <aside class="sidebar" aria-label="Design controls">
             <section class="panel">
                 <div class="panel-head">
+                    <h2>Yarn palette</h2>
+                    <input type="search" id="paletteSearch" placeholder="Filter…" class="mini-search">
+                </div>
+                <div class="selected-yarn">
+                    <span class="swatch lg" id="selectedSwatch"></span>
+                    <div>
+                        <strong id="selectedName">&mdash;</strong>
+                    </div>
+                </div>
+                <div id="codeFormats" class="code-formats" aria-label="Colour label format"></div>
+                <div id="paletteGroups" class="palette-groups"></div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-head">
                     <h2>Canvas size</h2>
                 </div>
                 <div class="grid-size-row">
@@ -58,86 +73,6 @@
                     <span class="hint" id="sizeHint">stitches (max 200)</span>
                     <span class="hint" id="imgDimsHint" hidden></span>
                 </div>
-            </section>
-
-            <section class="panel">
-                <div class="tabs" role="tablist">
-                    <button class="tab active" data-source-tab="upload" role="tab" type="button">Image</button>
-                    <button class="tab" data-source-tab="ai" role="tab" type="button">AI Design</button>
-                    <button class="tab" data-source-tab="blank" role="tab" type="button">Blank</button>
-                </div>
-
-                <!-- Upload image -->
-                <div class="source-panel" id="sourceUpload">
-                    <div class="drop-zone" id="dropZone" tabindex="0">
-                        <input type="file" id="imageInput" accept="image/*" hidden>
-                        <div class="drop-inner">
-                            <span class="drop-icon" aria-hidden="true">&#128247;</span>
-                            <p><strong>Drop an image</strong> or click to browse</p>
-                            <p class="hint">PNG, JPG, GIF, BMP, WEBP</p>
-                        </div>
-                        <img id="uploadPreview" alt="Selected image preview" hidden>
-                    </div>
-                    <label class="slider-label">Max yarn colours: <output id="imgMaxColorsVal">16</output>
-                        <input type="range" id="imgMaxColors" min="2" max="52" value="16">
-                    </label>
-                    <label class="select-label">Detail
-                        <select id="resampleMode">
-                            <option value="smooth" selected>Smooth (blend colours)</option>
-                            <option value="balanced">Balanced</option>
-                            <option value="blocky">Blocky (sharp pixels)</option>
-                        </select>
-                    </label>
-                    <button id="analyzeBtn" class="btn-primary full" type="button" disabled>Render to canvas</button>
-                </div>
-
-                <!-- AI design -->
-                <div class="source-panel" id="sourceAI" hidden>
-                    <div class="field-row">
-                        <label class="select-label">Provider
-                            <select id="aiProvider"></select>
-                        </label>
-                        <button id="aiTestBtn" class="btn-secondary" type="button" title="Test connection &amp; load models">Test</button>
-                    </div>
-                    <label class="select-label">Model
-                        <select id="aiModel"><option value="">Test connection to load models</option></select>
-                    </label>
-                    <div id="aiKeyRow" class="field-row" hidden>
-                        <label class="select-label full">API key
-                            <input type="password" id="aiApiKey" placeholder="Stored in your browser only" autocomplete="off">
-                        </label>
-                    </div>
-                    <label class="area-label">Describe your design
-                        <textarea id="aiDescription" rows="4" placeholder="e.g. A white Christian cross in a stained-glass window with blue, green and red panels"></textarea>
-                    </label>
-                    <label class="slider-label">Max yarn colours: <output id="aiMaxColorsVal">10</output>
-                        <input type="range" id="aiMaxColors" min="2" max="24" value="10">
-                    </label>
-                    <p class="hint">The AI describes shapes that the server renders at your exact canvas size &mdash; no size limit. Start at 32&times;32 then enlarge.</p>
-                    <button id="generateBtn" class="btn-primary full" type="button">Generate design</button>
-                    <p class="ai-status" id="aiStatus" role="status"></p>
-                </div>
-
-                <!-- Blank -->
-                <div class="source-panel" id="sourceBlank" hidden>
-                    <p class="hint">Start from an empty canvas and paint it by hand with the yarn palette below.</p>
-                    <button id="newBlankBtn" class="btn-primary full" type="button">New blank canvas</button>
-                </div>
-            </section>
-
-            <section class="panel">
-                <div class="panel-head">
-                    <h2>Yarn palette</h2>
-                    <input type="search" id="paletteSearch" placeholder="Filter…" class="mini-search">
-                </div>
-                <div class="selected-yarn">
-                    <span class="swatch lg" id="selectedSwatch"></span>
-                    <div>
-                        <strong id="selectedName">&mdash;</strong>
-                    </div>
-                </div>
-                <div id="codeFormats" class="code-formats" aria-label="Colour label format"></div>
-                <div id="paletteGroups" class="palette-groups"></div>
             </section>
         </aside>
 
@@ -202,7 +137,72 @@
         </section>
 
         <!-- ============ RIGHT: LEGEND + PROJECTS ============ -->
-        <aside class="sidebar right" aria-label="Legend and projects">
+        <aside class="sidebar right" aria-label="Upload, legend and projects">
+            <section class="panel">
+                <div class="tabs" role="tablist">
+                    <button class="tab active" data-source-tab="upload" role="tab" type="button">Image</button>
+                    <button class="tab" data-source-tab="ai" role="tab" type="button">AI Design</button>
+                    <button class="tab" data-source-tab="blank" role="tab" type="button">Blank</button>
+                </div>
+
+                <!-- Upload image -->
+                <div class="source-panel" id="sourceUpload">
+                    <div class="drop-zone" id="dropZone" tabindex="0">
+                        <input type="file" id="imageInput" accept="image/*" hidden>
+                        <div class="drop-inner">
+                            <span class="drop-icon" aria-hidden="true">&#128247;</span>
+                            <p><strong>Drop an image</strong> or click to browse</p>
+                            <p class="hint">PNG, JPG, GIF, BMP, WEBP</p>
+                        </div>
+                        <img id="uploadPreview" alt="Selected image preview" hidden>
+                    </div>
+                    <label class="slider-label">Max yarn colours: <output id="imgMaxColorsVal">16</output>
+                        <input type="range" id="imgMaxColors" min="2" max="52" value="16">
+                    </label>
+                    <label class="select-label">Detail
+                        <select id="resampleMode">
+                            <option value="smooth" selected>Smooth (blend colours)</option>
+                            <option value="balanced">Balanced</option>
+                            <option value="blocky">Blocky (sharp pixels)</option>
+                        </select>
+                    </label>
+                    <button id="analyzeBtn" class="btn-primary full" type="button" disabled>Render to canvas</button>
+                </div>
+
+                <!-- AI design -->
+                <div class="source-panel" id="sourceAI" hidden>
+                    <div class="field-row">
+                        <label class="select-label">Provider
+                            <select id="aiProvider"></select>
+                        </label>
+                        <button id="aiTestBtn" class="btn-secondary" type="button" title="Test connection &amp; load models">Test</button>
+                    </div>
+                    <label class="select-label">Model
+                        <select id="aiModel"><option value="">Test connection to load models</option></select>
+                    </label>
+                    <div id="aiKeyRow" class="field-row" hidden>
+                        <label class="select-label full">API key
+                            <input type="password" id="aiApiKey" placeholder="Stored in your browser only" autocomplete="off">
+                        </label>
+                    </div>
+                    <label class="area-label">Describe your design
+                        <textarea id="aiDescription" rows="4" placeholder="e.g. A white Christian cross in a stained-glass window with blue, green and red panels"></textarea>
+                    </label>
+                    <label class="slider-label">Max yarn colours: <output id="aiMaxColorsVal">10</output>
+                        <input type="range" id="aiMaxColors" min="2" max="24" value="10">
+                    </label>
+                    <p class="hint">The AI describes shapes that the server renders at your exact canvas size &mdash; no size limit. Start at 32&times;32 then enlarge.</p>
+                    <button id="generateBtn" class="btn-primary full" type="button">Generate design</button>
+                    <p class="ai-status" id="aiStatus" role="status"></p>
+                </div>
+
+                <!-- Blank -->
+                <div class="source-panel" id="sourceBlank" hidden>
+                    <p class="hint">Start from an empty canvas and paint it by hand with the yarn palette.</p>
+                    <button id="newBlankBtn" class="btn-primary full" type="button">New blank canvas</button>
+                </div>
+            </section>
+
             <section class="panel">
                 <div class="panel-head">
                     <h2>Yarn legend</h2>
