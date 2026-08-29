@@ -15,6 +15,7 @@ The resulting _site/ directory is a fully self-contained static site:
   - No AI features.
   - Image upload works client-side via the Canvas API.
   - Google Analytics (GA4) is injected into the <head> when GA_MEASUREMENT_ID is set.
+  - Cloudflare Web Analytics is injected into the <head> when CF_ANALYTICS_TOKEN is set.
 """
 
 import os
@@ -59,6 +60,35 @@ def ga_snippet(ga_id):
         "      gtag('js', new Date());\n"
         "      gtag('config', '" + ga_id + "');\n"
         '    </script>\n'
+    )
+
+
+# ── Cloudflare Web Analytics ───────────────────────────────────────────
+# ⬇⬇  ADD YOUR WEB ANALYTICS TOKEN HERE  ⬇⬇
+# Paste the site token from Cloudflare → Analytics & Logs → Web Analytics.
+# Leave empty to build the site WITHOUT the Cloudflare beacon (tag stays
+# commented out). You can also set it via the CF_ANALYTICS_TOKEN env var.
+CF_ANALYTICS_TOKEN = os.environ.get('CF_ANALYTICS_TOKEN', '')
+
+
+def cf_snippet(token):
+    """Cloudflare Web Analytics beacon. Only activates once a token is set."""
+    if not token or token.strip().lower() in ('none', 'false', 'placeholder', ''):
+        return (
+            '\n'
+            '    <!-- ════════════════════════════════════════════════════════ -->\n'
+            '    <!-- CLOUDFLARE WEB ANALYTICS — not enabled               -->\n'
+            '    <!-- Set CF_ANALYTICS_TOKEN (Cloudflare → Web Analytics)  -->\n'
+            '    <!-- and rebuild.                                           -->\n'
+            '    <!-- ════════════════════════════════════════════════════════ -->\n'
+        )
+    return (
+        '\n'
+        '    <!-- ════════════════════════════════════════════════════════ -->\n'
+        '    <!-- CLOUDFLARE WEB ANALYTICS                                  -->\n'
+        '    <!-- ════════════════════════════════════════════════════════ -->\n'
+        "    <script defer src='https://static.cloudflareinsights.com/beacon.min.js' "
+        "data-cf-beacon='{\"token\": \"" + token + "\"}'></script>\n"
     )
 
 os.makedirs(OUT_DIR, exist_ok=True)
@@ -108,8 +138,13 @@ html = html.replace(
     '<script src="static-adapter.js"></script>\n    <script src="canvas-renderer.js"></script>',
 )
 
-# Inject Google Analytics (GA4) into <head> — static site only, not the server app
-html = html.replace('</head>', ga_snippet(GA_MEASUREMENT_ID) + '\n</head>', 1)
+# Inject Google Analytics (GA4) and Cloudflare Web Analytics into <head> —
+# static site only, not the server app.
+html = html.replace(
+    '</head>',
+    ga_snippet(GA_MEASUREMENT_ID) + cf_snippet(CF_ANALYTICS_TOKEN) + '\n</head>',
+    1,
+)
 
 # ── 3. Write the generated index.html ──
 out_html = os.path.join(OUT_DIR, 'index.html')
