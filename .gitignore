@@ -2,6 +2,7 @@
 data/
 .trivyignore
 .jules/
+.trivy-scans/
 *.gitignore
 # Sensitive files / Secrets / API keys / Credentials
 .env

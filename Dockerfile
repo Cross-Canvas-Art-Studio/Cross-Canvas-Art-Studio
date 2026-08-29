@@ -21,8 +21,13 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
 FROM ${PYTHON_BASE}
 WORKDIR /app
 
-# libmagic1 backs python-magic (upload content sniffing).
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Apply all published security updates for the base image's OS layer, then
+# install libmagic1 (backs python-magic upload content sniffing).
+# The floating python:3.12-slim tag can be days behind Debian-security, so a
+# plain rebuild would still ship older packages (e.g. openssl) — apt-get upgrade
+# pulls the current patched releases from the trixie repos on every build.
+RUN apt-get update && apt-get upgrade -y --no-install-recommends \
+    && apt-get install -y --no-install-recommends \
     libmagic1 \
     && rm -rf /var/lib/apt/lists/*
 
