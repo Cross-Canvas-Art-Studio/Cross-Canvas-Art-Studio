@@ -91,7 +91,8 @@
       "legendList",
       "legendCount",
       "buyYarnBtn",
-      "exportPngBtn",
+      "exportFormat",
+      "exportImageBtn",
       "exportJsonBtn",
       "importJsonBtn",
       "importJsonInput",
@@ -1025,25 +1026,56 @@
   }
 
   // ---------- export / import ----------
-  function exportPng() {
+  function setExporting(on) {
+    if (!els.exportImageBtn) return;
+    els.exportImageBtn.disabled = on;
+    els.exportImageBtn.textContent = on ? "Exporting..." : "Download";
+  }
+
+  function exportImage() {
     if (state.canvas.isEmpty()) {
       toast("Nothing to export", "error");
       return;
     }
-    els.exportPngBtn.disabled = true;
-    var originalText = els.exportPngBtn.textContent;
-    els.exportPngBtn.textContent = "Exporting...";
-
+    var fmt = els.exportFormat.value || "svg-codes";
+    var base = els.projectTitle.value.trim() || "cross-canvas";
+    setExporting(true);
     setTimeout(function () {
-      state.canvas.exportBlob(function (blob) {
-        downloadBlob(
-          blob,
-          (els.projectTitle.value.trim() || "cross-canvas") + ".png",
-        );
-        els.exportPngBtn.disabled = false;
-        els.exportPngBtn.textContent = originalText;
-        toast("PNG chart exported", "ok");
-      }, 18);
+      var done = false;
+      function finish(msg) {
+        if (done) return;
+        done = true;
+        setExporting(false);
+        toast(msg, "ok");
+      }
+      try {
+        if (fmt === "svg-codes") {
+          var svg = state.canvas.exportSvg({ codes: true });
+          downloadBlob(
+            new Blob([svg], { type: "image/svg+xml" }),
+            base + "-codes.svg",
+          );
+          finish("SVG chart with codes exported");
+        } else if (fmt === "png-hd") {
+          state.canvas.exportBlob(
+            function (blob) {
+              downloadBlob(blob, base + "-hd.png");
+              finish("High-res PNG chart exported");
+            },
+            state.canvas.maxSafeExportScale(32),
+          );
+        } else {
+          state.canvas.exportBlob(
+            function (blob) {
+              downloadBlob(blob, base + ".png");
+              finish("PNG chart exported");
+            },
+            18,
+          );
+        }
+      } catch (err) {
+        finish("Export failed");
+      }
     }, 50);
   }
 
@@ -1283,7 +1315,7 @@
 
     // projects / export
     els.saveProjectBtn.addEventListener("click", saveProject);
-    els.exportPngBtn.addEventListener("click", exportPng);
+    els.exportImageBtn.addEventListener("click", exportImage);
     els.exportJsonBtn.addEventListener("click", exportJson);
     els.importJsonBtn.addEventListener("click", function () {
       els.importJsonInput.click();

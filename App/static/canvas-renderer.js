@@ -44,6 +44,13 @@
     var c = hexToRgb(hex);
     return (0.299 * c.r + 0.587 * c.g + 0.114 * c.b) / 255;
   }
+  function escXml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
 
   class CrossStitchCanvas {
     constructor(canvas, options) {
@@ -502,8 +509,10 @@
     }
 
     // ---- export ----
-    exportBlob(cb, scale) {
+    exportBlob(cb, scale, opts) {
       // Render a clean copy at a fixed cell size for a crisp exported chart.
+      // Pass opts.codes = true to print each cell's colour code on top.
+      var o = opts || {};
       var s = Math.max(scale || 16, 8);
       var off = document.createElement("canvas");
       off.width = this.width * s;
@@ -519,6 +528,19 @@
           if (idx >= 0) {
             var hex = this.hexFor(idx);
             this._drawStitchShape(octx, x, y, s, hex, this.stitchStyle);
+            if (o.codes && s >= 14) {
+              var code = this.codeFor(idx);
+              if (code) {
+                octx.fillStyle =
+                  luminance(hex) > 0.55
+                    ? "rgba(0,0,0,0.75)"
+                    : "rgba(255,255,255,0.85)";
+                octx.font = Math.floor(s * 0.32) + "px ui-monospace, monospace";
+                octx.textAlign = "center";
+                octx.textBaseline = "middle";
+                octx.fillText(code, x + s / 2, y + s / 2 + 1);
+              }
+            }
           }
           octx.strokeStyle = "rgba(0,0,0,0.12)";
           octx.lineWidth = 1;
@@ -526,6 +548,153 @@
         }
       }
       off.toBlob(cb, "image/png");
+    }
+
+    exportSvg(opts) {
+      // Generate a vector SVG of the chart. Text (the colour codes) stays
+      // crisp at any zoom or print size, unlike a rasterised PNG.
+      var o = opts || {};
+      var s = 18;
+      var W = this.width * s,
+        H = this.height * s;
+      var out = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<svg xmlns="http://www.w3.org/2000/svg" width="' +
+          W +
+          '" height="' +
+          H +
+          '" viewBox="0 0 ' +
+          W +
+          " " +
+          H +
+          '">',
+        '<rect width="100%" height="100%" fill="#ffffff"/>',
+      ];
+      for (var r = 0; r < this.height; r++) {
+        for (var c = 0; c < this.width; c++) {
+          var idx = this.cells[r * this.width + c];
+          var x = c * s,
+            y = r * s;
+          if (idx >= 0) {
+            var hex = this.hexFor(idx);
+            var inset = s * 0.16;
+            var x0 = x + inset,
+              y0 = y + inset,
+              x1 = x + s - inset,
+              y1 = y + s - inset;
+            var lw = Math.max(1.2, s * 0.3);
+            if (this.stitchStyle === "slash") {
+              out.push(
+                '<line stroke="' +
+                  hex +
+                  '" stroke-width="' +
+                  lw +
+                  '" stroke-linecap="round" x1="' +
+                  x0 +
+                  '" y1="' +
+                  y1 +
+                  '" x2="' +
+                  x1 +
+                  '" y2="' +
+                  y0 +
+                  '"/>'
+              );
+            } else if (this.stitchStyle === "backslash") {
+              out.push(
+                '<line stroke="' +
+                  hex +
+                  '" stroke-width="' +
+                  lw +
+                  '" stroke-linecap="round" x1="' +
+                  x0 +
+                  '" y1="' +
+                  y0 +
+                  '" x2="' +
+                  x1 +
+                  '" y2="' +
+                  y1 +
+                  '"/>'
+              );
+            } else {
+              out.push(
+                '<line stroke="' +
+                  shade(hex, -22) +
+                  '" stroke-width="' +
+                  lw +
+                  '" stroke-linecap="round" x1="' +
+                  x0 +
+                  '" y1="' +
+                  y1 +
+                  '" x2="' +
+                  x1 +
+                  '" y2="' +
+                  y0 +
+                  '"/>'
+              );
+              out.push(
+                '<line stroke="' +
+                  hex +
+                  '" stroke-width="' +
+                  lw +
+                  '" stroke-linecap="round" x1="' +
+                  x0 +
+                  '" y1="' +
+                  y0 +
+                  '" x2="' +
+                  x1 +
+                  '" y2="' +
+                  y1 +
+                  '"/>'
+              );
+            }
+            if (o.codes) {
+              var code = this.codeFor(idx);
+              if (code) {
+                var fill = luminance(hex) > 0.55 ? "#000000" : "#ffffff";
+                out.push(
+                  '<text x="' +
+                    (x + s / 2) +
+                    '" y="' +
+                    (y + s / 2 + 1) +
+                    '" font-family="ui-monospace, monospace" font-size="' +
+                    Math.floor(s * 0.38) +
+                    '" text-anchor="middle" dominant-baseline="middle" fill="' +
+                    fill +
+                    '" opacity="0.85">' +
+                    escXml(code) +
+                    "</text>"
+                );
+              }
+            }
+          }
+          out.push(
+            '<rect x="' +
+              (x + 0.5) +
+              '" y="' +
+              (y + 0.5) +
+              '" width="' +
+              (s - 1) +
+              '" height="' +
+              (s - 1) +
+              '" fill="none" stroke="rgba(0,0,0,0.12)" stroke-width="1"/>'
+          );
+        }
+      }
+      out.push("</svg>");
+      return out.join("\n");
+    }
+
+    maxSafeExportScale(target) {
+      // Largest cell size that keeps an exported PNG within practical canvas
+      // limits (side length and total pixels). Used by the high-res export.
+      var w = this.width || 1;
+      var h = this.height || 1;
+      var MAX_DIM = 16384;
+      var MAX_PIXELS = 100000000;
+      var s = Math.max(8, target || 32);
+      s = Math.min(s, Math.floor(MAX_DIM / w), Math.floor(MAX_DIM / h));
+      s = Math.min(s, Math.floor(Math.sqrt(MAX_PIXELS / (w * h))));
+      return Math.max(8, s);
     }
   }
 

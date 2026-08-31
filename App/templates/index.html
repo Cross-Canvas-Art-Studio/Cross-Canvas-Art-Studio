@@ -286,10 +286,19 @@
                 <div class="panel-head">
                     <h2>Export</h2>
                 </div>
-                <div class="btn-row">
-                    <button id="exportPngBtn" class="btn-secondary" type="button">PNG chart</button>
-                    <button id="exportJsonBtn" class="btn-secondary" type="button">JSON</button>
-                    <button id="importJsonBtn" class="btn-secondary" type="button">Import</button>
+                <div class="export-row">
+                    <label class="export-format" for="exportFormat">Format
+                        <select id="exportFormat" title="Image export format">
+                            <option value="svg-codes" selected>SVG + codes</option>
+                            <option value="png">PNG chart</option>
+                            <option value="png-hd">PNG HD</option>
+                        </select>
+                    </label>
+                    <button id="exportImageBtn" class="btn-secondary" type="button">Download</button>
+                </div>
+                <div class="btn-row export-actions">
+                    <button id="exportJsonBtn" class="btn-secondary" type="button">JSON Export</button>
+                    <button id="importJsonBtn" class="btn-secondary" type="button">JSON Import</button>
                     <input type="file" id="importJsonInput" accept="application/json,.json" hidden>
                 </div>
             </section>
