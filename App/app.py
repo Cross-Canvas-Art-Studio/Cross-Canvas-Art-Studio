@@ -740,7 +740,7 @@ def analyze_image():
 
     form = request.form
     min_size = int(GRID_CFG.get('min_size', 5))
-    max_size = int(GRID_CFG.get('max_size', 200))
+    max_size = int(GRID_CFG.get('max_size', 500))
     width = clamp_int(form.get('width'), min_size, max_size, int(GRID_CFG.get('default_width', 60)))
     height = clamp_int(form.get('height'), min_size, max_size, int(GRID_CFG.get('default_height', 80)))
     max_colors = clamp_int(form.get('max_colors'), int(GRID_CFG.get('min_colors', 2)),
@@ -783,7 +783,7 @@ def generate_design():
 
     api_key, _src = get_api_key(provider, request.headers)
     # Shapes are rendered server-side so any canvas size is fine.
-    max_size = int(GRID_CFG.get('max_size', 200))
+    max_size = int(GRID_CFG.get('max_size', 500))
     width = clamp_int(data.get('width'), 5, max_size, 32)
     height = clamp_int(data.get('height'), 5, max_size, 32)
     max_colors = clamp_int(data.get('max_colors'), 2, palette_manager.palette_size(), 12)

@@ -36,7 +36,7 @@ def _clamp(value, low, high, default):
 
 
 def analyze(image_bytes, width, height, max_colors=16, alpha_threshold=128,
-            resample='smooth', min_size=5, max_size=200, palette_max=None):
+            resample='smooth', min_size=5, max_size=500, palette_max=None):
     """Return a design dict {width, height, grid, legend, stats} for an image.
 
     grid is a list of `height` rows, each a list of `width` ints where each int

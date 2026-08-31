@@ -371,7 +371,7 @@
       },
       grid: {
         min_size: 5,
-        max_size: 200,
+        max_size: 500,
         default_width: 60,
         default_height: 80,
         default_max_colors: 16,
@@ -406,11 +406,11 @@
     var file = fd.get("image");
     var reqW = Math.max(
       5,
-      Math.min(200, parseInt(fd.get("width") || "60", 10)),
+      Math.min(500, parseInt(fd.get("width") || "60", 10)),
     );
     var reqH = Math.max(
       5,
-      Math.min(200, parseInt(fd.get("height") || "80", 10)),
+      Math.min(500, parseInt(fd.get("height") || "80", 10)),
     );
     var maxClrs = Math.max(
       2,
@@ -678,7 +678,7 @@
  * The grid is a flat Int16Array of palette indices (-1 = empty). Each filled
  * cell is drawn as an "X" cross-stitch (two diagonal strands, the under-strand
  * slightly darkened for depth) sitting on a plastic-canvas mesh. A canvas is
- * used instead of DOM cells because a 200x200 chart is 40,000 cells. Single
+ * used instead of DOM cells because a 500x500 chart is 250,000 cells. Single
  * cells are repainted during drag for smooth interaction; full re-renders only
  * happen on load, zoom, or toggles.
  */
@@ -734,6 +734,7 @@
       this.showGrid = true;
       this.showSymbols = false;
       this.showStitch = true;
+      this.stitchStyle = "cross"; // 'cross' | 'slash' | 'backslash'
       this.selectedIndex = -1;
       this.mode = "paint";
       this.brushSize = 1;
@@ -919,7 +920,10 @@
     }
 
     _drawStitch(x, y, s, hex) {
-      var ctx = this.ctx;
+      this._drawStitchShape(this.ctx, x, y, s, hex, this.stitchStyle);
+    }
+
+    _drawStitchShape(ctx, x, y, s, hex, style) {
       var inset = s * 0.16;
       var x0 = x + inset,
         y0 = y + inset,
@@ -927,18 +931,34 @@
         y1 = y + s - inset;
       ctx.lineCap = "round";
       ctx.lineWidth = Math.max(1.2, s * 0.3);
-      // under strand ("/") slightly darker for depth
-      ctx.strokeStyle = shade(hex, -22);
-      ctx.beginPath();
-      ctx.moveTo(x0, y1);
-      ctx.lineTo(x1, y0);
-      ctx.stroke();
-      // over strand ("\")
-      ctx.strokeStyle = hex;
-      ctx.beginPath();
-      ctx.moveTo(x0, y0);
-      ctx.lineTo(x1, y1);
-      ctx.stroke();
+      if (style === "slash") {
+        // single diagonal "/" (bottom-left → top-right)
+        ctx.strokeStyle = hex;
+        ctx.beginPath();
+        ctx.moveTo(x0, y1);
+        ctx.lineTo(x1, y0);
+        ctx.stroke();
+      } else if (style === "backslash") {
+        // single diagonal "\" (top-left → bottom-right) — reverse direction
+        ctx.strokeStyle = hex;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+      } else {
+        // full cross "X": under strand ("/") slightly darker for depth
+        ctx.strokeStyle = shade(hex, -22);
+        ctx.beginPath();
+        ctx.moveTo(x0, y1);
+        ctx.lineTo(x1, y0);
+        ctx.stroke();
+        // over strand ("\")
+        ctx.strokeStyle = hex;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+      }
     }
 
     // ---- options ----
@@ -960,6 +980,11 @@
     }
     setBrushSize(size) {
       this.brushSize = parseInt(size, 10) || 1;
+    }
+    setStitchStyle(style) {
+      this.stitchStyle =
+        style === "slash" || style === "backslash" ? style : "cross";
+      this.render();
     }
 
     clearAll() {
@@ -1166,19 +1191,7 @@
             y = r * s;
           if (idx >= 0) {
             var hex = this.hexFor(idx);
-            var inset = s * 0.16;
-            octx.lineCap = "round";
-            octx.lineWidth = Math.max(1.4, s * 0.3);
-            octx.strokeStyle = shade(hex, -22);
-            octx.beginPath();
-            octx.moveTo(x + inset, y + s - inset);
-            octx.lineTo(x + s - inset, y + inset);
-            octx.stroke();
-            octx.strokeStyle = hex;
-            octx.beginPath();
-            octx.moveTo(x + inset, y + inset);
-            octx.lineTo(x + s - inset, y + s - inset);
-            octx.stroke();
+            this._drawStitchShape(octx, x, y, s, hex, this.stitchStyle);
           }
           octx.strokeStyle = "rgba(0,0,0,0.12)";
           octx.lineWidth = 1;
@@ -1214,7 +1227,7 @@
     selectedFile: null,
     imageNaturalSize: null,
     currentProjectId: null,
-    gridMax: 200,
+    gridMax: 500,
     gridMin: 5,
     arLocked: false,
     arRatio: null, // height / width when locked
@@ -1230,6 +1243,9 @@
       "gridWidth",
       "gridHeight",
       "sizeHint",
+      "fabricCount",
+      "fabricSizeHint",
+      "sizeUnit",
       "autoSizeBtn",
       "imgDimsHint",
       "arLockBtn",
@@ -1269,6 +1285,9 @@
       "toggleGridLines",
       "toggleSymbols",
       "toggleStitch",
+      "styleCross",
+      "styleSlash",
+      "styleBackslash",
       "clearBtn",
       "canvasWrap",
       "canvasEmpty",
@@ -1398,6 +1417,79 @@
     };
   }
 
+  // ---- fabric / finished size ----
+  function fabricCountValue() {
+    return parseInt(els.fabricCount.value, 10) || 14;
+  }
+
+  function unitValue() {
+    return els.sizeUnit && els.sizeUnit.value === "in" ? "in" : "cm";
+  }
+
+  function fmtSize(n) {
+    return (Math.round(n * 10) / 10).toFixed(1);
+  }
+
+  function physicalSizeLabel(w, h) {
+    var gs = gridSize();
+    w = typeof w === "number" ? w : gs.w;
+    h = typeof h === "number" ? h : gs.h;
+    var count = fabricCountValue();
+    var inW = w / count;
+    var inH = h / count;
+    var unit = unitValue();
+    if (unit === "in") {
+      return fmtSize(inW) + " × " + fmtSize(inH) + " in";
+    }
+    return fmtSize(inW * 2.54) + " × " + fmtSize(inH * 2.54) + " cm";
+  }
+
+  function updateFabricSize() {
+    if (!els.fabricSizeHint) return;
+    var gs = gridSize();
+    var count = fabricCountValue();
+    var unit = unitValue();
+    var inW = gs.w / count;
+    var inH = gs.h / count;
+    var cmW = inW * 2.54;
+    var cmH = inH * 2.54;
+    var primary =
+      unit === "in"
+        ? [fmtSize(inW), fmtSize(inH), "in"]
+        : [fmtSize(cmW), fmtSize(cmH), "cm"];
+    var secondary =
+      unit === "in"
+        ? [fmtSize(cmW), fmtSize(cmH), "cm"]
+        : [fmtSize(inW), fmtSize(inH), "in"];
+    els.fabricSizeHint.textContent =
+      "≈ " +
+      primary[0] +
+      " × " +
+      primary[1] +
+      " " +
+      primary[2] +
+      " (" +
+      secondary[0] +
+      " × " +
+      secondary[1] +
+      " " +
+      secondary[2] +
+      ") at " +
+      count +
+      " ct";
+    updateInfoDims();
+  }
+
+  function updateInfoDims() {
+    if (!els.infoDims || state.canvas.isEmpty()) return;
+    els.infoDims.textContent =
+      state.canvas.width +
+      " × " +
+      state.canvas.height +
+      " stitches · " +
+      physicalSizeLabel(state.canvas.width, state.canvas.height);
+  }
+
   function showCanvas(show) {
     els.canvasEmpty.style.display = show ? "none" : "flex";
     els.stitchCanvas.hidden = !show;
@@ -1417,7 +1509,7 @@
         });
         state.providers = (cfg.llm && cfg.llm.providers) || {};
         var g = cfg.grid || {};
-        state.gridMax = g.max_size || 200;
+        state.gridMax = g.max_size || 500;
         state.gridMin = g.min_size || 5;
 
         if (cfg.app) {
@@ -1431,6 +1523,7 @@
         els.gridWidth.value = g.default_width || 60;
         els.gridHeight.value = g.default_height || 80;
         els.sizeHint.textContent = "stitches (max " + state.gridMax + ")";
+        updateFabricSize();
         els.imgMaxColors.max = g.max_colors || state.palette.length;
         els.imgMaxColors.value = g.default_max_colors || 16;
         els.imgMaxColorsVal.textContent = els.imgMaxColors.value;
@@ -1713,6 +1806,7 @@
     );
     els.gridWidth.value = w;
     els.gridHeight.value = h;
+    updateFabricSize();
     // Keep the AR lock ratio in sync with the new dimensions.
     if (state.arLocked) {
       state.arRatio = h / w;
@@ -1927,9 +2021,8 @@
 
     updateBuyYarn(used);
 
+    updateInfoDims();
     if (!state.canvas.isEmpty()) {
-      els.infoDims.textContent =
-        state.canvas.width + " × " + state.canvas.height + " stitches";
       els.infoStitches.textContent =
         "· " + state.canvas.stitchCount() + " stitches";
       els.infoColors.textContent =
@@ -1958,6 +2051,19 @@
   }
   function updateZoomLabel() {
     els.zoomLevel.textContent = state.canvas.zoomPercent() + "%";
+  }
+
+  function setStitchStyle(style) {
+    state.canvas.setStitchStyle(style);
+    var activeId =
+      style === "slash"
+        ? "styleSlash"
+        : style === "backslash"
+          ? "styleBackslash"
+          : "styleCross";
+    [els.styleCross, els.styleSlash, els.styleBackslash].forEach(function (b) {
+      b.classList.toggle("active", b === els[activeId]);
+    });
   }
 
   function undoAction() {
@@ -2280,21 +2386,27 @@
     els.arLockBtn.addEventListener("click", toggleArLock);
     // Propagate dimension changes when aspect ratio is locked.
     els.gridWidth.addEventListener("input", function () {
-      if (!state.arLocked || state.arRatio === null) return;
-      var w = clampInt(this.value, state.gridMin, state.gridMax, 60);
-      els.gridHeight.value = Math.max(
-        state.gridMin,
-        Math.min(state.gridMax, Math.round(w * state.arRatio)),
-      );
+      if (state.arLocked && state.arRatio !== null) {
+        var w = clampInt(this.value, state.gridMin, state.gridMax, 60);
+        els.gridHeight.value = Math.max(
+          state.gridMin,
+          Math.min(state.gridMax, Math.round(w * state.arRatio)),
+        );
+      }
+      updateFabricSize();
     });
     els.gridHeight.addEventListener("input", function () {
-      if (!state.arLocked || state.arRatio === null) return;
-      var h = clampInt(this.value, state.gridMin, state.gridMax, 80);
-      els.gridWidth.value = Math.max(
-        state.gridMin,
-        Math.min(state.gridMax, Math.round(h / state.arRatio)),
-      );
+      if (state.arLocked && state.arRatio !== null) {
+        var h = clampInt(this.value, state.gridMin, state.gridMax, 80);
+        els.gridWidth.value = Math.max(
+          state.gridMin,
+          Math.min(state.gridMax, Math.round(h / state.arRatio)),
+        );
+      }
+      updateFabricSize();
     });
+    els.fabricCount.addEventListener("change", updateFabricSize);
+    els.sizeUnit.addEventListener("change", updateFabricSize);
 
     // AI
     els.aiProvider.addEventListener("change", updateKeyRow);
@@ -2359,6 +2471,15 @@
     });
     els.toggleStitch.addEventListener("change", function () {
       state.canvas.setOption("showStitch", this.checked);
+    });
+    els.styleCross.addEventListener("click", function () {
+      setStitchStyle("cross");
+    });
+    els.styleSlash.addEventListener("click", function () {
+      setStitchStyle("slash");
+    });
+    els.styleBackslash.addEventListener("click", function () {
+      setStitchStyle("backslash");
     });
     els.clearBtn.addEventListener("click", function () {
       if (state.canvas.isEmpty()) return;

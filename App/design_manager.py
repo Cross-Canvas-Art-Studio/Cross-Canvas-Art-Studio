@@ -362,8 +362,8 @@ def generate(description, width, height, provider, model, api_key=None,
 
     # 16×16 keeps output to ~300 tokens even on slow models while still being
     # recognisable. The user can scale the canvas to any size afterward.
-    width = _clamp(width, 5, 200, 16)
-    height = _clamp(height, 5, 200, 16)
+    width = _clamp(width, 5, 500, 16)
+    height = _clamp(height, 5, 500, 16)
     max_colors = _clamp(max_colors, 2, min(palette_manager.palette_size(), 8), 6)
 
     messages = build_color_grid_messages(description, width, height, max_colors)

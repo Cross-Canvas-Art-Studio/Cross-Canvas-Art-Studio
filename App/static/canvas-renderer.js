@@ -5,7 +5,7 @@
  * The grid is a flat Int16Array of palette indices (-1 = empty). Each filled
  * cell is drawn as an "X" cross-stitch (two diagonal strands, the under-strand
  * slightly darkened for depth) sitting on a plastic-canvas mesh. A canvas is
- * used instead of DOM cells because a 200x200 chart is 40,000 cells. Single
+ * used instead of DOM cells because a 500x500 chart is 250,000 cells. Single
  * cells are repainted during drag for smooth interaction; full re-renders only
  * happen on load, zoom, or toggles.
  */
@@ -61,6 +61,7 @@
       this.showGrid = true;
       this.showSymbols = false;
       this.showStitch = true;
+      this.stitchStyle = "cross"; // 'cross' | 'slash' | 'backslash'
       this.selectedIndex = -1;
       this.mode = "paint";
       this.brushSize = 1;
@@ -246,7 +247,10 @@
     }
 
     _drawStitch(x, y, s, hex) {
-      var ctx = this.ctx;
+      this._drawStitchShape(this.ctx, x, y, s, hex, this.stitchStyle);
+    }
+
+    _drawStitchShape(ctx, x, y, s, hex, style) {
       var inset = s * 0.16;
       var x0 = x + inset,
         y0 = y + inset,
@@ -254,18 +258,34 @@
         y1 = y + s - inset;
       ctx.lineCap = "round";
       ctx.lineWidth = Math.max(1.2, s * 0.3);
-      // under strand ("/") slightly darker for depth
-      ctx.strokeStyle = shade(hex, -22);
-      ctx.beginPath();
-      ctx.moveTo(x0, y1);
-      ctx.lineTo(x1, y0);
-      ctx.stroke();
-      // over strand ("\")
-      ctx.strokeStyle = hex;
-      ctx.beginPath();
-      ctx.moveTo(x0, y0);
-      ctx.lineTo(x1, y1);
-      ctx.stroke();
+      if (style === "slash") {
+        // single diagonal "/" (bottom-left → top-right)
+        ctx.strokeStyle = hex;
+        ctx.beginPath();
+        ctx.moveTo(x0, y1);
+        ctx.lineTo(x1, y0);
+        ctx.stroke();
+      } else if (style === "backslash") {
+        // single diagonal "\" (top-left → bottom-right) — reverse direction
+        ctx.strokeStyle = hex;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+      } else {
+        // full cross "X": under strand ("/") slightly darker for depth
+        ctx.strokeStyle = shade(hex, -22);
+        ctx.beginPath();
+        ctx.moveTo(x0, y1);
+        ctx.lineTo(x1, y0);
+        ctx.stroke();
+        // over strand ("\")
+        ctx.strokeStyle = hex;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+      }
     }
 
     // ---- options ----
@@ -287,6 +307,11 @@
     }
     setBrushSize(size) {
       this.brushSize = parseInt(size, 10) || 1;
+    }
+    setStitchStyle(style) {
+      this.stitchStyle =
+        style === "slash" || style === "backslash" ? style : "cross";
+      this.render();
     }
 
     clearAll() {
@@ -493,19 +518,7 @@
             y = r * s;
           if (idx >= 0) {
             var hex = this.hexFor(idx);
-            var inset = s * 0.16;
-            octx.lineCap = "round";
-            octx.lineWidth = Math.max(1.4, s * 0.3);
-            octx.strokeStyle = shade(hex, -22);
-            octx.beginPath();
-            octx.moveTo(x + inset, y + s - inset);
-            octx.lineTo(x + s - inset, y + inset);
-            octx.stroke();
-            octx.strokeStyle = hex;
-            octx.beginPath();
-            octx.moveTo(x + inset, y + inset);
-            octx.lineTo(x + s - inset, y + s - inset);
-            octx.stroke();
+            this._drawStitchShape(octx, x, y, s, hex, this.stitchStyle);
           }
           octx.strokeStyle = "rgba(0,0,0,0.12)";
           octx.lineWidth = 1;

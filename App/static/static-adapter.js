@@ -371,7 +371,7 @@
       },
       grid: {
         min_size: 5,
-        max_size: 200,
+        max_size: 500,
         default_width: 60,
         default_height: 80,
         default_max_colors: 16,
@@ -406,11 +406,11 @@
     var file = fd.get("image");
     var reqW = Math.max(
       5,
-      Math.min(200, parseInt(fd.get("width") || "60", 10)),
+      Math.min(500, parseInt(fd.get("width") || "60", 10)),
     );
     var reqH = Math.max(
       5,
-      Math.min(200, parseInt(fd.get("height") || "80", 10)),
+      Math.min(500, parseInt(fd.get("height") || "80", 10)),
     );
     var maxClrs = Math.max(
       2,

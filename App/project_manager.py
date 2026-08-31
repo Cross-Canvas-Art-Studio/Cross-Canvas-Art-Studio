@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 PROJECTS_DIR = os.environ.get('PROJECTS_DIR', '/data/projects')
 MAX_PROJECTS = int(os.environ.get('MAX_PROJECTS', '200'))
-MAX_GRID_SIZE = 200
+MAX_GRID_SIZE = 500
 
 _ID_RE = re.compile(r'^[a-f0-9]{32}$')
 _write_lock = threading.Lock()

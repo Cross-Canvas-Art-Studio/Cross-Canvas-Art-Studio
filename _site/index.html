@@ -6,7 +6,7 @@
     <title>Stitchee — Free Cross-Stitch Pattern Maker and Yarn Canvas Designer</title>
     <meta name="description" content="Turn photos and ideas into cross-stitch yarn canvas patterns. Upload an image, pick your yarn colours, and generate a printable chart with exact stitch counts.">
     <link rel="canonical" href="https://stitchee.ca/">
-    <link rel="stylesheet" href="style.css?v=0d3033e">
+    <link rel="stylesheet" href="style.css?v=499e346">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%237c3aed'/%3E%3Cpath d='M8 8l16 16M24 8L8 24' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <meta property="og:type" content="website">
@@ -113,7 +113,7 @@
                 </div>
                 <div class="grid-size-row">
                     <label>Width
-                        <input type="number" id="gridWidth" min="5" max="200" value="60">
+                        <input type="number" id="gridWidth" min="5" max="500" value="60">
                     </label>
                     <button id="arLockBtn" class="ar-lock-btn" type="button" title="Lock aspect ratio" aria-label="Lock aspect ratio">
                         <svg id="arLockIcon" width="11" height="14" viewBox="0 0 11 14" fill="currentColor" aria-hidden="true">
@@ -122,12 +122,38 @@
                         </svg>
                     </button>
                     <label>Height
-                        <input type="number" id="gridHeight" min="5" max="200" value="80">
+                        <input type="number" id="gridHeight" min="5" max="500" value="80">
                     </label>
                     <button id="autoSizeBtn" class="btn-ghost auto-size-btn" type="button"
                         title="Fit grid to uploaded image aspect ratio within current max size" disabled>Auto</button>
-                    <span class="hint" id="sizeHint">stitches (max 200)</span>
+                    <span class="hint" id="sizeHint">stitches (max 500)</span>
                     <span class="hint" id="imgDimsHint" hidden></span>
+                </div>
+                <div class="unit-row">
+                    <label class="unit-label" for="sizeUnit">Unit
+                        <select id="sizeUnit" title="Unit for finished size measurements">
+                            <option value="cm" selected>cm</option>
+                            <option value="in">inch</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="fabric-row">
+                    <label for="fabricCount">Fabric
+                        <select id="fabricCount" title="Cross-stitch fabric count (stitches per inch)">
+                            <option value="14" selected>14 Aida</option>
+                            <option value="16">16 Aida</option>
+                            <option value="18">18 Aida</option>
+                            <option value="25">25 Evenweave</option>
+                            <option value="28">28 Evenweave</option>
+                            <option value="32">32 Lugana</option>
+                            <option value="36">36 Evenweave</option>
+                            <option value="40">40 Evenweave</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="finished-size">
+                    <span class="finished-size-label">Finished size:</span>
+                    <span class="hint" id="fabricSizeHint"></span>
                 </div>
             </section>
         </aside>
@@ -167,7 +193,13 @@
                 <div class="tool-group">
                     <label class="check"><input type="checkbox" id="toggleGridLines" checked> Grid</label>
                     <label class="check"><input type="checkbox" id="toggleSymbols"> Codes</label>
-                    <label class="check"><input type="checkbox" id="toggleStitch" checked> Cross stitch</label>
+                    <label class="check"><input type="checkbox" id="toggleStitch" checked> Stitches</label>
+                </div>
+                <div class="tool-group">
+                    <span class="stitch-style-label">Pattern</span>
+                    <button id="styleCross" class="tool active" type="button" title="Full cross stitch (X)" aria-label="Cross stitch pattern">✕</button>
+                    <button id="styleSlash" class="tool" type="button" title="Single diagonal stitch (/)">/</button>
+                    <button id="styleBackslash" class="tool" type="button" title="Reverse single diagonal stitch (\)">\</button>
                 </div>
                 <div class="tool-group right">
                     <button id="clearBtn" class="tool danger" type="button" title="Clear canvas">Clear</button>
@@ -353,7 +385,7 @@
             </div>
             <div class="app-modal-body">
                 <ol class="help-steps">
-                    <li><strong>Choose a canvas size</strong> — up to 200&times;200 stitches.</li>
+                    <li><strong>Choose a canvas size</strong> — up to 500&times;500 stitches.</li>
                     <li><strong>Image tab</strong> — upload a picture; it pixelates and matches colours.</li>
                     <li><strong>Blank tab</strong> — start empty and paint by hand.</li>
                     <li><strong>Custom mode</strong> — pickc a colour and click a cell to stitch it; <em>right-click</em> to clear it.</li>
@@ -363,6 +395,6 @@
             </div>
         </div>
     </div>
-    <script src="app.bundle.js?v=0d3033e"></script>
+    <script src="app.bundle.js?v=499e346"></script>
 </body>
 </html>
