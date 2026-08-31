@@ -54,6 +54,7 @@
     [
       "dropZone", "imageInput", "uploadPreview", "removeImageBtn",
       "maxColors", "maxColorsVal", "sortBy",
+      "pickedRow", "pickedSwatch", "pickedHex", "pickedRgb",
       "zoomOut", "zoomIn", "zoomLevel", "zoomFit",
       "canvasWrap", "canvasEmpty", "pixelStage", "displayCanvas",
       "paletteStrip", "infoOriginal", "infoColours",
@@ -80,7 +81,7 @@
         var c = document.createElement("canvas");
         c.width = img.naturalWidth;
         c.height = img.naturalHeight;
-        c.getContext("2d").drawImage(img, 0, 0);
+        c.getContext("2d", { willReadFrequently: true }).drawImage(img, 0, 0);
         state.sourceCanvas = c;
         onImageReady();
         extract();
@@ -100,6 +101,7 @@
     els.canvasEmpty.style.display = "none";
     els.pixelStage.hidden = false;
     els.paletteStrip.hidden = false;
+    render();
     enableExport(true);
   }
 
@@ -118,6 +120,7 @@
     els.swatchGrid.innerHTML =
       '<p class="legend-empty">Upload an image to see colours.</p>';
     els.swatchCount.textContent = "0";
+    els.pickedRow.hidden = true;
     enableExport(false);
   }
 
@@ -499,6 +502,34 @@
     els.zoomFit.addEventListener("click", function () {
       state.zoom = 1;
       render();
+    });
+
+    // click the preview to pick (and copy) a colour
+    els.displayCanvas.addEventListener("click", function (e) {
+      if (!state.sourceCanvas) return;
+      var rect = els.displayCanvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      var x = (e.clientX - rect.left) / rect.width;
+      var y = (e.clientY - rect.top) / rect.height;
+      var px = clamp(
+        Math.floor(x * state.sourceCanvas.width),
+        0,
+        state.sourceCanvas.width - 1,
+      );
+      var py = clamp(
+        Math.floor(y * state.sourceCanvas.height),
+        0,
+        state.sourceCanvas.height - 1,
+      );
+      var d = state.sourceCanvas
+        .getContext("2d", { willReadFrequently: true })
+        .getImageData(px, py, 1, 1).data;
+      var hex = rgbToHex([d[0], d[1], d[2]]);
+      els.pickedRow.hidden = false;
+      els.pickedSwatch.style.background = hex;
+      els.pickedHex.textContent = hex;
+      els.pickedRgb.textContent = "rgb(" + d[0] + ", " + d[1] + ", " + d[2] + ")";
+      copyText(hex, "Copied " + hex);
     });
 
     els.copyHexBtn.addEventListener("click", copyHex);

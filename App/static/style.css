@@ -1231,6 +1231,59 @@ body.modal-open {
   font-variant-numeric: tabular-nums;
 }
 
+/* Social size presets */
+.social-presets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 6px;
+}
+.social-btn {
+  background: var(--bg-3);
+  color: var(--text-dim);
+  border: 1px solid var(--border-2);
+  border-radius: 7px;
+  padding: 7px 9px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+}
+.social-btn:hover {
+  border-color: var(--brand);
+  color: #fff;
+}
+.social-btn.active {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  color: #fff;
+}
+.social-btn .s-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+}
+.social-btn .s-size {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Favicon size list */
+.icon-size-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 10px;
+  margin-top: 4px;
+}
+.icon-size-list .check {
+  font-size: 12px;
+}
+
 /* ---------- Palette ---------- */
 .palette-strip {
   display: flex;
@@ -1243,6 +1296,38 @@ body.modal-open {
 .palette-strip span {
   flex: 1 1 0;
   min-width: 0;
+}
+.picked-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 8px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.picked-row[hidden] {
+  display: none;
+}
+.picked-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.picked-meta strong {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text);
+  text-transform: uppercase;
+}
+.picked-meta span {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.pickable {
+  cursor: crosshair;
 }
 .p-swatch-grid {
   display: grid;

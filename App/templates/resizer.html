@@ -119,6 +119,32 @@
 
             <section class="panel">
                 <div class="panel-head">
+                    <h2>Social sizes</h2>
+                </div>
+                <div class="social-presets" id="socialPresets">
+                    <button class="social-btn" type="button" data-w="1080" data-h="1080">
+                        <span class="s-name">Instagram Post</span><span class="s-size">1080 &times; 1080</span>
+                    </button>
+                    <button class="social-btn" type="button" data-w="1080" data-h="1920">
+                        <span class="s-name">Instagram Story</span><span class="s-size">1080 &times; 1920</span>
+                    </button>
+                    <button class="social-btn" type="button" data-w="851" data-h="315">
+                        <span class="s-name">Facebook Cover</span><span class="s-size">851 &times; 315</span>
+                    </button>
+                    <button class="social-btn" type="button" data-w="1500" data-h="500">
+                        <span class="s-name">X / Twitter Header</span><span class="s-size">1500 &times; 500</span>
+                    </button>
+                    <button class="social-btn" type="button" data-w="1280" data-h="720">
+                        <span class="s-name">YouTube Thumbnail</span><span class="s-size">1280 &times; 720</span>
+                    </button>
+                    <button class="social-btn" type="button" data-w="1584" data-h="396">
+                        <span class="s-name">LinkedIn Banner</span><span class="s-size">1584 &times; 396</span>
+                    </button>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-head">
                     <h2>Format</h2>
                 </div>
                 <label class="select-label">Output format
@@ -180,6 +206,25 @@
                 <p class="hint est-size" id="exportSizeHint"></p>
                 <button id="downloadBtn" class="btn-primary full" type="button" disabled>Download</button>
                 <button id="downloadOrigBtn" class="btn-secondary full" type="button" disabled>Download original</button>
+            </section>
+
+            <section class="panel">
+                <div class="panel-head">
+                    <h2>Favicons</h2>
+                </div>
+                <div class="icon-size-list" id="iconSizeList">
+                    <label class="check"><input type="checkbox" value="16" checked> 16 &times; 16</label>
+                    <label class="check"><input type="checkbox" value="32" checked> 32 &times; 32</label>
+                    <label class="check"><input type="checkbox" value="48" checked> 48 &times; 48</label>
+                    <label class="check"><input type="checkbox" value="180" checked> 180 &times; 180</label>
+                    <label class="check"><input type="checkbox" value="192" checked> 192 &times; 192</label>
+                    <label class="check"><input type="checkbox" value="512" checked> 512 &times; 512</label>
+                </div>
+                <label class="check" style="margin-top:8px">
+                    <input type="checkbox" id="roundedIcons"> Rounded corners
+                </label>
+                <button id="downloadIconsBtn" class="btn-primary full" type="button" disabled>Download icons</button>
+                <p class="hint">Exports each selected size as a square PNG (center-cropped).</p>
             </section>
 
             <section class="panel">

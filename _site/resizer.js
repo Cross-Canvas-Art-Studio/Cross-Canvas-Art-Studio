@@ -58,12 +58,13 @@
     [
       "dropZone", "imageInput", "uploadPreview", "removeImageBtn",
       "width", "height", "arLockBtn", "arLockIcon", "arLockShackle",
-      "scalePresets", "pixelPerfectToggle",
+      "scalePresets", "pixelPerfectToggle", "socialPresets",
       "format", "qualityRow", "quality", "qualityVal",
       "zoomOut", "zoomIn", "zoomLevel", "zoomFit",
       "canvasWrap", "canvasEmpty", "pixelStage", "displayCanvas",
       "infoOriginal", "infoOutput", "infoEstimate",
       "exportDimsHint", "exportSizeHint", "downloadBtn", "downloadOrigBtn",
+      "iconSizeList", "roundedIcons", "downloadIconsBtn",
       "toast", "helpBtn", "helpModal", "helpClose", "footerYear",
     ].forEach(function (id) {
       els[id] = $(id);
@@ -111,6 +112,7 @@
     els.pixelStage.hidden = false;
     els.downloadBtn.disabled = false;
     els.downloadOrigBtn.disabled = false;
+    els.downloadIconsBtn.disabled = false;
   }
 
   function removeImage() {
@@ -125,6 +127,7 @@
     els.canvasEmpty.style.display = "flex";
     els.downloadBtn.disabled = true;
     els.downloadOrigBtn.disabled = true;
+    els.downloadIconsBtn.disabled = true;
     els.infoOriginal.textContent = "\u2014";
     els.infoOutput.textContent = "";
     els.infoEstimate.textContent = "";
@@ -269,6 +272,72 @@
     }, "image/png");
   }
 
+  // ---------- favicon export ----------
+  function buildIcon(size, rounded) {
+    var src = state.sourceCanvas;
+    var c = document.createElement("canvas");
+    c.width = size;
+    c.height = size;
+    var ctx = c.getContext("2d");
+    // center-crop square from the source image
+    var side = Math.min(src.width, src.height);
+    var sx = (src.width - side) / 2;
+    var sy = (src.height - side) / 2;
+    if (rounded) {
+      var r = size * 0.22;
+      ctx.beginPath();
+      ctx.moveTo(r, 0);
+      ctx.lineTo(size - r, 0);
+      ctx.quadraticCurveTo(size, 0, size, r);
+      ctx.lineTo(size, size - r);
+      ctx.quadraticCurveTo(size, size, size - r, size);
+      ctx.lineTo(r, size);
+      ctx.quadraticCurveTo(0, size, 0, size - r);
+      ctx.lineTo(0, r);
+      ctx.quadraticCurveTo(0, 0, r, 0);
+      ctx.closePath();
+      ctx.clip();
+    }
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(src, sx, sy, side, side, 0, 0, size, size);
+    return c;
+  }
+
+  function exportIcons() {
+    if (!state.sourceCanvas) return;
+    var sizes = [];
+    els.iconSizeList.querySelectorAll("input:checked").forEach(function (cb) {
+      sizes.push(parseInt(cb.value, 10));
+    });
+    if (!sizes.length) {
+      toast("Pick at least one icon size", "error");
+      return;
+    }
+    var rounded = els.roundedIcons.checked;
+    var base = baseName(state.fileName);
+    sizes.forEach(function (size, i) {
+      setTimeout(function () {
+        buildIcon(size, rounded).toBlob(function (blob) {
+          if (!blob) return;
+          var a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = "icon-" + size + "-" + base + ".png";
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(function () {
+            URL.revokeObjectURL(a.href);
+            a.remove();
+          }, 0);
+        }, "image/png");
+      }, i * 250);
+    });
+    toast(
+      "Downloading " + sizes.length + " icon" + (sizes.length === 1 ? "" : "s"),
+      "ok",
+    );
+  }
+
   // ---------- debounced rebuild ----------
   var rebuildTimer = 0;
   function scheduleRebuild() {
@@ -348,6 +417,21 @@
       });
     });
 
+    // social size presets (exact dimensions, unaffected by the aspect lock)
+    els.socialPresets.querySelectorAll(".social-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        if (!state.sourceCanvas) return;
+        var w = parseInt(btn.getAttribute("data-w"), 10) || 0;
+        var h = parseInt(btn.getAttribute("data-h"), 10) || 0;
+        els.width.value = w;
+        els.height.value = h;
+        els.socialPresets.querySelectorAll(".social-btn").forEach(function (b) {
+          b.classList.toggle("active", b === btn);
+        });
+        rebuild();
+      });
+    });
+
     els.pixelPerfectToggle.addEventListener("change", function () {
       state.pixelPerfect = els.pixelPerfectToggle.checked;
       scheduleRebuild();
@@ -387,6 +471,7 @@
     // export
     els.downloadBtn.addEventListener("click", download);
     els.downloadOrigBtn.addEventListener("click", downloadOriginal);
+    els.downloadIconsBtn.addEventListener("click", exportIcons);
 
     // help modal
     els.helpBtn.addEventListener("click", function () {

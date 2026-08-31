@@ -6,7 +6,7 @@
     <title>Palette — Free Color Palette Extractor from Images</title>
     <meta name="description" content="Extract the dominant colours from any image, click swatches to copy hex codes, and export your palette as CSS, JSON or PNG — all in your browser.">
     <link rel="canonical" href="https://stitchee.ca/palette">
-    <link rel="stylesheet" href="style.css?v=6c91130">
+    <link rel="stylesheet" href="style.css?v=0d3033e">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%237c3aed'/%3E%3Cpath d='M8 8l16 16M24 8L8 24' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <meta property="og:type" content="website">
@@ -120,7 +120,14 @@
                         <option value="hue">Hue</option>
                     </select>
                 </label>
-                <p class="hint">Click a swatch to copy its hex code.</p>
+                <div class="picked-row" id="pickedRow" hidden>
+                    <span class="swatch lg" id="pickedSwatch"></span>
+                    <div class="picked-meta">
+                        <strong id="pickedHex">&mdash;</strong>
+                        <span id="pickedRgb"></span>
+                    </div>
+                </div>
+                <p class="hint">Click the preview to copy that colour, or click a swatch.</p>
             </section>
         </aside>
 
@@ -146,7 +153,7 @@
                     </div>
                 </div>
                 <div class="pixel-stage" id="pixelStage" hidden>
-                    <canvas id="displayCanvas" class="canvas-frame" width="0" height="0"></canvas>
+                    <canvas id="displayCanvas" class="canvas-frame pickable" width="0" height="0"></canvas>
                 </div>
             </div>
             <div class="palette-strip" id="paletteStrip" hidden></div>
@@ -225,6 +232,6 @@
         </div>
     </div>
 
-    <script src="palette.js?v=6c91130"></script>
+    <script src="palette.js?v=0d3033e"></script>
 </body>
 </html>
