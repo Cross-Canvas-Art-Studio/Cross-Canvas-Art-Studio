@@ -7,6 +7,20 @@ image and the app pixelates it to a grid of yarn colours, renders each stitch as
 
 ---
 
+## Tools / Features
+
+
+| Stitchee | Pixelator | Resizer | Palette | ASCII Art |
+|---|---|---|---|---|
+| Turn photos into stitchable yarn grids | Pixelate images into retro mosaics | Resize &amp; compress images | Extract colour palettes | Convert images &amp; text to ASCII |
+| Yarn colour matching (52-colour palette) | Pixel size control (1–128 px) + presets | Width / height resize | Dominant-colour extraction | 10 character ramps (incl. custom) |
+| Woven cross-stitch canvas with grid overlay | Max colour count (2–256) | Aspect-ratio lock | Visual palette strip | 5×5 block-letter banners from text |
+| Paint / erase / fill tools | Favicon generator (16–512, rounded) | Percentage presets | Click a pixel to copy its colour | Full Unicode support |
+| - | Before / after split comparison | Socials-size presets | Export HEX / CSS / JSON / PNG | Colored ASCII output |
+
+
+---
+
 ## Live site — minimal production
 
 **Stitchee is live at [https://stitchee.ca](https://stitchee.ca)** — a lightweight,
