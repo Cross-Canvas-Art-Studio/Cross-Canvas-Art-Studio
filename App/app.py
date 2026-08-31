@@ -377,6 +377,23 @@ def index():
     )
 
 
+@app.route('/pixelator')
+def pixelator():
+    _px = config.get('pixelator', {})
+    _seo = config.get('seo', {})
+    return render_template(
+        'pixelator.html',
+        app_title=_px.get('title', 'Pixelator'),
+        seo_title=_px.get('seo_title', 'Pixelator \u2014 Free Online Image Pixelizer and Pixel Art Maker'),
+        seo_description=_px.get('seo_description', 'Turn any photo into crisp pixel art right in your browser. Adjust pixel size, colour count, dithering and more, then download your mosaic as a PNG.'),
+        seo_url=_px.get('seo_url') or (_seo.get('url', '').rstrip('/') + '/pixelator'),
+        seo_image=_seo.get('image', ''),
+        seo_site_name=_seo.get('site_name', 'Stitchee'),
+        require_auth=REQUIRE_AUTH,
+        ai_enabled=AI_ENABLED,
+    )
+
+
 @app.route('/api/config')
 def get_app_config():
     api_keys_info = {}

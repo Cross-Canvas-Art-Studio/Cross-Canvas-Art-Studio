@@ -92,9 +92,9 @@ textarea {
   overflow: hidden;
 }
 .app-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   gap: 16px;
   padding: 10px 18px;
   background: linear-gradient(180deg, var(--bg-2), var(--bg));
@@ -107,6 +107,7 @@ textarea {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
 }
 .brand-logo {
   display: inline-flex;
@@ -115,15 +116,52 @@ textarea {
 .brand-text h1 {
   font-size: 17px;
   letter-spacing: 0.2px;
+  white-space: nowrap;
 }
 .brand-text p {
   font-size: 12px;
   color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .header-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px;
+}
+
+/* ---------- App switcher (Stitchee / Pixelator) ---------- */
+.app-switcher {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-3);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.app-switcher-tab {
+  padding: 7px 18px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-decoration: none;
+  border: none;
+  background: transparent;
+  white-space: nowrap;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.app-switcher-tab:hover {
+  color: #fff;
+}
+.app-switcher-tab.active {
+  background: linear-gradient(180deg, var(--brand), var(--brand-2));
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.45);
 }
 
 /* ---------- Layout ---------- */
@@ -1060,6 +1098,107 @@ body.modal-open {
   overflow: hidden;
 }
 
+/* ---------- Pixelator ---------- */
+.preset-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.preset-btn {
+  background: var(--bg-3);
+  color: var(--text-dim);
+  border: 1px solid var(--border-2);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.preset-btn:hover {
+  border-color: var(--brand);
+  color: #fff;
+}
+.preset-btn.active {
+  background: var(--brand-soft);
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.pixel-stage {
+  position: relative;
+  margin: auto;
+  flex-shrink: 0;
+  touch-action: none;
+}
+.pixel-stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.pixel-stage .canvas-frame {
+  outline: 1px solid var(--border-2);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+}
+.compare-divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: #fff;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.7);
+  cursor: ew-resize;
+  touch-action: none;
+  z-index: 5;
+}
+.compare-divider::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, var(--brand), var(--brand-2));
+  border: 2px solid #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #fff;
+  line-height: 1;
+}
+.compare-divider::before {
+  content: "\21C4";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  font-size: 11px;
+  color: #fff;
+  line-height: 1;
+}
+
+.pixelator-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--text-faint);
+  padding: 20px;
+}
+.pixelator-empty .drop-icon {
+  font-size: 40px;
+  color: var(--brand);
+  opacity: 0.6;
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 1100px) {
   body {
@@ -1068,6 +1207,15 @@ body.modal-open {
   .app-shell {
     height: auto;
     flex: 0 0 auto;
+  }
+  .app-header {
+    grid-template-columns: auto 1fr auto;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+  .app-switcher-tab {
+    padding: 6px 12px;
+    font-size: 12px;
   }
   .layout {
     grid-template-columns: 1fr;

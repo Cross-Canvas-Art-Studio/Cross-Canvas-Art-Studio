@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en" data-require-auth="{{ 'true' if require_auth else 'false' }}" data-ai-enabled="{{ 'true' if ai_enabled else 'false' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ seo_title }}</title>
+    <meta name="description" content="{{ seo_description }}">
+    <link rel="canonical" href="{{ seo_url }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%237c3aed'/%3E%3Cpath d='M8 8l16 16M24 8L8 24' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="{{ seo_site_name }}">
+    <meta property="og:title" content="{{ seo_title }}">
+    <meta property="og:description" content="{{ seo_description }}">
+    <meta property="og:url" content="{{ seo_url }}">
+    <meta property="og:image" content="{{ seo_image }}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ seo_title }}">
+    <meta name="twitter:description" content="{{ seo_description }}">
+    <meta name="twitter:image" content="{{ seo_image }}">
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "{{ seo_site_name }} Pixelator",
+      "url": "{{ seo_url }}",
+      "description": "{{ seo_description }}",
+      "applicationCategory": "MultimediaApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "CAD"
+      }
+    }
+    </script>
+</head>
+<body id="top">
+    <div class="app-shell">
+    <header class="app-header">
+        <div class="brand">
+            <span class="brand-logo" aria-hidden="true">
+                <svg viewBox="0 0 32 32" width="28" height="28">
+                    <rect width="32" height="32" rx="6" fill="url(#g)"></rect>
+                    <defs>
+                        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0" stop-color="#a855f7"></stop>
+                            <stop offset="1" stop-color="#7c3aed"></stop>
+                        </linearGradient>
+                    </defs>
+                    <path d="M9 9l14 14M23 9L9 23" stroke="#fff" stroke-width="3" stroke-linecap="round"></path>
+                </svg>
+            </span>
+            <div class="brand-text">
+                <h1>{{ app_title }}<span class="visually-hidden"> — Free online image pixelizer and pixel art maker</span></h1>
+                <p id="brandSubtitle">Pixel art &amp; mosaic image tool</p>
+            </div>
+        </div>
+        <nav class="app-switcher" aria-label="App selector">
+            <a class="app-switcher-tab" href="/">Stitchee</a>
+            <a class="app-switcher-tab active" href="/pixelator" aria-current="page">Pixelator</a>
+        </nav>
+        <div class="header-actions">
+            <button id="helpBtn" class="btn-ghost" type="button" title="How it works">Help</button>
+        </div>
+    </header>
+
+    <main class="layout">
+        <!-- ============ LEFT: CONTROLS ============ -->
+        <aside class="sidebar" aria-label="Pixelator controls">
+            <section class="panel">
+                <div class="panel-head">
+                    <h2>Image</h2>
+                </div>
+                <div class="drop-zone" id="dropZone" tabindex="0">
+                    <input type="file" id="imageInput" accept="image/*" hidden>
+                    <div class="drop-inner">
+                        <span class="drop-icon" aria-hidden="true">&#128247;</span>
+                        <p><strong>Drop an image</strong> or click to browse</p>
+                        <p class="hint">PNG, JPG, GIF, BMP, WEBP</p>
+                    </div>
+                    <img id="uploadPreview" alt="Selected image preview" hidden>
+                </div>
+                <button id="removeImageBtn" class="btn-ghost full" type="button" hidden>Remove image</button>
+            </section>
+
+            <section class="panel">
+                <div class="panel-head">
+                    <h2>Pixel size</h2>
+                </div>
+                <label class="slider-label">Block size: <output id="pixelSizeVal">16</output> px
+                    <input type="range" id="pixelSize" min="1" max="128" value="16">
+                </label>
+                <div class="preset-row" id="pixelPresets">
+                    <button class="preset-btn" type="button" data-size="4">4</button>
+                    <button class="preset-btn" type="button" data-size="8">8</button>
+                    <button class="preset-btn active" type="button" data-size="16">16</button>
+                    <button class="preset-btn" type="button" data-size="32">32</button>
+                    <button class="preset-btn" type="button" data-size="64">64</button>
+                </div>
+                <p class="hint" id="gridDimsHint">Grid: &mdash;</p>
+            </section>
+
+            <section class="panel">
+                <div class="panel-head">
+                    <h2>Colours</h2>
+                </div>
+                <label class="slider-label">Max colours: <output id="maxColorsVal">256</output>
+                    <input type="range" id="maxColors" min="2" max="256" value="256">
+                </label>
+                <label class="check" style="margin-top:10px">
+                    <input type="checkbox" id="ditherToggle"> Dither (Floyd&ndash;Steinberg)
+                </label>
+            </section>
+
+            <section class="panel">
+                <div class="panel-head">
+                    <h2>Adjust</h2>
+                    <button id="adjustResetBtn" class="btn-ghost" type="button" style="padding:3px 9px;font-size:11px">Reset</button>
+                </div>
+                <label class="slider-label">Brightness: <output id="brightnessVal">100</output>
+                    <input type="range" id="brightness" min="50" max="150" value="100">
+                </label>
+                <label class="slider-label">Contrast: <output id="contrastVal">100</output>
+                    <input type="range" id="contrast" min="50" max="150" value="100">
+                </label>
+                <label class="slider-label">Saturation: <output id="saturationVal">100</output>
+                    <input type="range" id="saturation" min="0" max="200" value="100">
+                </label>
+            </section>
+        </aside>
+
+        <!-- ============ CENTER: CANVAS ============ -->
+        <section class="canvas-area">
+            <div class="canvas-toolbar">
+                <div class="tool-group">
+                    <button id="viewSplit" class="tool active" type="button" title="Before / after split comparison">Split</button>
+                    <button id="viewResult" class="tool" type="button" title="Show pixelated result">Result</button>
+                    <button id="viewOriginal" class="tool" type="button" title="Show original image">Original</button>
+                </div>
+                <div class="tool-group">
+                    <label class="check"><input type="checkbox" id="gridOverlayToggle"> Grid</label>
+                </div>
+                <div class="tool-group right">
+                    <button id="zoomOut" class="tool" type="button" title="Zoom out" aria-label="Zoom out">&minus;</button>
+                    <span id="zoomLevel" class="zoom-level">Fit</span>
+                    <button id="zoomIn" class="tool" type="button" title="Zoom in" aria-label="Zoom in">+</button>
+                    <button id="zoomFit" class="tool" type="button" title="Fit to view">Fit</button>
+                </div>
+            </div>
+
+            <div class="canvas-wrap" id="canvasWrap">
+                <div class="pixelator-empty" id="canvasEmpty">
+                    <div>
+                        <div class="drop-icon" aria-hidden="true">&#128247;</div>
+                        <p>Upload an image and it will be pixelated instantly.</p>
+                    </div>
+                </div>
+                <div class="pixel-stage" id="pixelStage" hidden>
+                    <canvas id="displayCanvas" class="canvas-frame" width="0" height="0"></canvas>
+                    <div class="compare-divider" id="compareDivider" hidden></div>
+                </div>
+            </div>
+
+            <div class="canvas-info">
+                <span id="infoOriginal">&mdash;</span>
+                <span id="infoGrid"></span>
+                <span id="infoBlock"></span>
+                <span id="infoColors"></span>
+                <span class="paint-hint" id="compareHint">Drag the handle to compare</span>
+            </div>
+        </section>
+
+        <!-- ============ RIGHT: EXPORT ============ -->
+        <aside class="sidebar right" aria-label="Pixelator export">
+            <section class="panel">
+                <div class="panel-head">
+                    <h2>Export</h2>
+                </div>
+                <label class="select-label">Output size
+                    <select id="exportScale">
+                        <option value="grid1">Pixel grid &times;1</option>
+                        <option value="grid2">Pixel grid &times;2</option>
+                        <option value="grid4">Pixel grid &times;4</option>
+                        <option value="grid8">Pixel grid &times;8</option>
+                        <option value="native" selected>Original size</option>
+                    </select>
+                </label>
+                <p class="hint" id="exportDimsHint">&mdash;</p>
+                <button id="downloadPngBtn" class="btn-primary full" type="button" disabled>Download PNG</button>
+                <button id="downloadOrigBtn" class="btn-secondary full" type="button" disabled>Download original</button>
+            </section>
+
+            <section class="panel">
+                <div class="panel-head">
+                    <h2>About</h2>
+                </div>
+                <p class="hint">Everything runs in your browser &mdash; images are never uploaded to a server.</p>
+            </section>
+        </aside>
+    </main>
+    </div>
+
+    <footer class="app-footer">
+        <div class="footer-inner">
+            <p class="footer-blurb visually-hidden">Pixelator by Cross Canvas Art Studio — pixelate photos and images into
+            retro pixel art mosaics, free and straight in your browser.</p>
+            <nav class="footer-nav" aria-label="Footer">
+                <a href="https://github.com/Cross-Canvas-Art-Studio/Cross-Canvas-Art-Studio" target="_blank" rel="noopener">GitHub</a>
+                <a href="/">Stitchee &mdash; cross-stitch pattern maker</a>
+            </nav>
+            <p class="footer-meta">&copy; <span id="footerYear">2026</span> Pixelator. Images stay in your browser only.</p>
+        </div>
+    </footer>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <!-- Help modal -->
+    <div id="helpModal" class="app-modal" aria-hidden="true" role="dialog" aria-modal="true">
+        <div class="app-modal-dialog">
+            <div class="app-modal-header">
+                <h2>How it works</h2>
+                <button class="icon-btn" id="helpClose" type="button" title="Close" aria-label="Close help modal">&times;</button>
+            </div>
+            <div class="app-modal-body">
+                <ol class="help-steps">
+                    <li><strong>Upload an image</strong> — drag &amp; drop or click to browse.</li>
+                    <li><strong>Pixel size</strong> — each block becomes a pixel; bigger blocks make a chunkier mosaic.</li>
+                    <li><strong>Colours</strong> — cap the palette for a cleaner retro look, or enable dithering.</li>
+                    <li><strong>Adjust</strong> — tune brightness, contrast and saturation before pixelating.</li>
+                    <li><strong>Compare</strong> — drag the handle on the canvas to see before and after.</li>
+                    <li><strong>Export</strong> — download the pixel art as a PNG at your chosen size.</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='pixelator.js') }}"></script>
+</body>
+</html>

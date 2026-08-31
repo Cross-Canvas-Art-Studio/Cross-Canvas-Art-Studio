@@ -19,6 +19,13 @@
         "site_name": "Stitchee",
         "github_url": "https://github.com/Cross-Canvas-Art-Studio/Cross-Canvas-Art-Studio"
     },
+    "pixelator": {
+        "title": "Pixelator",
+        "subtitle": "Pixel art & mosaic image tool",
+        "seo_title": "Pixelator \u2014 Free Online Image Pixelizer and Pixel Art Maker",
+        "seo_description": "Turn any photo into crisp pixel art right in your browser. Adjust pixel size, colour count, dithering, brightness, contrast and saturation, then download your mosaic as a PNG.",
+        "seo_url": "https://stitchee.ca/pixelator"
+    },
     "upload": {
         "max_file_size_mb": 25,
         "allowed_extensions": [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"],

@@ -117,6 +117,25 @@ SEO_URL         = SEO.get('url', 'https://stitchee.ca/')
 SEO_IMAGE       = SEO.get('image', 'https://stitchee.ca/og-image.png')
 SEO_SITE_NAME   = SEO.get('site_name', 'Stitchee')
 
+
+def load_pixelator():
+    """Read the pixelator page config (title + SEO) from App/config.json."""
+    try:
+        with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+            return json.load(f).get('pixelator', {})
+    except Exception:
+        return {}
+
+
+PIXELATOR = load_pixelator()
+PIX_SEO = {
+    'title': PIXELATOR.get('seo_title', 'Pixelator \u2014 Free Online Image Pixelizer and Pixel Art Maker'),
+    'description': PIXELATOR.get('seo_description', 'Turn any photo into crisp pixel art right in your browser.'),
+    'url': PIXELATOR.get('seo_url') or (SEO_URL.rstrip('/') + '/pixelator'),
+    'image': SEO_IMAGE,
+    'site_name': SEO_SITE_NAME,
+}
+
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # ── 1. Copy required static assets ──
@@ -221,11 +240,58 @@ html = html.replace('href="style.css"', 'href="style.css?v=' + VERSION + '"')
 html = html.replace('src="app.bundle.js"', 'src="app.bundle.js?v=' + VERSION + '"')
 print(f'  cache-bust v{VERSION}')
 
+# Rewrite the header app-switcher links for the flat static site layout.
+# (/pixelator -> pixelator.html, / -> ./)
+html = html.replace('href="/pixelator"', 'href="pixelator.html"')
+html = html.replace('href="/"', 'href="./"')
+
 # ── 3. Write the generated index.html ──
 out_html = os.path.join(OUT_DIR, 'index.html')
 with open(out_html, 'w', encoding='utf-8') as f:
     f.write(html)
 print(f'  wrote   index.html')
+
+# ── 3b. Pixelator static page ──
+# The Pixelator is fully client-side (pixelator.js, no API layer), so it is
+# transformed the same way as index.html and the standalone script is copied.
+PIX_TEMPLATE = os.path.join(ROOT, 'App', 'templates', 'pixelator.html')
+with open(PIX_TEMPLATE, 'r', encoding='utf-8') as f:
+    pix_html = f.read()
+
+pix_html = pix_html.replace('{{ app_title }}', PIXELATOR.get('title', 'Pixelator'))
+pix_html = pix_html.replace("{{ 'true' if require_auth else 'false' }}", "false")
+pix_html = pix_html.replace("{{ 'true' if ai_enabled else 'false' }}",   "false")
+pix_html = pix_html.replace('{{ seo_title }}', PIX_SEO['title'])
+pix_html = pix_html.replace('{{ seo_description }}', PIX_SEO['description'])
+pix_html = pix_html.replace('{{ seo_url }}', PIX_SEO['url'])
+pix_html = pix_html.replace('{{ seo_image }}', PIX_SEO['image'])
+pix_html = pix_html.replace('{{ seo_site_name }}', PIX_SEO['site_name'])
+pix_html = re.sub(
+    r"\{\{ url_for\('static', filename='([^']+)'\) \}\}",
+    lambda m: m.group(1),
+    pix_html,
+)
+# Flat static-site links (same as index.html above)
+pix_html = pix_html.replace('href="/pixelator"', 'href="pixelator.html"')
+pix_html = pix_html.replace('href="/"', 'href="./"')
+# Cache-bust + analytics for consistency with index.html
+pix_html = pix_html.replace('href="style.css"', 'href="style.css?v=' + VERSION + '"')
+pix_html = pix_html.replace('<script src="pixelator.js"></script>',
+                            '<script src="pixelator.js?v=' + VERSION + '"></script>')
+pix_html = pix_html.replace(
+    '</head>',
+    ga_snippet(GA_MEASUREMENT_ID) + cf_snippet(CF_ANALYTICS_TOKEN) + '\n</head>',
+    1,
+)
+
+out_pix = os.path.join(OUT_DIR, 'pixelator.html')
+with open(out_pix, 'w', encoding='utf-8') as f:
+    f.write(pix_html)
+print(f'  wrote   pixelator.html')
+
+# pixelator.js is standalone (no bundling with app.bundle.js)
+shutil.copy(os.path.join(SRC_STATIC, 'pixelator.js'), os.path.join(OUT_DIR, 'pixelator.js'))
+print('  copied  pixelator.js')
 
 # ── 4. Custom domain file for GitHub Pages (pins the stitchee.ca domain) ──
 with open(os.path.join(OUT_DIR, 'CNAME'), 'w', encoding='utf-8') as f:
