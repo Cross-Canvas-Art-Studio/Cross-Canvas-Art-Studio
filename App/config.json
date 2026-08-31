@@ -26,6 +26,27 @@
         "seo_description": "Turn any photo into crisp pixel art right in your browser. Adjust pixel size, colour count, dithering, brightness, contrast and saturation, then download your mosaic as a PNG.",
         "seo_url": "https://stitchee.ca/pixelator"
     },
+    "resizer": {
+        "title": "Resizer",
+        "subtitle": "Resize, compress & convert images",
+        "seo_title": "Resizer \u2014 Free Online Image Resizer and Compressor",
+        "seo_description": "Resize and compress images right in your browser. Set dimensions or quick percentages, lock the aspect ratio, pick PNG, JPEG or WEBP and download the optimized file.",
+        "seo_url": "https://stitchee.ca/resizer"
+    },
+    "palette": {
+        "title": "Palette",
+        "subtitle": "Extract colour palettes from images",
+        "seo_title": "Palette \u2014 Free Color Palette Extractor from Images",
+        "seo_description": "Extract the dominant colours from any image, click swatches to copy hex codes, and export your palette as CSS, JSON or PNG \u2014 all in your browser.",
+        "seo_url": "https://stitchee.ca/palette"
+    },
+    "ascii": {
+        "title": "ASCII",
+        "subtitle": "Turn images into ASCII art",
+        "seo_title": "ASCII Art \u2014 Free Image to ASCII Art Generator",
+        "seo_description": "Convert any photo into retro ASCII art. Adjust the width, choose a character ramp, enable colored output, then copy or download as text or HTML.",
+        "seo_url": "https://stitchee.ca/ascii"
+    },
     "upload": {
         "max_file_size_mb": 25,
         "allowed_extensions": [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"],

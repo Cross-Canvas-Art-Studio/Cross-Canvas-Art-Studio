@@ -132,7 +132,7 @@ textarea {
   gap: 10px;
 }
 
-/* ---------- App switcher (Stitchee / Pixelator) ---------- */
+/* ---------- App switcher (Stitchee / Pixelator / Resizer / Palette / ASCII) ---------- */
 .app-switcher {
   display: flex;
   gap: 4px;
@@ -140,11 +140,17 @@ textarea {
   padding: 4px;
   border-radius: var(--radius-sm);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+  max-width: min(72vw, 640px);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.app-switcher::-webkit-scrollbar {
+  display: none;
 }
 .app-switcher-tab {
-  padding: 7px 18px;
+  padding: 6px 13px;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--text-dim);
   text-decoration: none;
@@ -1197,6 +1203,139 @@ body.modal-open {
   font-size: 40px;
   color: var(--brand);
   opacity: 0.6;
+}
+
+/* ---------- Resizer ---------- */
+.quality-row {
+  display: none;
+}
+.quality-row.visible {
+  display: block;
+}
+.scale-presets {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.size-inputs {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.size-inputs label {
+  flex: 1;
+  min-width: 72px;
+}
+.est-size {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Palette ---------- */
+.palette-strip {
+  display: flex;
+  height: 22px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border-2);
+  margin: 0 4px;
+}
+.palette-strip span {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.p-swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+.p-swatch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 0.15s,
+    transform 0.1s;
+}
+.p-swatch:hover {
+  border-color: var(--brand);
+  transform: translateY(-1px);
+}
+.p-swatch-color {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  flex-shrink: 0;
+}
+.p-swatch-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.p-swatch-hex {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+  text-transform: uppercase;
+}
+.p-swatch-pct {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* ---------- ASCII art ---------- */
+.ascii-wrap {
+  position: relative;
+  flex: 1;
+  overflow: auto;
+  background:
+    linear-gradient(45deg, #12151d 25%, transparent 25%),
+    linear-gradient(-45deg, #12151d 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #12151d 75%),
+    linear-gradient(-45deg, transparent 75%, #12151d 75%);
+  background-size: 20px 20px;
+  background-position:
+    0 0,
+    0 10px,
+    10px -10px,
+    -10px 0;
+  background-color: #0c0e14;
+  border-radius: 8px;
+  min-height: 0;
+  padding: 12px;
+}
+.ascii-out {
+  font-family: var(--mono);
+  font-size: 8px;
+  line-height: 1;
+  color: var(--text);
+  margin: 0;
+  white-space: pre;
+  user-select: text;
+  cursor: text;
+}
+.ascii-out span {
+  white-space: pre;
+}
+.font-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.font-row input[type="range"] {
+  width: 110px;
+  accent-color: var(--brand);
 }
 
 /* ---------- Responsive ---------- */

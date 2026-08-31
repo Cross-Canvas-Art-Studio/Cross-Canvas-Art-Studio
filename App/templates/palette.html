@@ -23,7 +23,7 @@
     {
       "@context": "https://schema.org",
       "@type": "WebApplication",
-      "name": "{{ seo_site_name }} Pixelator",
+      "name": "{{ seo_site_name }} Palette",
       "url": "{{ seo_url }}",
       "description": "{{ seo_description }}",
       "applicationCategory": "MultimediaApplication",
@@ -53,15 +53,15 @@
                 </svg>
             </span>
             <div class="brand-text">
-                <h1>{{ app_title }}<span class="visually-hidden"> — Free online image pixelizer and pixel art maker</span></h1>
-                <p id="brandSubtitle">Pixel art &amp; mosaic image tool</p>
+                <h1>{{ app_title }}<span class="visually-hidden"> — Free color palette extractor from images</span></h1>
+                <p id="brandSubtitle">Extract colour palettes from images</p>
             </div>
         </div>
         <nav class="app-switcher" aria-label="App selector">
             <a class="app-switcher-tab" href="/">Stitchee</a>
-            <a class="app-switcher-tab active" href="/pixelator" aria-current="page">Pixelator</a>
+            <a class="app-switcher-tab" href="/pixelator">Pixelator</a>
             <a class="app-switcher-tab" href="/resizer">Resizer</a>
-            <a class="app-switcher-tab" href="/palette">Palette</a>
+            <a class="app-switcher-tab active" href="/palette" aria-current="page">Palette</a>
             <a class="app-switcher-tab" href="/ascii">ASCII</a>
         </nav>
         <div class="header-actions">
@@ -71,7 +71,7 @@
 
     <main class="layout">
         <!-- ============ LEFT: CONTROLS ============ -->
-        <aside class="sidebar" aria-label="Pixelator controls">
+        <aside class="sidebar" aria-label="Palette controls">
             <section class="panel">
                 <div class="panel-head">
                     <h2>Image</h2>
@@ -90,47 +90,18 @@
 
             <section class="panel">
                 <div class="panel-head">
-                    <h2>Pixel size</h2>
+                    <h2>Palette</h2>
                 </div>
-                <label class="slider-label">Block size: <output id="pixelSizeVal">16</output> px
-                    <input type="range" id="pixelSize" min="1" max="128" value="16">
+                <label class="slider-label">Colours: <output id="maxColorsVal">8</output>
+                    <input type="range" id="maxColors" min="2" max="32" value="8">
                 </label>
-                <div class="preset-row" id="pixelPresets">
-                    <button class="preset-btn" type="button" data-size="4">4</button>
-                    <button class="preset-btn" type="button" data-size="8">8</button>
-                    <button class="preset-btn active" type="button" data-size="16">16</button>
-                    <button class="preset-btn" type="button" data-size="32">32</button>
-                    <button class="preset-btn" type="button" data-size="64">64</button>
-                </div>
-                <p class="hint" id="gridDimsHint">Grid: &mdash;</p>
-            </section>
-
-            <section class="panel">
-                <div class="panel-head">
-                    <h2>Colours</h2>
-                </div>
-                <label class="slider-label">Max colours: <output id="maxColorsVal">256</output>
-                    <input type="range" id="maxColors" min="2" max="256" value="256">
+                <label class="select-label">Sort by
+                    <select id="sortBy">
+                        <option value="count" selected>Most common</option>
+                        <option value="hue">Hue</option>
+                    </select>
                 </label>
-                <label class="check" style="margin-top:10px">
-                    <input type="checkbox" id="ditherToggle"> Dither (Floyd&ndash;Steinberg)
-                </label>
-            </section>
-
-            <section class="panel">
-                <div class="panel-head">
-                    <h2>Adjust</h2>
-                    <button id="adjustResetBtn" class="btn-ghost" type="button" style="padding:3px 9px;font-size:11px">Reset</button>
-                </div>
-                <label class="slider-label">Brightness: <output id="brightnessVal">100</output>
-                    <input type="range" id="brightness" min="50" max="150" value="100">
-                </label>
-                <label class="slider-label">Contrast: <output id="contrastVal">100</output>
-                    <input type="range" id="contrast" min="50" max="150" value="100">
-                </label>
-                <label class="slider-label">Saturation: <output id="saturationVal">100</output>
-                    <input type="range" id="saturation" min="0" max="200" value="100">
-                </label>
+                <p class="hint">Click a swatch to copy its hex code.</p>
             </section>
         </aside>
 
@@ -138,12 +109,7 @@
         <section class="canvas-area">
             <div class="canvas-toolbar">
                 <div class="tool-group">
-                    <button id="viewSplit" class="tool active" type="button" title="Before / after split comparison">Split</button>
-                    <button id="viewResult" class="tool" type="button" title="Show pixelated result">Result</button>
-                    <button id="viewOriginal" class="tool" type="button" title="Show original image">Original</button>
-                </div>
-                <div class="tool-group">
-                    <label class="check"><input type="checkbox" id="gridOverlayToggle"> Grid</label>
+                    <span class="hint">Source image</span>
                 </div>
                 <div class="tool-group right">
                     <button id="zoomOut" class="tool" type="button" title="Zoom out" aria-label="Zoom out">&minus;</button>
@@ -157,42 +123,44 @@
                 <div class="pixelator-empty" id="canvasEmpty">
                     <div>
                         <div class="drop-icon" aria-hidden="true">&#128247;</div>
-                        <p>Upload an image and it will be pixelated instantly.</p>
+                        <p>Upload an image to extract its colours.</p>
                     </div>
                 </div>
                 <div class="pixel-stage" id="pixelStage" hidden>
                     <canvas id="displayCanvas" class="canvas-frame" width="0" height="0"></canvas>
-                    <div class="compare-divider" id="compareDivider" hidden></div>
                 </div>
             </div>
+            <div class="palette-strip" id="paletteStrip" hidden></div>
 
             <div class="canvas-info">
                 <span id="infoOriginal">&mdash;</span>
-                <span id="infoGrid"></span>
-                <span id="infoBlock"></span>
-                <span id="infoColors"></span>
-                <span class="paint-hint" id="compareHint">Drag the handle to compare</span>
+                <span id="infoColours"></span>
+                <span class="paint-hint">Palette updates automatically</span>
             </div>
         </section>
 
-        <!-- ============ RIGHT: EXPORT ============ -->
-        <aside class="sidebar right" aria-label="Pixelator export">
+        <!-- ============ RIGHT: SWATCHES + EXPORT ============ -->
+        <aside class="sidebar right" aria-label="Palette swatches and export">
+            <section class="panel">
+                <div class="panel-head">
+                    <h2>Swatches</h2>
+                    <span class="badge" id="swatchCount">0</span>
+                </div>
+                <div class="p-swatch-grid" id="swatchGrid">
+                    <p class="legend-empty">Upload an image to see colours.</p>
+                </div>
+            </section>
+
             <section class="panel">
                 <div class="panel-head">
                     <h2>Export</h2>
                 </div>
-                <label class="select-label">Output size
-                    <select id="exportScale">
-                        <option value="grid1">Pixel grid &times;1</option>
-                        <option value="grid2">Pixel grid &times;2</option>
-                        <option value="grid4">Pixel grid &times;4</option>
-                        <option value="grid8">Pixel grid &times;8</option>
-                        <option value="native" selected>Original size</option>
-                    </select>
-                </label>
-                <p class="hint" id="exportDimsHint">&mdash;</p>
-                <button id="downloadPngBtn" class="btn-primary full" type="button" disabled>Download PNG</button>
-                <button id="downloadOrigBtn" class="btn-secondary full" type="button" disabled>Download original</button>
+                <div class="btn-row">
+                    <button id="copyHexBtn" class="btn-secondary" type="button" disabled>Copy HEX</button>
+                    <button id="copyCssBtn" class="btn-secondary" type="button" disabled>Copy CSS</button>
+                    <button id="downloadJsonBtn" class="btn-secondary" type="button" disabled>JSON</button>
+                    <button id="downloadPngBtn" class="btn-secondary" type="button" disabled>PNG</button>
+                </div>
             </section>
 
             <section class="panel">
@@ -207,8 +175,8 @@
 
     <footer class="app-footer">
         <div class="footer-inner">
-            <p class="footer-blurb visually-hidden">Pixelator by Cross Canvas Art Studio — pixelate photos and images into
-            retro pixel art mosaics, free and straight in your browser.</p>
+            <p class="footer-blurb visually-hidden">Palette by Cross Canvas Art Studio — extract the dominant colours from any
+            image, copy hex codes and export CSS or JSON, free and straight in your browser.</p>
             <nav class="footer-nav" aria-label="Footer">
                 <a href="https://github.com/Cross-Canvas-Art-Studio/Cross-Canvas-Art-Studio" target="_blank" rel="noopener">GitHub</a>
                 <a href="/">Stitchee &mdash; cross-stitch pattern maker</a>
@@ -229,16 +197,15 @@
             <div class="app-modal-body">
                 <ol class="help-steps">
                     <li><strong>Upload an image</strong> — drag &amp; drop or click to browse.</li>
-                    <li><strong>Pixel size</strong> — each block becomes a pixel; bigger blocks make a chunkier mosaic.</li>
-                    <li><strong>Colours</strong> — cap the palette for a cleaner retro look, or enable dithering.</li>
-                    <li><strong>Adjust</strong> — tune brightness, contrast and saturation before pixelating.</li>
-                    <li><strong>Compare</strong> — drag the handle on the canvas to see before and after.</li>
-                    <li><strong>Export</strong> — download the pixel art as a PNG at your chosen size.</li>
+                    <li><strong>Colours</strong> — choose how many colours to extract (2&ndash;32).</li>
+                    <li><strong>Sort</strong> — order swatches by how common they are or by hue.</li>
+                    <li><strong>Swatches</strong> — click any swatch to copy its hex code.</li>
+                    <li><strong>Export</strong> — copy all hex codes, copy CSS variables, or download as JSON / PNG.</li>
                 </ol>
             </div>
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='pixelator.js') }}"></script>
+    <script src="{{ url_for('static', filename='palette.js') }}"></script>
 </body>
 </html>

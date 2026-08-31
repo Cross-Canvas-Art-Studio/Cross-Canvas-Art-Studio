@@ -379,14 +379,34 @@ def index():
 
 @app.route('/pixelator')
 def pixelator():
-    _px = config.get('pixelator', {})
+    return _tool_page('pixelator', 'pixelator.html')
+
+
+@app.route('/resizer')
+def resizer():
+    return _tool_page('resizer', 'resizer.html')
+
+
+@app.route('/palette')
+def palette():
+    return _tool_page('palette', 'palette.html')
+
+
+@app.route('/ascii')
+def ascii_page():
+    return _tool_page('ascii', 'ascii.html')
+
+
+def _tool_page(tool_key, template):
+    """Render a client-side tool page from its config.json entry."""
+    _t = config.get(tool_key, {})
     _seo = config.get('seo', {})
     return render_template(
-        'pixelator.html',
-        app_title=_px.get('title', 'Pixelator'),
-        seo_title=_px.get('seo_title', 'Pixelator \u2014 Free Online Image Pixelizer and Pixel Art Maker'),
-        seo_description=_px.get('seo_description', 'Turn any photo into crisp pixel art right in your browser. Adjust pixel size, colour count, dithering and more, then download your mosaic as a PNG.'),
-        seo_url=_px.get('seo_url') or (_seo.get('url', '').rstrip('/') + '/pixelator'),
+        template,
+        app_title=_t.get('title', tool_key.title()),
+        seo_title=_t.get('seo_title', ''),
+        seo_description=_t.get('seo_description', ''),
+        seo_url=_t.get('seo_url') or (_seo.get('url', '').rstrip('/') + '/' + tool_key),
         seo_image=_seo.get('image', ''),
         seo_site_name=_seo.get('site_name', 'Stitchee'),
         require_auth=REQUIRE_AUTH,

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en" data-require-auth="false" data-ai-enabled="false">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASCII Art — Free Image to ASCII Art Generator</title>
+    <meta name="description" content="Convert any photo into retro ASCII art. Adjust the width, choose a character ramp, enable colored output, then copy or download as text or HTML.">
+    <link rel="canonical" href="https://stitchee.ca/ascii">
+    <link rel="stylesheet" href="style.css?v=6c91130">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%237c3aed'/%3E%3Cpath d='M8 8l16 16M24 8L8 24' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Stitchee">
+    <meta property="og:title" content="ASCII Art — Free Image to ASCII Art Generator">
+    <meta property="og:description" content="Convert any photo into retro ASCII art. Adjust the width, choose a character ramp, enable colored output, then copy or download as text or HTML.">
+    <meta property="og:url" content="https://stitchee.ca/ascii">
+    <meta property="og:image" content="https://stitchee.ca/og-image.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="ASCII Art — Free Image to ASCII Art Generator">
+    <meta name="twitter:description" content="Convert any photo into retro ASCII art. Adjust the width, choose a character ramp, enable colored output, then copy or download as text or HTML.">
+    <meta name="twitter:image" content="https://stitchee.ca/og-image.png">
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Stitchee ASCII Art",
+      "url": "https://stitchee.ca/ascii",
+      "description": "Convert any photo into retro ASCII art. Adjust the width, choose a character ramp, enable colored output, then copy or download as text or HTML.",
+      "applicationCategory": "MultimediaApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "CAD"
+      }
+    }
+    </script>
+
+    <!-- ════════════════════════════════════════════════════════ -->
+    <!-- GOOGLE ANALYTICS (GA4)                                    -->
+    <!-- Tag: G-2962YBBV7F                                         -->
+    <!-- ════════════════════════════════════════════════════════ -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-2962YBBV7F"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-2962YBBV7F');
+    </script>
+
+    <!-- ════════════════════════════════════════════════════════ -->
+    <!-- CLOUDFLARE WEB ANALYTICS — not enabled               -->
+    <!-- Set CF_ANALYTICS_TOKEN (Cloudflare → Web Analytics)  -->
+    <!-- and rebuild.                                           -->
+    <!-- ════════════════════════════════════════════════════════ -->
+
+</head>
+<body id="top">
+    <div class="app-shell">
+    <header class="app-header">
+        <div class="brand">
+            <span class="brand-logo" aria-hidden="true">
+                <svg viewBox="0 0 32 32" width="28" height="28">
+                    <rect width="32" height="32" rx="6" fill="url(#g)"></rect>
+                    <defs>
+                        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0" stop-color="#a855f7"></stop>
+                            <stop offset="1" stop-color="#7c3aed"></stop>
+                        </linearGradient>
+                    </defs>
+                    <path d="M9 9l14 14M23 9L9 23" stroke="#fff" stroke-width="3" stroke-linecap="round"></path>
+                </svg>
+            </span>
+            <div class="brand-text">
+                <h1>ASCII<span class="visually-hidden"> — Free ASCII art generator from images</span></h1>
+                <p id="brandSubtitle">Turn images into ASCII art</p>
+            </div>
+        </div>
+        <nav class="app-switcher" aria-label="App selector">
+            <a class="app-switcher-tab" href="./">Stitchee</a>
+            <a class="app-switcher-tab" href="pixelator.html">Pixelator</a>
+            <a class="app-switcher-tab" href="resizer.html">Resizer</a>
+            <a class="app-switcher-tab" href="palette.html">Palette</a>
+            <a class="app-switcher-tab active" href="ascii.html" aria-current="page">ASCII</a>
+        </nav>
+        <div class="header-actions">
+            <button id="helpBtn" class="btn-ghost" type="button" title="How it works">Help</button>
+        </div>
+    </header>
+
+    <main class="layout">
+        <!-- ============ LEFT: CONTROLS ============ -->
+        <aside class="sidebar" aria-label="ASCII art controls">
+            <section class="panel">
+                <div class="panel-head">
+                    <h2>Source</h2>
+                </div>
+                <div class="tabs" role="tablist">
+                    <button class="tab active" data-ascii-source="image" role="tab" type="button">Image</button>
+                    <button class="tab" data-ascii-source="text" role="tab" type="button">Text</button>
+                </div>
+                <div id="sourceImage">
+                    <div class="drop-zone" id="dropZone" tabindex="0">
+                        <input type="file" id="imageInput" accept="image/*" hidden>
+                        <div class="drop-inner">
+                            <span class="drop-icon" aria-hidden="true">&#128247;</span>
+                            <p><strong>Drop an image</strong> or click to browse</p>
+                            <p class="hint">PNG, JPG, GIF, BMP, WEBP</p>
+                        </div>
+                        <img id="uploadPreview" alt="Selected image preview" hidden>
+                    </div>
+                    <button id="removeImageBtn" class="btn-ghost full" type="button" hidden>Remove image</button>
+                </div>
+                <div id="sourceText" hidden>
+                    <label class="area-label">Your text
+                        <textarea id="textInput" rows="4" maxlength="120" placeholder="Type something… e.g. CROSS CANVAS"></textarea>
+                    </label>
+                    <label class="slider-label">Scale: <output id="textScaleVal">1</output>
+                        <input type="range" id="textScale" min="1" max="3" value="1">
+                    </label>
+                    <p class="hint">Renders your text as big block-letter ASCII — keeps capitals and lowercase, supports Unicode characters.</p>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-head">
+                    <h2>Settings</h2>
+                </div>
+                <div id="imageSettings">
+                    <label class="slider-label">Width: <output id="widthVal">120</output> chars
+                        <input type="range" id="width" min="20" max="240" value="120">
+                    </label>
+                    <label class="select-label">Characters
+                        <select id="charset">
+                            <option value="classic" selected>Classic @%#*+=-:. </option>
+                            <option value="detailed">Detailed $@B%8&amp;WM#...</option>
+                            <option value="block">Blocks █▓▒░</option>
+                            <option value="binary">Binary #.</option>
+                            <option value="shade">Shades ▉▊▋▌▍▎▏</option>
+                            <option value="numeric">Numbers 9876543210</option>
+                            <option value="alpha">Letters A–Z</option>
+                            <option value="currency">Currency $€£¥¢</option>
+                            <option value="braille">Braille ⣿⡿⡟⡇</option>
+                            <option value="custom">Custom…</option>
+                        </select>
+                    </label>
+                    <input type="text" id="customCharset"
+                        placeholder="@%#*+=-:.  — brightest first, faintest last" maxlength="64" hidden>
+                    <p class="hint" id="customHint" hidden>Type your own characters — brightest first, faintest (e.g. space) last.</p>
+                    <label class="check" style="margin-top:10px">
+                        <input type="checkbox" id="invertToggle"> Invert (light background)
+                    </label>
+                </div>
+                <label class="check" style="margin-top:10px">
+                    <input type="checkbox" id="colorToggle"> Colored output
+                </label>
+            </section>
+        </aside>
+
+        <!-- ============ CENTER: ASCII OUTPUT ============ -->
+        <section class="canvas-area">
+            <div class="canvas-toolbar">
+                <div class="tool-group">
+                    <label class="font-row">Size:
+                        <input type="range" id="fontSize" min="4" max="20" value="8">
+                    </label>
+                </div>
+                <div class="tool-group right">
+                    <button id="copyTextBtn" class="tool" type="button" title="Copy ASCII text">Copy</button>
+                </div>
+            </div>
+
+            <div class="ascii-wrap" id="asciiWrap">
+                <div class="pixelator-empty" id="canvasEmpty">
+                    <div>
+                        <div class="drop-icon" aria-hidden="true">&#128247;</div>
+                        <p>Upload an image to generate ASCII art.</p>
+                    </div>
+                </div>
+                <pre id="asciiOut" class="ascii-out"></pre>
+            </div>
+
+            <div class="canvas-info">
+                <span id="infoOriginal">&mdash;</span>
+                <span id="infoAscii"></span>
+                <span class="paint-hint">Copy or download your ASCII art</span>
+            </div>
+        </section>
+
+        <!-- ============ RIGHT: EXPORT ============ -->
+        <aside class="sidebar right" aria-label="ASCII art export">
+            <section class="panel">
+                <div class="panel-head">
+                    <h2>Export</h2>
+                </div>
+                <button id="downloadTxtBtn" class="btn-primary full" type="button" disabled>Download .txt</button>
+                <button id="downloadHtmlBtn" class="btn-secondary full" type="button" disabled>Download .html</button>
+            </section>
+
+            <section class="panel">
+                <div class="panel-head">
+                    <h2>About</h2>
+                </div>
+                <p class="hint">Everything runs in your browser &mdash; images are never uploaded to a server.</p>
+            </section>
+        </aside>
+    </main>
+    </div>
+
+    <footer class="app-footer">
+        <div class="footer-inner">
+            <p class="footer-blurb visually-hidden">ASCII Art by Cross Canvas Art Studio — convert any photo into retro ASCII art,
+            copy it or download it as text or colored HTML, free and straight in your browser.</p>
+            <nav class="footer-nav" aria-label="Footer">
+                <a href="https://github.com/Cross-Canvas-Art-Studio/Cross-Canvas-Art-Studio" target="_blank" rel="noopener">GitHub</a>
+                <a href="./">Stitchee &mdash; cross-stitch pattern maker</a>
+            </nav>
+            <p class="footer-meta">&copy; <span id="footerYear">2026</span> Stitchee. Projects are stored in your browser only</p>
+        </div>
+    </footer>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <!-- Help modal -->
+    <div id="helpModal" class="app-modal" aria-hidden="true" role="dialog" aria-modal="true">
+        <div class="app-modal-dialog">
+            <div class="app-modal-header">
+                <h2>How it works</h2>
+                <button class="icon-btn" id="helpClose" type="button" title="Close" aria-label="Close help modal">&times;</button>
+            </div>
+            <div class="app-modal-body">
+                <ol class="help-steps">
+                    <li><strong>Source</strong> — use <em>Image</em> to convert a photo, or <em>Text</em> to render typed words as big block-letter ASCII.</li>
+                    <li><strong>Upload an image</strong> — drag &amp; drop or click to browse.</li>
+                    <li><strong>Width</strong> — sets how many characters wide the output is.</li>
+                    <li><strong>Characters</strong> — pick a shading ramp; denser ramps show more detail, or choose <em>Custom…</em> to type your own (brightest first, faintest last).</li>
+                    <li><strong>Invert</strong> — for art meant to be seen on a light background.</li>
+                    <li><strong>Colored</strong> — renders each character in the source pixel's colour (great with Blocks).</li>
+                    <li><strong>Export</strong> — copy the text, or download as .txt or colored .html.</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <script src="ascii.js?v=6c91130"></script>
+</body>
+</html>
