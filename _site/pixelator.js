@@ -8,7 +8,8 @@
  *   - optional Floyd-Steinberg dithering
  *   - brightness / contrast / saturation pre-adjustment
  *   - draggable before/after split comparison, grid overlay, zoom
- *   - PNG export at pixel-grid or original size
+ *   - AI-free de-pixelation with smoothing, sharpening, and scaled export
+ *   - PNG export at pixel-grid, source, or enhanced scale
  */
 (function () {
   "use strict";
@@ -27,6 +28,7 @@
     sourceCanvas: null, // original image at natural size
     adjustedCanvas: null,
     resultCanvas: null, // pixelated result, same size as source
+    mode: "pixelate", // 'pixelate' | 'depixelate'
     usedColors: 0,
     fileName: "",
     pixelSize: 16,
@@ -35,6 +37,12 @@
     brightness: 100,
     contrast: 100,
     saturation: 100,
+    smoothing: 45,
+    sharpness: 30,
+    deblocking: 35,
+    interpolation: "high",
+    edgePreserve: true,
+    depixelateScale: 1,
     view: "split", // 'split' | 'result' | 'original'
     gridOverlay: false,
     zoom: 1, // 1 == fit to viewport
@@ -67,16 +75,19 @@
   function cacheEls() {
     [
       "dropZone", "imageInput", "uploadPreview", "removeImageBtn",
+      "processingMode", "modeDescription", "pixelateOptions", "pixelateColorOptions", "depixelateOptions",
       "pixelSize", "pixelSizeVal", "pixelPresets", "gridDimsHint",
       "maxColors", "maxColorsVal", "ditherToggle",
       "brightness", "brightnessVal", "contrast", "contrastVal",
       "saturation", "saturationVal", "adjustResetBtn",
+      "depixelPresets", "deblocking", "deblockingVal", "smoothing", "smoothingVal", "sharpness", "sharpnessVal",
+      "interpolation", "edgePreserveToggle", "depixelateScale",
       "viewSplit", "viewResult", "viewOriginal", "gridOverlayToggle",
       "zoomOut", "zoomIn", "zoomLevel", "zoomFit",
       "canvasWrap", "canvasEmpty", "pixelStage", "displayCanvas",
       "compareDivider", "compareHint",
       "infoOriginal", "infoGrid", "infoBlock", "infoColors",
-      "exportScale", "exportDimsHint", "downloadPngBtn", "downloadOrigBtn",
+      "exportScale", "pixelExportOptions", "depixelExportLabel", "exportDimsHint", "downloadPngBtn", "downloadOrigBtn",
       "toast", "helpBtn", "helpModal", "helpClose", "footerYear",
     ].forEach(function (id) {
       els[id] = $(id);
@@ -102,7 +113,7 @@
         c.getContext("2d").drawImage(img, 0, 0);
         state.sourceCanvas = c;
         onImageReady();
-        pixelate();
+        rebuild();
       };
       img.onerror = function () {
         toast("Could not read that image", "error");
@@ -144,7 +155,7 @@
     els.exportDimsHint.textContent = "\u2014";
   }
 
-  // ---------- pixelation pipeline ----------
+  // ---------- processing pipelines ----------
   function gridSize() {
     if (!state.sourceCanvas) return { w: 0, h: 0 };
     return {
@@ -194,6 +205,137 @@
 
     render();
     updateInfo();
+  }
+
+  function buildDepixelatedCanvas() {
+    if (!state.sourceCanvas) return;
+    buildAdjustedCanvas();
+
+    // A small blur softens hard block boundaries before the edge-aware pass.
+    var softened = document.createElement("canvas");
+    softened.width = state.adjustedCanvas.width;
+    softened.height = state.adjustedCanvas.height;
+    var softCtx = softened.getContext("2d");
+    softCtx.filter = "blur(" + (state.deblocking / 100 * 2).toFixed(2) + "px)";
+    softCtx.drawImage(state.adjustedCanvas, 0, 0);
+
+    // Draw at source resolution with high-quality interpolation. This keeps
+    // the output dimensions stable for the existing comparison renderer.
+    var res = document.createElement("canvas");
+    res.width = state.sourceCanvas.width;
+    res.height = state.sourceCanvas.height;
+    var rctx = res.getContext("2d", { willReadFrequently: true });
+    rctx.imageSmoothingEnabled = true;
+    rctx.imageSmoothingQuality = state.interpolation;
+    rctx.drawImage(softened, 0, 0, res.width, res.height);
+
+    if (state.edgePreserve && state.smoothing > 0) {
+      edgePreservingSmooth(res, state.smoothing / 100);
+    } else if (state.smoothing > 0) {
+      var smoothCtx = res.getContext("2d");
+      var smooth = document.createElement("canvas");
+      smooth.width = res.width;
+      smooth.height = res.height;
+      var smoothSource = smooth.getContext("2d");
+      smoothSource.filter = "blur(" + (state.smoothing / 100 * 2.5).toFixed(2) + "px)";
+      smoothSource.drawImage(res, 0, 0);
+      smoothCtx.clearRect(0, 0, res.width, res.height);
+      smoothCtx.drawImage(smooth, 0, 0);
+    }
+
+    if (state.sharpness > 0) {
+      sharpenCanvas(res, state.sharpness / 100 * 0.85);
+    }
+    state.resultCanvas = res;
+    state.usedColors = countColors(res);
+    render();
+    updateInfo();
+  }
+
+  function edgePreservingSmooth(canvas, strength) {
+    var ctx = canvas.getContext("2d", { willReadFrequently: true });
+    var image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    var source = image.data;
+    var output = new Uint8ClampedArray(source);
+    var w = canvas.width;
+    var h = canvas.height;
+    var radius = 18 + strength * 42;
+    var blend = strength * 0.72;
+
+    for (var y = 1; y < h - 1; y++) {
+      for (var x = 1; x < w - 1; x++) {
+        var o = (y * w + x) * 4;
+        var baseR = source[o];
+        var baseG = source[o + 1];
+        var baseB = source[o + 2];
+        var sumR = baseR;
+        var sumG = baseG;
+        var sumB = baseB;
+        var weightSum = 1;
+
+        for (var dy = -1; dy <= 1; dy++) {
+          for (var dx = -1; dx <= 1; dx++) {
+            if (!dx && !dy) continue;
+            var no = ((y + dy) * w + x + dx) * 4;
+            var dr = source[no] - baseR;
+            var dg = source[no + 1] - baseG;
+            var db = source[no + 2] - baseB;
+            var distance = Math.sqrt(dr * dr + dg * dg + db * db);
+            var weight = Math.exp(-(distance * distance) / (2 * radius * radius));
+            sumR += source[no] * weight;
+            sumG += source[no + 1] * weight;
+            sumB += source[no + 2] * weight;
+            weightSum += weight;
+          }
+        }
+
+        var smoothR = sumR / weightSum;
+        var smoothG = sumG / weightSum;
+        var smoothB = sumB / weightSum;
+        output[o] = clamp255(baseR + (smoothR - baseR) * blend);
+        output[o + 1] = clamp255(baseG + (smoothG - baseG) * blend);
+        output[o + 2] = clamp255(baseB + (smoothB - baseB) * blend);
+      }
+    }
+    image.data.set(output);
+    ctx.putImageData(image, 0, 0);
+  }
+
+  function sharpenCanvas(canvas, amount) {
+    var ctx = canvas.getContext("2d", { willReadFrequently: true });
+    var image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    var source = image.data;
+    var output = new Uint8ClampedArray(source);
+    var w = canvas.width;
+    var h = canvas.height;
+    var center = 1 + amount * 4;
+    var side = -amount;
+
+    for (var y = 1; y < h - 1; y++) {
+      for (var x = 1; x < w - 1; x++) {
+        var o = (y * w + x) * 4;
+        for (var channel = 0; channel < 3; channel++) {
+          var value =
+            source[o + channel] * center +
+            source[o - 4 + channel] * side +
+            source[o + 4 + channel] * side +
+            source[o - w * 4 + channel] * side +
+            source[o + w * 4 + channel] * side;
+          output[o + channel] = clamp255(value);
+        }
+      }
+    }
+    image.data.set(output);
+    ctx.putImageData(image, 0, 0);
+  }
+
+  function rebuild() {
+    if (!state.sourceCanvas) return;
+    if (state.mode === "depixelate") {
+      buildDepixelatedCanvas();
+    } else {
+      pixelate();
+    }
   }
 
   // ---------- colour quantization ----------
@@ -396,9 +538,9 @@
       ctx.drawImage(state.sourceCanvas, 0, 0, cssW, cssH);
       els.compareDivider.hidden = true;
     } else if (state.view === "result") {
-      ctx.imageSmoothingEnabled = false;
+      ctx.imageSmoothingEnabled = state.mode === "depixelate";
       ctx.drawImage(state.resultCanvas, 0, 0, cssW, cssH);
-      if (state.gridOverlay) drawGrid(ctx, ds, 0, cssW, cssH);
+      if (state.gridOverlay && state.mode === "pixelate") drawGrid(ctx, ds, 0, cssW, cssH);
       els.compareDivider.hidden = true;
     } else {
       // split: original on the left, pixelated on the right
@@ -414,9 +556,9 @@
       ctx.beginPath();
       ctx.rect(x, 0, cssW - x, cssH);
       ctx.clip();
-      ctx.imageSmoothingEnabled = false;
+      ctx.imageSmoothingEnabled = state.mode === "depixelate";
       ctx.drawImage(state.resultCanvas, 0, 0, cssW, cssH);
-      if (state.gridOverlay) drawGrid(ctx, ds, x, cssW, cssH);
+      if (state.gridOverlay && state.mode === "pixelate") drawGrid(ctx, ds, x, cssW, cssH);
       ctx.restore();
 
       ctx.strokeStyle = "rgba(255,255,255,0.9)";
@@ -442,17 +584,29 @@
     var g = gridSize();
     els.infoOriginal.textContent =
       state.sourceCanvas.width + " \u00d7 " + state.sourceCanvas.height + " px";
-    els.infoGrid.textContent = "Grid " + g.w + " \u00d7 " + g.h;
-    els.infoBlock.textContent = "Block " + state.pixelSize + " px";
+    els.infoGrid.textContent = state.mode === "pixelate"
+      ? "Grid " + g.w + " \u00d7 " + g.h
+      : "Enhanced at source resolution";
+    els.infoBlock.textContent = state.mode === "pixelate"
+      ? "Block " + state.pixelSize + " px"
+      : "Scale " + state.depixelateScale + "\u00d7";
     els.infoColors.textContent = state.resultCanvas
       ? state.usedColors + " colour" + (state.usedColors === 1 ? "" : "s")
       : "";
-    els.gridDimsHint.textContent = "Grid: " + g.w + " \u00d7 " + g.h + " px";
+    els.gridDimsHint.textContent = state.mode === "pixelate"
+      ? "Grid: " + g.w + " \u00d7 " + g.h + " px"
+      : "AI-free edge smoothing and sharpening";
     var d = exportDims();
     els.exportDimsHint.textContent = d.w + " \u00d7 " + d.h + " px";
   }
 
   function exportDims() {
+    if (state.mode === "depixelate") {
+      return {
+        w: state.sourceCanvas.width * state.depixelateScale,
+        h: state.sourceCanvas.height * state.depixelateScale,
+      };
+    }
     var g = gridSize();
     var v = els.exportScale.value;
     if (v === "native") {
@@ -490,7 +644,8 @@
     var ctx = out.getContext("2d");
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(state.resultCanvas, 0, 0, d.w, d.h);
-    downloadBlob(out, "pixelated-" + baseName(state.fileName) + ".png", "PNG downloaded");
+    var prefix = state.mode === "depixelate" ? "depixelated-" : "pixelated-";
+    downloadBlob(out, prefix + baseName(state.fileName) + ".png", "PNG downloaded");
   }
 
   function downloadOriginal() {
@@ -506,7 +661,26 @@
   var pixelateTimer = 0;
   function schedulePixelate() {
     clearTimeout(pixelateTimer);
-    pixelateTimer = setTimeout(pixelate, 50);
+    pixelateTimer = setTimeout(rebuild, 50);
+  }
+
+  function setMode(mode) {
+    state.mode = mode === "depixelate" ? "depixelate" : "pixelate";
+    var depixelate = state.mode === "depixelate";
+    els.pixelateOptions.hidden = depixelate;
+    els.pixelateColorOptions.hidden = depixelate;
+    els.depixelateOptions.hidden = !depixelate;
+    els.pixelExportOptions.hidden = depixelate;
+    els.depixelExportLabel.hidden = !depixelate;
+    els.gridOverlayToggle.disabled = depixelate;
+    if (depixelate) {
+      els.gridOverlayToggle.checked = false;
+      state.gridOverlay = false;
+    }
+    els.modeDescription.textContent = depixelate
+      ? "Soften block edges and restore local edge contrast without AI; missing detail cannot be recovered."
+      : "Create crisp block-based pixel art with colour reduction and optional dithering.";
+    if (state.sourceCanvas) rebuild();
   }
 
   function setView(v) {
@@ -533,6 +707,32 @@
         parseInt(btn.getAttribute("data-size"), 10) === state.pixelSize,
       );
     });
+  }
+
+  function updateDepixelPresetActive() {
+    var current = [state.smoothing, state.sharpness, state.deblocking].join(",");
+    els.depixelPresets.querySelectorAll(".preset-btn").forEach(function (btn) {
+      var values = [
+        btn.getAttribute("data-smoothing"),
+        btn.getAttribute("data-sharpness"),
+        btn.getAttribute("data-deblocking"),
+      ].join(",");
+      btn.classList.toggle("active", values === current);
+    });
+  }
+
+  function setDepixelValues(smoothing, sharpness, deblocking) {
+    state.smoothing = clamp(smoothing, 0, 100);
+    state.sharpness = clamp(sharpness, 0, 100);
+    state.deblocking = clamp(deblocking, 0, 100);
+    els.smoothing.value = state.smoothing;
+    els.smoothingVal.textContent = state.smoothing;
+    els.sharpness.value = state.sharpness;
+    els.sharpnessVal.textContent = state.sharpness;
+    els.deblocking.value = state.deblocking;
+    els.deblockingVal.textContent = state.deblocking;
+    updateDepixelPresetActive();
+    schedulePixelate();
   }
 
   // ---------- events ----------
@@ -582,6 +782,11 @@
     });
     els.removeImageBtn.addEventListener("click", removeImage);
 
+    // processing mode
+    els.processingMode.addEventListener("change", function () {
+      setMode(els.processingMode.value);
+    });
+
     // pixel size
     els.pixelSize.addEventListener("input", function () {
       state.pixelSize = clamp(parseInt(els.pixelSize.value, 10) || 16, MIN_PIXEL, MAX_PIXEL);
@@ -614,8 +819,38 @@
     bindAdjust("brightness", "brightness", 50, 150);
     bindAdjust("contrast", "contrast", 50, 150);
     bindAdjust("saturation", "saturation", 0, 200);
+    bindAdjust("deblocking", "deblocking", 0, 100);
+    bindAdjust("smoothing", "smoothing", 0, 100);
+    bindAdjust("sharpness", "sharpness", 0, 100);
+    ["deblocking", "smoothing", "sharpness"].forEach(function (id) {
+      els[id].addEventListener("input", updateDepixelPresetActive);
+    });
+    els.depixelPresets.querySelectorAll(".preset-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        setDepixelValues(
+          parseInt(btn.getAttribute("data-smoothing"), 10),
+          parseInt(btn.getAttribute("data-sharpness"), 10),
+          parseInt(btn.getAttribute("data-deblocking"), 10),
+        );
+      });
+    });
+    els.interpolation.addEventListener("change", function () {
+      state.interpolation = els.interpolation.value;
+      schedulePixelate();
+    });
+    els.edgePreserveToggle.addEventListener("change", function () {
+      state.edgePreserve = els.edgePreserveToggle.checked;
+      schedulePixelate();
+    });
     els.adjustResetBtn.addEventListener("click", function () {
       state.brightness = state.contrast = state.saturation = 100;
+      setDepixelValues(45, 30, 35);
+      state.interpolation = "high";
+      state.edgePreserve = true;
+      els.interpolation.value = "high";
+      els.edgePreserveToggle.checked = true;
+      state.smoothing = 45;
+      state.sharpness = 30;
       els.brightness.value = 100;
       els.brightnessVal.textContent = 100;
       els.contrast.value = 100;
@@ -623,6 +858,10 @@
       els.saturation.value = 100;
       els.saturationVal.textContent = 100;
       schedulePixelate();
+    });
+    els.depixelateScale.addEventListener("change", function () {
+      state.depixelateScale = clamp(parseInt(els.depixelateScale.value, 10) || 1, 1, 4);
+      if (state.sourceCanvas) updateInfo();
     });
 
     // view / overlay / zoom
@@ -680,6 +919,7 @@
 
     // misc
     els.footerYear.textContent = new Date().getFullYear();
+    setMode("pixelate");
     window.addEventListener("resize", function () {
       if (state.sourceCanvas) render();
     });

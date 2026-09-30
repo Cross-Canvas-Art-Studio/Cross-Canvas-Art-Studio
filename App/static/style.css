@@ -1148,6 +1148,13 @@ body.modal-open {
 }
 
 /* ---------- Pixelator ---------- */
+.mode-description {
+  margin: 8px 0 0;
+  line-height: 1.45;
+}
+.pixelator-mode-note {
+  line-height: 1.45;
+}
 .preset-row {
   display: flex;
   gap: 6px;

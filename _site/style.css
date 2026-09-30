@@ -400,24 +400,6 @@ textarea {
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
-.export-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-}
-.export-row .export-format {
-  flex: 1;
-  min-width: 0;
-}
-.export-row .export-format select {
-  min-width: 0;
-}
-.export-row .btn-secondary {
-  flex-shrink: 0;
-}
-.export-actions {
-  margin-top: 8px;
-}
 
 /* ---------- Tabs ---------- */
 .tabs {
@@ -1166,6 +1148,13 @@ body.modal-open {
 }
 
 /* ---------- Pixelator ---------- */
+.mode-description {
+  margin: 8px 0 0;
+  line-height: 1.45;
+}
+.pixelator-mode-note {
+  line-height: 1.45;
+}
 .preset-row {
   display: flex;
   gap: 6px;

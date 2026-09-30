@@ -53,7 +53,7 @@
                 </svg>
             </span>
             <div class="brand-text">
-                <h1>{{ app_title }}<span class="visually-hidden"> — Free online image pixelizer and pixel art maker</span></h1>
+                <h1>{{ app_title }}<span class="visually-hidden"> — Free online image pixelizer and AI-free de-pixelator</span></h1>
                 <p id="brandSubtitle">Pixel art &amp; mosaic image tool</p>
             </div>
         </div>
@@ -90,6 +90,19 @@
 
             <section class="panel">
                 <div class="panel-head">
+                    <h2>Processing mode</h2>
+                </div>
+                <label class="select-label">Mode
+                    <select id="processingMode">
+                        <option value="pixelate" selected>Pixelate</option>
+                        <option value="depixelate">De-Pixelate</option>
+                    </select>
+                </label>
+                <p class="hint mode-description" id="modeDescription">Create crisp block-based pixel art with colour reduction and optional dithering.</p>
+            </section>
+
+            <section class="panel" id="pixelateOptions">
+                <div class="panel-head">
                     <h2>Pixel size</h2>
                 </div>
                 <label class="slider-label">Block size: <output id="pixelSizeVal">16</output> px
@@ -105,7 +118,46 @@
                 <p class="hint" id="gridDimsHint">Grid: &mdash;</p>
             </section>
 
-            <section class="panel">
+            <section class="panel" id="depixelateOptions" hidden>
+                <div class="panel-head">
+                    <h2>De-Pixelate</h2>
+                </div>
+                <p class="hint">AI-free smoothing and sharpening can soften block edges, but cannot recover discarded detail.</p>
+                <div class="preset-row" id="depixelPresets">
+                    <button class="preset-btn active" type="button" data-smoothing="45" data-sharpness="30" data-deblocking="35">Balanced</button>
+                    <button class="preset-btn" type="button" data-smoothing="70" data-sharpness="10" data-deblocking="65">Soft</button>
+                    <button class="preset-btn" type="button" data-smoothing="20" data-sharpness="60" data-deblocking="20">Crisp</button>
+                    <button class="preset-btn" type="button" data-smoothing="55" data-sharpness="20" data-deblocking="45">Illustration</button>
+                </div>
+                <label class="slider-label">Deblocking: <output id="deblockingVal">35</output>
+                    <input type="range" id="deblocking" min="0" max="100" value="35">
+                </label>
+                <label class="slider-label">Smoothing: <output id="smoothingVal">45</output>
+                    <input type="range" id="smoothing" min="0" max="100" value="45">
+                </label>
+                <label class="slider-label">Sharpness: <output id="sharpnessVal">30</output>
+                    <input type="range" id="sharpness" min="0" max="100" value="30">
+                </label>
+                <label class="select-label">Interpolation
+                    <select id="interpolation">
+                        <option value="high" selected>Smooth (high quality)</option>
+                        <option value="medium">Balanced</option>
+                        <option value="low">Crisp edges</option>
+                    </select>
+                </label>
+                <label class="check">
+                    <input type="checkbox" id="edgePreserveToggle" checked> Preserve strong edges
+                </label>
+                <label class="select-label">Output scale
+                    <select id="depixelateScale">
+                        <option value="1" selected>1&times; source size</option>
+                        <option value="2">2&times; source size</option>
+                        <option value="4">4&times; source size</option>
+                    </select>
+                </label>
+            </section>
+
+            <section class="panel" id="pixelateColorOptions">
                 <div class="panel-head">
                     <h2>Colours</h2>
                 </div>
@@ -157,7 +209,7 @@
                 <div class="pixelator-empty" id="canvasEmpty">
                     <div>
                         <div class="drop-icon" aria-hidden="true">&#128247;</div>
-                        <p>Upload an image and it will be pixelated instantly.</p>
+                        <p>Upload an image and choose Pixelate or De-Pixelate.</p>
                     </div>
                 </div>
                 <div class="pixel-stage" id="pixelStage" hidden>
@@ -181,7 +233,7 @@
                 <div class="panel-head">
                     <h2>Export</h2>
                 </div>
-                <label class="select-label">Output size
+                <label class="select-label" id="pixelExportOptions">Output size
                     <select id="exportScale">
                         <option value="grid1">Pixel grid &times;1</option>
                         <option value="grid2">Pixel grid &times;2</option>
@@ -190,6 +242,7 @@
                         <option value="native" selected>Original size</option>
                     </select>
                 </label>
+                <p class="hint" id="depixelExportLabel" hidden>De-Pixelate output uses the selected scale.</p>
                 <p class="hint" id="exportDimsHint">&mdash;</p>
                 <button id="downloadPngBtn" class="btn-primary full" type="button" disabled>Download PNG</button>
                 <button id="downloadOrigBtn" class="btn-secondary full" type="button" disabled>Download original</button>
@@ -207,8 +260,8 @@
 
     <footer class="app-footer">
         <div class="footer-inner">
-            <p class="footer-blurb visually-hidden">Pixelator by Cross Canvas Art Studio — pixelate photos and images into
-            retro pixel art mosaics, free and straight in your browser.</p>
+            <p class="footer-blurb visually-hidden">Pixelator by Cross Canvas Art Studio — pixelate or enhance photos and images
+            in your browser without uploading them.</p>
             <nav class="footer-nav" aria-label="Footer">
                 <a href="https://github.com/Cross-Canvas-Art-Studio/Cross-Canvas-Art-Studio" target="_blank" rel="noopener">GitHub</a>
                 <a href="/">Stitchee &mdash; cross-stitch pattern maker</a>
