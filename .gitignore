@@ -23,6 +23,8 @@ secrets.json
 config/secrets/*
 .npmrc
 .yarnrc
+*.log
+*.db
 
 # OS Files
 .DS_Store
