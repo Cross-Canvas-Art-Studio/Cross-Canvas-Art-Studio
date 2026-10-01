@@ -206,6 +206,8 @@ STATIC_FILES = [
     'style.css',
     'apple-touch-icon.png',
     'og-image.png',
+    'stitchee-logo.webp',
+    'stitchee-logo-dark.webp',
 ]
 for fname in STATIC_FILES:
     src = os.path.join(SRC_STATIC, fname)
@@ -248,10 +250,17 @@ html = re.sub(
 
 # ── 2b. Bundle the local scripts into a single app.bundle.js ──
 # Order matters: static-adapter.js (API shim) first, then canvas-renderer.js
-# (defines CrossStitchCanvas), then app.js (UI controller). All three are
-# IIFEs, so concatenation is safe.
+# (defines CrossStitchCanvas), then app.js (UI controller). All are IIFEs, so
+# concatenation is safe.
+#
+# BUNDLE_SCRIPTS is the single source of truth for four things: the concat
+# order, the stale-file cleanup, the <script>-tag rewrite, and (below) the
+# "did the rewrite actually happen?" assertion. Add a new designer script HERE
+# and nowhere else.
+BUNDLE_SCRIPTS = ('symbols.js', 'pdf-writer.js', 'static-adapter.js', 'canvas-renderer.js', 'app.js')
+
 bundle_parts = []
-for fname in ('static-adapter.js', 'canvas-renderer.js', 'app.js'):
+for fname in BUNDLE_SCRIPTS:
     with open(os.path.join(SRC_STATIC, fname), 'r', encoding='utf-8') as f:
         bundle_parts.append(f.read())
 bundle = '\n'.join(bundle_parts)
@@ -260,17 +269,30 @@ with open(os.path.join(OUT_DIR, 'app.bundle.js'), 'w', encoding='utf-8') as f:
 print(f'  wrote   app.bundle.js ({len(bundle)} bytes)')
 
 # Remove any stale copies of the individual scripts from a previous build
-for stale in ('static-adapter.js', 'canvas-renderer.js', 'app.js'):
+for stale in BUNDLE_SCRIPTS:
     stale_path = os.path.join(OUT_DIR, stale)
     if os.path.exists(stale_path):
         os.remove(stale_path)
 
-# Replace the individual <script> tags (canvas-renderer.js + app.js, the
-# static-adapter.js tag is added by this build) with the single bundle tag
-html = html.replace(
-    '<script src="canvas-renderer.js"></script>\n    <script src="app.js"></script>',
-    '<script src="app.bundle.js"></script>',
+# Replace the individual <script> tags with the single bundle tag.
+# This used to be an exact-string .replace(), which silently did nothing the
+# moment a new script tag was inserted between the two it matched — and because
+# the individual files are deleted from OUT_DIR above, that shipped a site with
+# NO scripts at all. Match a whole run of bundled script tags instead
+# (any indentation, optional ?v= cache-buster) and hard-fail if the swap
+# didn't happen exactly once.
+_bundle_tag_re = re.compile(
+    r'(?:[ \t]*<script[^>]*\bsrc="(?:%s)(?:\?[^"]*)?"[^>]*>\s*</script>[ \t]*\r?\n?)+'
+    % '|'.join(re.escape(n) for n in BUNDLE_SCRIPTS)
 )
+html, _swaps = _bundle_tag_re.subn('<script src="app.bundle.js"></script>\n', html)
+if _swaps != 1:
+    raise SystemExit(
+        f'ERROR: expected exactly 1 bundled-<script> replacement, got {_swaps}. '
+        f'The individual script tags in the template no longer match '
+        f'{BUNDLE_SCRIPTS} — the static build would ship with no scripts.'
+    )
+print(f'  bundled {len(BUNDLE_SCRIPTS)} scripts into 1 tag')
 
 # Inject Google Analytics (GA4) and Cloudflare Web Analytics into <head> —
 # static site only, not the server app.

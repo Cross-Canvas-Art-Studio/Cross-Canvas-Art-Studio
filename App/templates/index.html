@@ -71,8 +71,8 @@
     </header>
 
     <main class="layout">
-        <!-- ============ LEFT: CONTROLS ============ -->
-        <aside class="sidebar" aria-label="Design controls">
+        <!-- ============ LEFT: PALETTE + LEGEND ============ -->
+        <aside class="sidebar" aria-label="Palette and legend">
             <section class="panel">
                 <div class="panel-head">
                     <h2>Yarn palette</h2>
@@ -90,52 +90,12 @@
 
             <section class="panel">
                 <div class="panel-head">
-                    <h2>Canvas size</h2>
+                    <h2>Yarn legend</h2>
+                    <span class="badge" id="legendCount">0</span>
                 </div>
-                <div class="grid-size-row">
-                    <label>Width
-                        <input type="number" id="gridWidth" min="5" max="500" value="60">
-                    </label>
-                    <button id="arLockBtn" class="ar-lock-btn" type="button" title="Lock aspect ratio" aria-label="Lock aspect ratio">
-                        <svg id="arLockIcon" width="11" height="14" viewBox="0 0 11 14" fill="currentColor" aria-hidden="true">
-                            <rect x="2" y="6" width="7" height="7" rx="1.2"/>
-                            <path id="arLockShackle" d="M2.5 6V4a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-                        </svg>
-                    </button>
-                    <label>Height
-                        <input type="number" id="gridHeight" min="5" max="500" value="80">
-                    </label>
-                    <button id="autoSizeBtn" class="btn-ghost auto-size-btn" type="button"
-                        title="Fit grid to uploaded image aspect ratio within current max size" disabled>Auto</button>
-                    <span class="hint" id="sizeHint">stitches (max 500)</span>
-                    <span class="hint" id="imgDimsHint" hidden></span>
-                </div>
-                <div class="unit-row">
-                    <label class="unit-label" for="sizeUnit">Unit
-                        <select id="sizeUnit" title="Unit for finished size measurements">
-                            <option value="cm" selected>cm</option>
-                            <option value="in">inch</option>
-                        </select>
-                    </label>
-                </div>
-                <div class="fabric-row">
-                    <label for="fabricCount">Fabric
-                        <select id="fabricCount" title="Cross-stitch fabric count (stitches per inch)">
-                            <option value="14" selected>14 Aida</option>
-                            <option value="16">16 Aida</option>
-                            <option value="18">18 Aida</option>
-                            <option value="25">25 Evenweave</option>
-                            <option value="28">28 Evenweave</option>
-                            <option value="32">32 Lugana</option>
-                            <option value="36">36 Evenweave</option>
-                            <option value="40">40 Evenweave</option>
-                        </select>
-                    </label>
-                </div>
-                <div class="finished-size">
-                    <span class="finished-size-label">Finished size:</span>
-                    <span class="hint" id="fabricSizeHint"></span>
-                </div>
+                <p class="hint">Colours used in your design. Click a row to paint with it.</p>
+                <div id="legendList" class="legend-list"></div>
+                <a id="buyYarnBtn" class="btn-primary full buy-yarn" href="#" target="_blank" rel="sponsored noopener" style="display:none">Buy these yarns</a>
             </section>
         </aside>
 
@@ -148,6 +108,8 @@
                         <svg width="15" height="11" viewBox="0 0 15 11" aria-hidden="true" style="vertical-align:-2px;margin-right:3px"><rect x=".5" y=".5" width="14" height="10" rx="1.5" fill="currentColor" opacity=".85"/><rect x=".5" y="5.5" width="6" height="5" rx="1" fill="#a855f7"/><line x1=".5" y1="5.5" x2="14.5" y2="5.5" stroke="rgba(0,0,0,.35)" stroke-width="1"/></svg>Erase
                     </button>
                     <button id="toolFill" class="tool" type="button" title="Fill (flood fill)">&#128396; Fill</button>
+                    <button id="toolProgress" class="tool" type="button" title="Progress tracker: click stitches to mark them stitched (right-click clears)">&#10003; Progress</button>
+                    <button id="toolSelect" class="tool" type="button" title="Select tool: drag a rectangle to select an area">&#9744; Select</button>
                 </div>
                 <div class="tool-group">
                     <label class="brush-size-label" style="display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text-faint);">
@@ -173,7 +135,8 @@
                 </div>
                 <div class="tool-group">
                     <label class="check"><input type="checkbox" id="toggleGridLines" checked> Grid</label>
-                    <label class="check"><input type="checkbox" id="toggleSymbols"> Codes</label>
+                    <label class="check"><input type="checkbox" id="toggleGlyphs" title="Show a monochrome symbol in each stitch (for black-and-white printing)"> Symbols</label>
+                    <label class="check"><input type="checkbox" id="toggleCodes" title="Show the yarn code in each stitch"> Codes</label>
                     <label class="check"><input type="checkbox" id="toggleStitch" checked> Stitches</label>
                 </div>
                 <div class="tool-group">
@@ -185,6 +148,41 @@
                 <div class="tool-group right">
                     <button id="clearBtn" class="tool danger" type="button" title="Clear canvas">Clear</button>
                 </div>
+            </div>
+
+            <!-- Contextual options for the active tool. Kept beside the tool they
+                 belong to instead of in a sidebar, so each tool brings its own
+                 controls and the toolbar keeps its shape for the others. -->
+            <div class="tool-options" id="selectOptions" hidden>
+                <span class="tool-options-label">Select</span>
+                <span class="badge" id="selDims">&mdash;</span>
+                <button id="selAllBtn" class="btn-secondary" type="button" title="Select all (Ctrl+A)">All</button>
+                <button id="selCopyBtn" class="btn-secondary" type="button" title="Copy (Ctrl+C)">Copy</button>
+                <button id="selCutBtn" class="btn-secondary" type="button" title="Cut (Ctrl+X)">Cut</button>
+                <button id="selPasteBtn" class="btn-secondary" type="button" title="Paste (Ctrl+V)">Paste</button>
+                <button id="selFillBtn" class="btn-secondary" type="button" title="Fill with the selected colour">Fill</button>
+                <button id="selDeleteBtn" class="btn-secondary" type="button" title="Delete stitches (Del)">Delete</button>
+                <span class="tool-options-sep" aria-hidden="true"></span>
+                <button id="selMirrorHBtn" class="btn-secondary" type="button" title="Mirror horizontally">Mirror &#8646;</button>
+                <button id="selMirrorVBtn" class="btn-secondary" type="button" title="Mirror vertically">Mirror &#8645;</button>
+                <button id="selRotLBtn" class="btn-secondary" type="button" title="Rotate 90 degrees counter-clockwise">Rotate &#8634;</button>
+                <button id="selRotRBtn" class="btn-secondary" type="button" title="Rotate 90 degrees clockwise">Rotate &#8635;</button>
+                <span class="tool-options-sep" aria-hidden="true"></span>
+                <button id="selCropBtn" class="btn-secondary" type="button" title="Crop the chart to the selection">Crop</button>
+                <button id="selClearBtn" class="btn-secondary" type="button" title="Deselect (Esc)">Deselect</button>
+                <span class="tool-options-hint">Drag to select &middot; arrows nudge &middot; Esc deselects &middot; never included in exports</span>
+            </div>
+
+            <div class="tool-options" id="progressOptions" hidden>
+                <span class="tool-options-label">Progress</span>
+                <span class="badge" id="progressPercent">0%</span>
+                <label class="check"><input type="checkbox" id="progressOn"> Track</label>
+                <span class="tool-options-sep" aria-hidden="true"></span>
+                <button id="progressRow" class="btn-secondary active" type="button" title="Count rows (horizontal)">Rows</button>
+                <button id="progressColumn" class="btn-secondary" type="button" title="Count columns (vertical)">Columns</button>
+                <button id="progressDiagonal" class="btn-secondary" type="button" title="Count diagonals">Diagonal</button>
+                <button id="progressClearBtn" class="btn-secondary" type="button" title="Clear all progress marks">Clear</button>
+                <span class="tool-options-hint" id="progressHint">&mdash;</span>
             </div>
 
             <div class="canvas-wrap" id="canvasWrap">
@@ -205,8 +203,8 @@
             </div>
         </section>
 
-        <!-- ============ RIGHT: LEGEND + PROJECTS ============ -->
-        <aside class="sidebar right" aria-label="Upload, legend and projects">
+        <!-- ============ RIGHT: UPLOAD + CANVAS SIZE + PROJECTS ============ -->
+        <aside class="sidebar right" aria-label="Upload, canvas size and projects">
             <section class="panel">
                 <div class="tabs" role="tablist">
                     <button class="tab active" data-source-tab="upload" role="tab" type="button">Image</button>
@@ -274,12 +272,52 @@
 
             <section class="panel">
                 <div class="panel-head">
-                    <h2>Yarn legend</h2>
-                    <span class="badge" id="legendCount">0</span>
+                    <h2>Canvas size</h2>
                 </div>
-                <p class="hint">Colours used in your design. Click a row to paint with it.</p>
-                <div id="legendList" class="legend-list"></div>
-                <a id="buyYarnBtn" class="btn-primary full buy-yarn" href="#" target="_blank" rel="sponsored noopener" style="display:none">Buy these yarns</a>
+                <div class="grid-size-row">
+                    <label>Width
+                        <input type="number" id="gridWidth" min="5" max="500" value="60">
+                    </label>
+                    <button id="arLockBtn" class="ar-lock-btn" type="button" title="Lock aspect ratio" aria-label="Lock aspect ratio">
+                        <svg id="arLockIcon" width="11" height="14" viewBox="0 0 11 14" fill="currentColor" aria-hidden="true">
+                            <rect x="2" y="6" width="7" height="7" rx="1.2"/>
+                            <path id="arLockShackle" d="M2.5 6V4a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                    <label>Height
+                        <input type="number" id="gridHeight" min="5" max="500" value="80">
+                    </label>
+                    <button id="autoSizeBtn" class="btn-ghost auto-size-btn" type="button"
+                        title="Fit grid to uploaded image aspect ratio within current max size" disabled>Auto</button>
+                    <span class="hint" id="sizeHint">stitches (max 500)</span>
+                    <span class="hint" id="imgDimsHint" hidden></span>
+                </div>
+                <div class="unit-row">
+                    <label class="unit-label" for="sizeUnit">Unit
+                        <select id="sizeUnit" title="Unit for finished size measurements">
+                            <option value="cm" selected>cm</option>
+                            <option value="in">inch</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="fabric-row">
+                    <label for="fabricCount">Fabric
+                        <select id="fabricCount" title="Cross-stitch fabric count (stitches per inch)">
+                            <option value="14" selected>14 Aida</option>
+                            <option value="16">16 Aida</option>
+                            <option value="18">18 Aida</option>
+                            <option value="25">25 Evenweave</option>
+                            <option value="28">28 Evenweave</option>
+                            <option value="32">32 Lugana</option>
+                            <option value="36">36 Evenweave</option>
+                            <option value="40">40 Evenweave</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="finished-size">
+                    <span class="finished-size-label">Finished size:</span>
+                    <span class="hint" id="fabricSizeHint"></span>
+                </div>
             </section>
 
             <section class="panel">
@@ -287,7 +325,11 @@
                     <h2>Export</h2>
                 </div>
                 <div class="btn-row">
-                    <button id="exportPngBtn" class="btn-secondary" type="button">PNG chart</button>
+                    <button id="exportPngBtn" class="btn-secondary" type="button">PNG</button>
+                    <button id="exportSvgBtn" class="btn-secondary" type="button" title="Vector chart, scalable for print">SVG</button>
+                    <button id="exportPdfBtn" class="btn-secondary" type="button" title="Printable multi-page chart with legend">PDF</button>
+                </div>
+                <div class="btn-row">
                     <button id="exportJsonBtn" class="btn-secondary" type="button">JSON</button>
                     <button id="importJsonBtn" class="btn-secondary" type="button">Import</button>
                     <input type="file" id="importJsonInput" accept="application/json,.json" hidden>
@@ -379,6 +421,8 @@
 
     <script src="{{ url_for('static', filename='api-manager.js') }}"></script>
     <script src="{{ url_for('static', filename='auth-widget.js') }}"></script>
+    <script src="{{ url_for('static', filename='symbols.js') }}"></script>
+    <script src="{{ url_for('static', filename='pdf-writer.js') }}"></script>
     <script src="{{ url_for('static', filename='canvas-renderer.js') }}"></script>
     <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>

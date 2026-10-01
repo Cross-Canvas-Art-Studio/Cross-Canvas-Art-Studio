@@ -79,6 +79,18 @@ DEFAULT_PALETTE = [
 ]
 
 _PALETTE = DEFAULT_PALETTE
+
+# Symbol glyph assignment. The glyph GEOMETRY lives in App/static/symbols.js
+# (it has to be drawable by the canvas, SVG and PDF backends), while this module
+# owns only the palette-entry -> glyph-index mapping. Every entry gets its own
+# distinct glyph so any two colours in a chart stay tellable apart when the
+# chart is printed in greyscale.
+SYMBOL_COUNT = 65  # keep in sync with the SYMBOLS table in App/static/symbols.js
+
+for _i, _entry in enumerate(DEFAULT_PALETTE):
+    # Modulo keeps this safe if the palette ever outgrows the glyph table.
+    _entry['symbol'] = _i % SYMBOL_COUNT
+
 _palette_rgb = None   # (P, 3) float
 _palette_lab = None   # (P, 3) float
 

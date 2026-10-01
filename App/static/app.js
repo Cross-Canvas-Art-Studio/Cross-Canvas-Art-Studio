@@ -25,6 +25,7 @@
     arLocked: false,
     arRatio: null, // height / width when locked
     codeFormat: "code", // 'code' | 'name' | 'rgb' | 'num' | 'sim' | 'hex'
+    dirty: false, // unsaved changes since last save/load/new
   };
 
   function $(id) {
@@ -68,6 +69,8 @@
       "toolPaint",
       "toolErase",
       "toolFill",
+      "toolProgress",
+      "toolSelect",
       "brushSize",
       "btnUndo",
       "btnRedo",
@@ -76,7 +79,8 @@
       "zoomLevel",
       "zoomFit",
       "toggleGridLines",
-      "toggleSymbols",
+      "toggleCodes",
+      "toggleGlyphs",
       "toggleStitch",
       "styleCross",
       "styleSlash",
@@ -92,7 +96,31 @@
       "legendCount",
       "buyYarnBtn",
       "exportPngBtn",
+      "exportSvgBtn",
+      "exportPdfBtn",
       "exportJsonBtn",
+      "progressOn",
+      "progressRow",
+      "progressColumn",
+      "progressDiagonal",
+      "progressPercent",
+      "progressHint",
+      "progressClearBtn",
+      "progressOptions",
+      "selectOptions",
+      "selDims",
+      "selCopyBtn",
+      "selCutBtn",
+      "selPasteBtn",
+      "selFillBtn",
+      "selDeleteBtn",
+      "selMirrorHBtn",
+      "selMirrorVBtn",
+      "selRotLBtn",
+      "selRotRBtn",
+      "selAllBtn",
+      "selCropBtn",
+      "selClearBtn",
       "importJsonBtn",
       "importJsonInput",
       "projectTitle",
@@ -124,6 +152,316 @@
     v = parseInt(v, 10);
     if (isNaN(v)) return def;
     return Math.max(lo, Math.min(hi, v));
+  }
+
+  // ---------- unsaved-changes tracking ----------
+  // state.dirty drives the beforeunload guard so a closed tab cannot silently
+  // discard work. Set on any canvas edit or title change; cleared whenever the
+  // design is persisted, loaded, imported, or replaced with a blank canvas.
+  function markDirty() {
+    state.dirty = true;
+    scheduleDraftSave();
+  }
+  function markClean() {
+    state.dirty = false;
+    clearDraft();
+  }
+
+  // ---------- draft autosave ----------
+  // A debounced snapshot so a closed tab (or a crash) cannot destroy the design.
+  // The grid is stored as base64 of the raw Int16Array: at the 500x500 ceiling
+  // that is a 500 KB buffer -> ~667 KB of text, comfortably inside the ~5 MB
+  // localStorage quota and far cheaper than JSON of 250,000 decimal numbers.
+  var DRAFT_KEY = "stitchee_draft";
+  var DRAFT_DELAY = 2000;
+  var draftTimer = null;
+
+  function bytesToBase64(bytes) {
+    var chunk = 0x8000;
+    var out = "";
+    for (var i = 0; i < bytes.length; i += chunk) {
+      out += String.fromCharCode.apply(
+        null,
+        bytes.subarray(i, Math.min(i + chunk, bytes.length)),
+      );
+    }
+    return btoa(out);
+  }
+
+  function base64ToBytes(b64) {
+    var bin = atob(b64);
+    var out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  function scheduleDraftSave() {
+    if (!state.canvas || state.canvas.isEmpty()) return;
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(saveDraft, DRAFT_DELAY);
+  }
+
+  function saveDraft() {
+    if (!state.canvas || state.canvas.isEmpty()) return;
+    try {
+      var cells = state.canvas.cells;
+      var bytes = new Uint8Array(
+        cells.buffer,
+        cells.byteOffset,
+        cells.byteLength,
+      );
+      localStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({
+          v: 1,
+          title: els.projectTitle.value.trim(),
+          width: state.canvas.width,
+          height: state.canvas.height,
+          projectId: state.currentProjectId,
+          savedAt: Date.now(),
+          data: bytesToBase64(bytes),
+        }),
+      );
+    } catch (e) {
+      // Quota exceeded, or storage unavailable (private mode). Drop the draft
+      // rather than leave a half-written one that could fail to parse.
+      clearDraft();
+    }
+  }
+
+  function clearDraft() {
+    clearTimeout(draftTimer);
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch (e) {
+      /* storage unavailable; nothing to clear */
+    }
+  }
+
+  /**
+   * Point the size inputs at the design currently on the canvas. Without this
+   * the inputs keep showing the default (or the previous) size after a load,
+   * import or draft restore, so "New blank canvas" would surprise the user.
+   * Assigning .value deliberately does NOT dispatch 'change', so this never
+   * triggers a resize.
+   */
+  function syncGridInputs(w, h) {
+    if (!w || !h) return;
+    els.gridWidth.value = w;
+    els.gridHeight.value = h;
+    // Assigning .value does not fire 'change', so the finished-size hint would
+    // otherwise keep showing the previous grid's measurements.
+    updateFabricSize();
+  }
+
+  // ---------- progress tracker ----------
+  // Kept per project and RLE-encoded, so a fully-stitched 500x500 chart costs
+  // a few dozen characters instead of 250 KB. Deliberately NOT part of the
+  // saved project document: progress is per device and per person, and it must
+  // never travel with the design or into an export.
+  var progressSaveTimer = null;
+  var progressUiTimer = null;
+
+  function progressKey() {
+    return "stitchee_progress_" + (state.currentProjectId || "draft");
+  }
+
+  function saveProgress() {
+    if (!state.canvas || state.canvas.isEmpty()) return;
+    var arr = state.canvas.getProgress();
+    if (!arr) return;
+    try {
+      localStorage.setItem(
+        progressKey(),
+        JSON.stringify({
+          v: 1,
+          w: state.canvas.width,
+          h: state.canvas.height,
+          mode: state.canvas.progressMode,
+          // Remember whether the overlay was showing, so a reload restores the
+          // view the user left rather than marks they cannot see.
+          on: !!state.canvas.progressOn,
+          runs: window.CrossStitchCanvas.progressToRuns(arr),
+        }),
+      );
+    } catch (e) {
+      /* storage full or unavailable: progress is a nicety, never block on it */
+    }
+  }
+
+  function scheduleProgressSave() {
+    clearTimeout(progressSaveTimer);
+    progressSaveTimer = setTimeout(saveProgress, 300);
+  }
+
+  /** Debounced so painting a large chart does not recompute stats per stroke. */
+  function scheduleProgressUiRefresh() {
+    if (!els.progressOn || !els.progressOn.checked) return;
+    clearTimeout(progressUiTimer);
+    progressUiTimer = setTimeout(function () {
+      updateProgressUI();
+    }, 400);
+  }
+
+  function loadProgress() {
+    if (!state.canvas || state.canvas.isEmpty()) return;
+    var raw = null;
+    try {
+      raw = localStorage.getItem(progressKey());
+    } catch (e) {
+      return;
+    }
+    var doc = null;
+    if (raw) {
+      try {
+        doc = JSON.parse(raw);
+      } catch (e) {
+        doc = null;
+      }
+    }
+    // A size change means the stored marks no longer line up with the grid.
+    if (!doc || doc.w !== state.canvas.width || doc.h !== state.canvas.height) {
+      state.canvas.setProgress(null);
+      updateProgressUI();
+      return;
+    }
+    state.canvas.setProgress(
+      window.CrossStitchCanvas.progressFromRuns(doc.runs, doc.w * doc.h),
+    );
+    if (doc.mode) {
+      state.canvas.setProgressMode(doc.mode);
+      syncProgressModeButtons(doc.mode);
+    }
+    if (doc.on) {
+      els.progressOn.checked = true;
+      state.canvas.setProgressOn(true);
+    }
+    updateProgressUI();
+  }
+
+  /** Move stored progress from the draft key to a project key on first save. */
+  function migrateProgressKey(fromKey) {
+    var to = progressKey();
+    if (fromKey === to) return;
+    try {
+      var raw = localStorage.getItem(fromKey);
+      if (raw && !localStorage.getItem(to)) localStorage.setItem(to, raw);
+      localStorage.removeItem(fromKey);
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function syncProgressModeButtons(mode) {
+    mode = mode || (state.canvas && state.canvas.progressMode) || "row";
+    els.progressRow.classList.toggle("active", mode === "row");
+    els.progressColumn.classList.toggle("active", mode === "column");
+    els.progressDiagonal.classList.toggle("active", mode === "diagonal");
+  }
+
+  function updateProgressUI(st) {
+    if (!state.canvas || state.canvas.isEmpty()) {
+      els.progressPercent.textContent = "0%";
+      els.progressHint.textContent = "\u2014";
+      return;
+    }
+    st = st || state.canvas.progressStats();
+    els.progressPercent.textContent = st.percent + "%";
+    if (st.unit === null) {
+      els.progressHint.textContent =
+        "All " + st.total + " stitches marked stitched.";
+      return;
+    }
+    var noun =
+      st.mode === "column"
+        ? "Column"
+        : st.mode === "diagonal"
+          ? "Diagonal"
+          : "Row";
+    els.progressHint.textContent =
+      noun + " " + st.unitLabel + " of " + st.units + " \u00b7 " + st.done +
+      " / " + st.total + " stitches";
+  }
+
+  function setProgressMode(mode) {
+    state.canvas.setProgressMode(mode);
+    syncProgressModeButtons(mode);
+    updateProgressUI();
+    scheduleProgressSave();
+  }
+
+  /**
+   * Offer to restore an unsaved draft on boot. Called once the palette is
+   * loaded, because the grid cannot be coloured in before then.
+   */
+  function maybeRestoreDraft() {
+    var raw;
+    try {
+      raw = localStorage.getItem(DRAFT_KEY);
+    } catch (e) {
+      return;
+    }
+    if (!raw) return;
+
+    var doc;
+    try {
+      doc = JSON.parse(raw);
+    } catch (e) {
+      clearDraft();
+      return;
+    }
+    if (!doc || doc.v !== 1 || !doc.data || !doc.width || !doc.height) {
+      clearDraft();
+      return;
+    }
+
+    var when = doc.savedAt ? new Date(doc.savedAt).toLocaleString() : "earlier";
+    var label = doc.title ? '"' + doc.title + '"' : "your unsaved design";
+    if (
+      !confirm(
+        "Restore " + label + " (" + doc.width + "x" + doc.height + ") saved " +
+          when + "?",
+      )
+    ) {
+      clearDraft();
+      return;
+    }
+
+    var bytes;
+    try {
+      bytes = base64ToBytes(doc.data);
+    } catch (e) {
+      clearDraft();
+      return;
+    }
+    var cells = new Int16Array(
+      bytes.buffer,
+      0,
+      Math.floor(bytes.length / 2),
+    );
+    if (cells.length !== doc.width * doc.height) {
+      clearDraft();
+      toast("Draft was corrupt; discarded", "error");
+      return;
+    }
+
+    var grid = [];
+    for (var r = 0; r < doc.height; r++) {
+      var row = [];
+      for (var c = 0; c < doc.width; c++) row.push(cells[r * doc.width + c]);
+      grid.push(row);
+    }
+    state.canvas.loadGrid(doc.width, doc.height, grid);
+    syncGridInputs(doc.width, doc.height);
+    state.currentProjectId = doc.projectId || null;
+    els.projectTitle.value = doc.title || "";
+    loadProgress();
+    showCanvas(true);
+    updateZoomLabel();
+    onDesignChange();
+    // Still unsaved, so it stays dirty and keeps autosaving.
+    markDirty();
+    toast("Unsaved draft restored", "ok");
   }
 
   // ---------- palette code-format helpers ----------
@@ -331,6 +669,8 @@
         if (state.palette.length) {
           selectColor(state.palette[0].index);
         }
+        // Palette is ready, so a draft can now be colour-matched correctly.
+        maybeRestoreDraft();
       })
       .catch(function () {
         toast("Failed to load configuration", "error");
@@ -710,6 +1050,7 @@
   // ---------- design application ----------
   function applyDesign(design, title) {
     state.canvas.loadGrid(design.width, design.height, design.grid);
+    syncGridInputs(design.width, design.height);
     state.currentProjectId = null;
     if (title && !els.projectTitle.value) {
       els.projectTitle.value = title;
@@ -717,6 +1058,7 @@
     showCanvas(true);
     updateZoomLabel();
     onDesignChange();
+    markClean();
   }
 
   function newBlank() {
@@ -728,6 +1070,7 @@
       selectColor(state.palette[0].index);
     updateZoomLabel();
     onDesignChange();
+    markClean();
     toast("Blank " + gs.w + "×" + gs.h + " canvas ready", "ok");
   }
 
@@ -821,6 +1164,9 @@
       els.infoColors.textContent =
         "· " + state.canvas.colorCount() + " colours";
     }
+    // Painting changes the stitch total, which shifts the progress percentage.
+    scheduleProgressUiRefresh();
+    updateSelectionUI();
   }
 
   function escapeHtml(s) {
@@ -841,6 +1187,22 @@
     els.toolPaint.classList.toggle("active", mode === "paint");
     els.toolErase.classList.toggle("active", mode === "erase");
     els.toolFill.classList.toggle("active", mode === "fill");
+    els.toolProgress.classList.toggle("active", mode === "progress");
+    els.toolSelect.classList.toggle("active", mode === "select");
+    syncToolOptions();
+  }
+
+  /**
+   * Reveal the contextual options row belonging to the active tool. The progress
+   * row also stays up whenever tracking is on, so the counter and percentage do
+   * not vanish the moment you switch back to painting.
+   */
+  function syncToolOptions() {
+    var mode = state.canvas ? state.canvas.mode : "paint";
+    els.selectOptions.hidden = mode !== "select";
+    els.progressOptions.hidden = !(
+      mode === "progress" || els.progressOn.checked
+    );
   }
   function updateZoomLabel() {
     els.zoomLevel.textContent = state.canvas.zoomPercent() + "%";
@@ -871,6 +1233,89 @@
       toast("Redo", "ok");
       onDesignChange();
     }
+  }
+
+  // ---------- selection ----------
+  // The canvas methods call _notify() on any change, which already runs
+  // markDirty() + onDesignChange(), so these wrappers only handle UI feedback.
+  function updateSelectionUI() {
+    if (!state.canvas) return;
+    var has = state.canvas.hasSelection();
+    var clip = state.canvas.hasClipboard();
+    var info = has ? state.canvas.selectionInfo() : null;
+    els.selDims.textContent = info ? info.rows + "\u00d7" + info.cols : "\u2014";
+    [
+      "selCopyBtn", "selCutBtn", "selFillBtn", "selDeleteBtn",
+      "selMirrorHBtn", "selMirrorVBtn", "selRotLBtn", "selRotRBtn",
+      "selCropBtn", "selClearBtn",
+    ].forEach(function (id) {
+      els[id].disabled = !has;
+    });
+    els.selPasteBtn.disabled = !clip;
+    els.selAllBtn.disabled = state.canvas.isEmpty();
+  }
+
+  function copySelection() {
+    if (!state.canvas.copySelection()) {
+      toast("Nothing selected", "error");
+      return;
+    }
+    var n = state.canvas.selectionInfo();
+    toast(n ? "Copied " + n.rows + "\u00d7" + n.cols : "Copied", "ok");
+  }
+
+  function cutSelection() {
+    if (!state.canvas.copySelection()) {
+      toast("Nothing selected", "error");
+      return;
+    }
+    state.canvas.deleteSelection();
+    toast("Cut", "ok");
+  }
+
+  function pasteSelection() {
+    // Distinguish "nothing copied" from "pasted over identical content", which
+    // is a valid no-op rather than an error.
+    if (!state.canvas.hasClipboard()) {
+      toast("Nothing to paste", "error");
+      return;
+    }
+    if (!state.canvas.pasteClipboard()) {
+      toast("Pasted (no change)", "ok");
+      return;
+    }
+    toast("Pasted", "ok");
+  }
+
+  function fillSelection() {
+    if (!state.canvas.fillSelection()) {
+      toast("Select a colour first", "error");
+      return;
+    }
+    toast("Filled selection", "ok");
+  }
+
+  function deleteSelection() {
+    if (!state.canvas.deleteSelection()) return;
+    toast("Deleted selection", "ok");
+  }
+
+  function mirrorSelection(axis) {
+    if (!state.canvas.mirrorSelection(axis)) return;
+    toast(axis === "h" ? "Mirrored horizontally" : "Mirrored vertically", "ok");
+  }
+
+  function rotateSelection(dir) {
+    if (!state.canvas.rotateSelection(dir)) return;
+    toast(dir > 0 ? "Rotated clockwise" : "Rotated counter-clockwise", "ok");
+  }
+
+  function cropSelection() {
+    if (!state.canvas.cropToSelection()) return;
+    // cropToSelection resizes the grid, so the size inputs and zoom must follow.
+    syncGridInputs(state.canvas.width, state.canvas.height);
+    updateZoomLabel();
+    toast("Cropped to " + state.canvas.width + "\u00d7" + state.canvas.height, "ok");
   }
 
   // ---------- projects ----------
@@ -910,7 +1355,12 @@
         }
         var savedTitle = res.d.project.title || "Untitled Design";
         els.projectTitle.value = savedTitle;
+        // Progress is keyed per project, so carry the draft's tracker state
+        // across to the new project id instead of orphaning it.
+        var prevProgressKey = progressKey();
         state.currentProjectId = res.d.project.id;
+        migrateProgressKey(prevProgressKey);
+        markClean();
         toast(isUpdate ? "Project updated" : "Project saved", "ok");
         loadProjects();
       })
@@ -990,11 +1440,14 @@
         }
         var p = res.d.project;
         state.canvas.loadGrid(p.width, p.height, p.grid);
+        syncGridInputs(p.width, p.height);
         state.currentProjectId = p.id;
         els.projectTitle.value = p.title;
+        loadProgress();
         showCanvas(true);
         updateZoomLabel();
         onDesignChange();
+        markClean();
         toast('Loaded "' + p.title + '"', "ok");
       })
       .catch(function () {
@@ -1047,6 +1500,250 @@
     }, 50);
   }
 
+  /** Vector SVG of the chart, with whatever symbols/codes are switched on. */
+  function exportSvg() {
+    if (state.canvas.isEmpty()) {
+      toast("Nothing to export", "error");
+      return;
+    }
+    var svg = state.canvas.exportSvg({ scale: 18 });
+    var blob = new Blob([svg], { type: "image/svg+xml" });
+    downloadBlob(
+      blob,
+      (els.projectTitle.value.trim() || "cross-canvas") + ".svg",
+    );
+    toast("SVG chart exported", "ok");
+  }
+
+  // ---------- PDF export ----------
+  // Tiled, vector, printable. Cell size shrinks until the chart fits in a sane
+  // page count, then each tile is drawn through the shared renderer with a
+  // view so a large chart is not redrawn in full on every page.
+  var PDF_MAX_PAGES = 36;
+  var PDF_MIN_CELL = 8; // pt per stitch; below this the chart stops being legible
+  var PDF_MAX_CELL = 22;
+
+  function pdfGeometry(cell) {
+    var page = window.StitchPdf.PAGE_SIZES.a4;
+    var margin = 26;
+    var ruler = 14;
+    return {
+      page: page,
+      margin: margin,
+      ruler: ruler,
+      cell: cell,
+      cols: Math.max(1, Math.floor((page.width - margin * 2 - ruler) / cell)),
+      rows: Math.max(1, Math.floor((page.height - margin * 2 - ruler) / cell)),
+    };
+  }
+
+  function buildPdfPages() {
+    var P = window.StitchPdf;
+    var w = state.canvas.width;
+    var h = state.canvas.height;
+    if (!w || !h) return null;
+
+    var cell = PDF_MAX_CELL;
+    var g;
+    for (;;) {
+      g = pdfGeometry(cell);
+      g.pagesX = Math.ceil(w / g.cols);
+      g.pagesY = Math.ceil(h / g.rows);
+      if (g.pagesX * g.pagesY <= PDF_MAX_PAGES || cell <= PDF_MIN_CELL) break;
+      cell -= 1;
+    }
+
+    var title = els.projectTitle.value.trim() || "Untitled Design";
+    var pages = [];
+    var total = g.pagesX * g.pagesY;
+    var pageNo = 0;
+
+    for (var py = 0; py < g.pagesY; py++) {
+      for (var px = 0; px < g.pagesX; px++) {
+        var col0 = px * g.cols;
+        var row0 = py * g.rows;
+        var col1 = Math.min(w - 1, col0 + g.cols - 1);
+        var row1 = Math.min(h - 1, row0 + g.rows - 1);
+        pageNo++;
+
+        var page = new P.PdfPage(g.page.width, g.page.height);
+        var ad = new P.PdfAdapter(page, [255, 255, 255]);
+        ad.rect(0, 0, g.page.width, g.page.height, { fill: "#ffffff" });
+
+        state.canvas.renderTo(ad, g.cell, {
+          offsetX: g.margin + g.ruler,
+          offsetY: g.margin + g.ruler,
+          view: { col0: col0, col1: col1, row0: row0, row1: row1 },
+          ruler: {
+            gutter: g.ruler,
+            every: 10,
+            fontSize: 6.5,
+            color: "#444444",
+            startCol: 1,
+          },
+        });
+
+        var footer =
+          title +
+          (total > 1
+            ? "  ·  page " + pageNo + "/" + total + "  ·  cols " +
+              (col0 + 1) + "-" + (col1 + 1) + "  ·  rows " +
+              (row0 + 1) + "-" + (row1 + 1)
+            : "");
+        ad.text(g.page.width - g.margin, g.page.height - g.margin / 2, footer, {
+          fill: "#555555",
+          size: 7,
+          family: "sans-serif",
+          anchor: "end",
+          baseline: "alphabetic",
+        });
+        pages.push(page);
+      }
+    }
+
+    pages.push(buildPdfLegendPage(P, g, title));
+    return pages;
+  }
+
+  /** Title block, totals and the two-column yarn key. */
+  function buildPdfLegendPage(P, g, title) {
+    var page = new P.PdfPage(g.page.width, g.page.height);
+    var ad = new P.PdfAdapter(page, [255, 255, 255]);
+    ad.rect(0, 0, g.page.width, g.page.height, { fill: "#ffffff" });
+
+    var x = g.margin;
+    var y = g.margin + 20;
+    ad.text(x, y, title, {
+      fill: "#000000",
+      size: 20,
+      family: "sans-serif",
+      weight: "bold",
+      anchor: "start",
+      baseline: "alphabetic",
+    });
+    y += 20;
+    ad.text(
+      x,
+      y,
+      state.canvas.width + " x " + state.canvas.height + " stitches  ·  " +
+        state.canvas.stitchCount() + " stitches  ·  " +
+        state.canvas.colorCount() + " colours",
+      {
+        fill: "#444444",
+        size: 10,
+        family: "sans-serif",
+        anchor: "start",
+        baseline: "alphabetic",
+      },
+    );
+    y += 26;
+
+    var counts = state.canvas.getCounts();
+    var used = Object.keys(counts)
+      .map(function (k) {
+        return { index: parseInt(k, 10), count: counts[k] };
+      })
+      .sort(function (a, b) {
+        return b.count - a.count;
+      });
+
+    var colW = (g.page.width - g.margin * 2) / 2;
+    var perCol = Math.ceil(used.length / 2);
+    var lineH = 20;
+    var swatch = 12;
+
+    used.forEach(function (u, i) {
+      var col = i < perCol ? 0 : 1;
+      var row = i < perCol ? i : i - perCol;
+      var ex = g.margin + col * colW;
+      var ey = y + row * lineH;
+      var e = state.paletteByIndex[u.index] || {};
+      ad.rect(ex, ey, swatch, swatch, {
+        fill: e.hex || "#888888",
+        stroke: "#999999",
+        lineWidth: 0.5,
+      });
+      ad.text(
+        ex + swatch + 6,
+        ey + swatch * 0.78,
+        (e.code || "?") + "  " + (e.name || ""),
+        {
+          fill: "#000000",
+          size: 10,
+          family: "sans-serif",
+          anchor: "start",
+          baseline: "alphabetic",
+        },
+      );
+      ad.text(ex + colW - 8, ey + swatch * 0.78, String(u.count), {
+        fill: "#444444",
+        size: 10,
+        family: "sans-serif",
+        anchor: "end",
+        baseline: "alphabetic",
+      });
+    });
+
+    return page;
+  }
+
+  function exportPdf() {
+    if (state.canvas.isEmpty()) {
+      toast("Nothing to export", "error");
+      return;
+    }
+    if (!window.StitchPdf) {
+      toast("PDF support unavailable", "error");
+      return;
+    }
+    els.exportPdfBtn.disabled = true;
+    var originalText = els.exportPdfBtn.textContent;
+    els.exportPdfBtn.textContent = "Exporting...";
+
+    function done() {
+      els.exportPdfBtn.disabled = false;
+      els.exportPdfBtn.textContent = originalText;
+    }
+
+    setTimeout(function () {
+      var pages;
+      try {
+        pages = buildPdfPages();
+      } catch (e) {
+        done();
+        toast("PDF export failed", "error");
+        return;
+      }
+      if (!pages || !pages.length) {
+        done();
+        toast("Nothing to export", "error");
+        return;
+      }
+      window.StitchPdf.buildPdf(pages, {
+        title: els.projectTitle.value.trim() || "Untitled Design",
+        author: "Stitchee",
+        creator: "Stitchee",
+      })
+        .then(function (blob) {
+          downloadBlob(
+            blob,
+            (els.projectTitle.value.trim() || "cross-canvas") + ".pdf",
+          );
+          done();
+          toast(
+            pages.length > 1
+              ? "PDF exported (" + pages.length + " pages)"
+              : "PDF exported",
+            "ok",
+          );
+        })
+        .catch(function () {
+          done();
+          toast("PDF export failed", "error");
+        });
+    }, 30);
+  }
+
   function exportJson() {
     if (state.canvas.isEmpty()) {
       toast("Nothing to export", "error");
@@ -1086,11 +1783,13 @@
         var doc = JSON.parse(e.target.result);
         if (!doc.grid || !doc.width || !doc.height) throw new Error("bad");
         state.canvas.loadGrid(doc.width, doc.height, doc.grid);
+        syncGridInputs(doc.width, doc.height);
         state.currentProjectId = null;
         if (doc.title) els.projectTitle.value = doc.title;
         showCanvas(true);
         updateZoomLabel();
         onDesignChange();
+        markClean();
         toast("Design imported", "ok");
       } catch (err) {
         toast("Invalid design file", "error");
@@ -1247,23 +1946,103 @@
     els.btnUndo.addEventListener("click", undoAction);
     els.btnRedo.addEventListener("click", redoAction);
     window.addEventListener("keydown", function (e) {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+      // Never hijack keys while the user is typing into a field. (This also fixes
+      // Ctrl+Z in the title box triggering an undo.)
+      var t = e.target;
+      if (
+        t &&
+        (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)
+      ) {
+        return;
+      }
+      var mod = e.ctrlKey || e.metaKey;
+      var k = e.key.toLowerCase();
+      if (mod && k === "z") {
         e.preventDefault();
         undoAction();
+        return;
       }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+      if (mod && k === "y") {
         e.preventDefault();
         redoAction();
+        return;
+      }
+      if (!state.canvas || state.canvas.isEmpty()) return;
+      if (mod && k === "a") {
+        e.preventDefault();
+        state.canvas.selectAll();
+        return;
+      }
+      if (mod && k === "c") {
+        e.preventDefault();
+        copySelection();
+        return;
+      }
+      if (mod && k === "x") {
+        e.preventDefault();
+        cutSelection();
+        return;
+      }
+      if (mod && k === "v") {
+        e.preventDefault();
+        pasteSelection();
+        return;
+      }
+      if (e.key === "Delete" || e.key === "Backspace") {
+        if (state.canvas.hasSelection()) {
+          e.preventDefault();
+          deleteSelection();
+        }
+        return;
+      }
+      if (e.key === "Escape") {
+        state.canvas.clearSelection();
+        return;
+      }
+      var dr = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+      var dc = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
+      if ((dr || dc) && state.canvas.hasSelection()) {
+        e.preventDefault();
+        state.canvas.nudgeSelection(dr, dc);
       }
     });
     els.toggleGridLines.addEventListener("change", function () {
       state.canvas.setOption("showGrid", this.checked);
     });
-    els.toggleSymbols.addEventListener("change", function () {
-      state.canvas.setOption("showSymbols", this.checked);
+    els.toggleCodes.addEventListener("change", function () {
+      state.canvas.setOption("showCodes", this.checked);
+    });
+    els.toggleGlyphs.addEventListener("change", function () {
+      state.canvas.setOption("showGlyphs", this.checked);
     });
     els.toggleStitch.addEventListener("change", function () {
       state.canvas.setOption("showStitch", this.checked);
+    });
+
+    // progress tracker
+    els.toolProgress.addEventListener("click", function () {
+      setMode("progress");
+    });
+    els.progressOn.addEventListener("change", function () {
+      state.canvas.setProgressOn(this.checked);
+      updateProgressUI();
+      syncToolOptions();
+    });
+    els.progressRow.addEventListener("click", function () {
+      setProgressMode("row");
+    });
+    els.progressColumn.addEventListener("click", function () {
+      setProgressMode("column");
+    });
+    els.progressDiagonal.addEventListener("click", function () {
+      setProgressMode("diagonal");
+    });
+    els.progressClearBtn.addEventListener("click", function () {
+      if (state.canvas.isEmpty()) return;
+      state.canvas.clearProgress();
+      updateProgressUI();
+      saveProgress();
+      toast("Progress cleared", "ok");
     });
     els.styleCross.addEventListener("click", function () {
       setStitchStyle("cross");
@@ -1282,9 +2061,41 @@
     });
 
     // projects / export
+    els.projectTitle.addEventListener("input", markDirty);
     els.saveProjectBtn.addEventListener("click", saveProject);
     els.exportPngBtn.addEventListener("click", exportPng);
+    els.exportSvgBtn.addEventListener("click", exportSvg);
+    els.exportPdfBtn.addEventListener("click", exportPdf);
     els.exportJsonBtn.addEventListener("click", exportJson);
+
+    // selection
+    els.toolSelect.addEventListener("click", function () {
+      setMode("select");
+    });
+    els.selCopyBtn.addEventListener("click", copySelection);
+    els.selCutBtn.addEventListener("click", cutSelection);
+    els.selPasteBtn.addEventListener("click", pasteSelection);
+    els.selFillBtn.addEventListener("click", fillSelection);
+    els.selDeleteBtn.addEventListener("click", deleteSelection);
+    els.selMirrorHBtn.addEventListener("click", function () {
+      mirrorSelection("h");
+    });
+    els.selMirrorVBtn.addEventListener("click", function () {
+      mirrorSelection("v");
+    });
+    els.selRotLBtn.addEventListener("click", function () {
+      rotateSelection(-1);
+    });
+    els.selRotRBtn.addEventListener("click", function () {
+      rotateSelection(1);
+    });
+    els.selAllBtn.addEventListener("click", function () {
+      state.canvas.selectAll();
+    });
+    els.selCropBtn.addEventListener("click", cropSelection);
+    els.selClearBtn.addEventListener("click", function () {
+      state.canvas.clearSelection();
+    });
     els.importJsonBtn.addEventListener("click", function () {
       els.importJsonInput.click();
     });
@@ -1312,6 +2123,13 @@
       }
     });
 
+    window.addEventListener("beforeunload", function (e) {
+      if (!state.dirty) return undefined;
+      e.preventDefault();
+      e.returnValue = "";
+      return "";
+    });
+
     window.addEventListener("resize", function () {
       if (!state.canvas.isEmpty()) {
         state.canvas.fitToView();
@@ -1332,10 +2150,22 @@
   function init() {
     cacheEls();
     state.canvas = new CrossStitchCanvas(els.stitchCanvas, {
-      onChange: onDesignChange,
+      onChange: function () {
+        markDirty();
+        onDesignChange();
+      },
+      onProgressChange: function (st) {
+        updateProgressUI(st);
+        scheduleProgressSave();
+      },
+      onSelectionChange: function () {
+        updateSelectionUI();
+      },
     });
     initFeatureFlags();
     bind();
+    updateSelectionUI();
+    syncToolOptions();
     loadConfig();
     loadProjects();
   }

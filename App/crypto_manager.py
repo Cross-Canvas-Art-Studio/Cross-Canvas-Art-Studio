@@ -43,7 +43,13 @@ def has_secrets():
 
 
 def generate_share_code(length=8):
-    """Return a cryptographically-secure, unambiguous alphanumeric share code."""
+    """Return a cryptographically-secure, unambiguous alphanumeric share code.
+
+    Reserved for the chart-sharing feature (roadmap Tier 2). Currently unused:
+    there is no /api/share route yet, so this helper has no callers. Kept
+    deliberately (and alphabet-tuned to avoid 0/O/1/I lookalikes) so the planned
+    sharing endpoint can use it without re-deriving the alphabet.
+    """
     return ''.join(_secrets.choice(_SHARE_ALPHABET) for _ in range(length))
 
 

@@ -640,6 +640,43 @@ textarea {
   margin-right: 2px;
 }
 
+/* ---------- Contextual tool options ---------- */
+/* Shown only while their tool is active, so each tool brings its own controls
+   and the main toolbar keeps the same shape for every other tool. */
+.tool-options {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 7px 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+/* The display:flex above would otherwise beat the [hidden] attribute. */
+.tool-options[hidden] {
+  display: none;
+}
+.tool-options-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-right: 2px;
+}
+.tool-options-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border-2);
+  margin: 0 2px;
+}
+.tool-options-hint {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-left: 4px;
+}
+
 .canvas-wrap {
   position: relative;
   flex: 1;
