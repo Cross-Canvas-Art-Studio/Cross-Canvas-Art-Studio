@@ -15,8 +15,16 @@
 (function () {
   "use strict";
 
-  // ── Palette (mirrors palette_manager.py DEFAULT_PALETTE, index = position) ──
-  var PALETTE = [
+  // ── Palette ──
+  // The authoritative palette is generated from palette_manager.py and injected
+  // as window.StitchPalette by .github/scripts/build_site.py, so the static build
+  // can never drift from the server palette (it used to: this file was a hand
+  // copy, and it was already missing per-entry fields). The inline table below
+  // is only a fallback for running this file standalone.
+  var PALETTE =
+    window.StitchPalette && window.StitchPalette.length
+      ? window.StitchPalette
+      : [
     // Neutrals
     { index: 0, code: "WHT", name: "White", hex: "#FFFFFF", family: "Neutral" },
     { index: 1, code: "SNW", name: "Snow", hex: "#F7F4EC", family: "Neutral" },
@@ -263,6 +271,12 @@
     { index: 51, code: "PLM", name: "Plum", hex: "#5E2B69", family: "Purple" },
     { index: 52, code: "GRP", name: "Grape", hex: "#3F1D5A", family: "Purple" },
   ];
+  // Keep PALETTE[index] lookup valid regardless of which source was used.
+  var PALETTE_BY_INDEX = {};
+  PALETTE.forEach(function (e, i) {
+    if (typeof e.index !== "number") e.index = i;
+    PALETTE_BY_INDEX[e.index] = e;
+  });
 
   // Precompute RGB arrays — index matches PALETTE position == palette index
   var PAL_RGB = PALETTE.map(function (e) {
@@ -289,7 +303,7 @@
         best = i;
       }
     }
-    return PALETTE[best].index;
+    return PALETTE_BY_INDEX[best].index;
   }
 
   // ── llmAPIManager stub (api-manager.js is excluded from static build) ──
@@ -366,6 +380,7 @@
           label: "Buy these yarns",
           tag: "jonesckevin-20",
           base_query: "worsted weight yarn",
+          floss_query: "DMC embroidery floss",
           url_template: "https://www.amazon.com/s?k={query}&tag={tag}",
         },
       },
@@ -382,6 +397,8 @@
         allowed_extensions: [".bmp", ".gif", ".jpeg", ".jpg", ".png", ".webp"],
       },
       palette: PALETTE,
+      floss: window.StitchFloss || { enabled: false, brand: "DMC", verified: false, size: 0 },
+      skein: { enabled: true, used_strands: 2, waste_factor: 0.15, stitches_per_skein_at_14ct: 1700 },
       llm: { default_provider: "ollama", providers: {} },
       features: {
         ai_enabled: false,

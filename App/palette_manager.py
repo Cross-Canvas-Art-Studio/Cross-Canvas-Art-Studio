@@ -9,11 +9,16 @@ and the frontend renders the legend from the same list (delivered via
 brand-neutral.
 """
 
+import json
 import logging
+import os
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+# Curated DMC floss reference table (see the file itself for its caveats).
+FLOSS_TABLE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'floss_dmc.json')
 
 # code, name, hex, family
 DEFAULT_PALETTE = [
@@ -94,6 +99,14 @@ for _i, _entry in enumerate(DEFAULT_PALETTE):
 _palette_rgb = None   # (P, 3) float
 _palette_lab = None   # (P, 3) float
 
+# Floss tables are loaded lazily so a missing/corrupt file never breaks startup.
+_floss_entries = None  # list of {'code','name','hex','index'}
+_floss_lab = None      # (F, 3) float
+_floss_meta = None     # dict of table metadata
+_floss_by_code = {}    # {'310': entry}
+_preferred = {}        # palette code -> floss code (semantic overrides)
+_palette_floss = None  # {palette_index: {'code','name','hex','lab_distance'}}
+
 
 def hex_to_rgb(value):
     """Convert '#RRGGBB' (or 'RRGGBB') to an (r, g, b) tuple of ints 0-255."""
@@ -145,9 +158,160 @@ def _ensure_cache():
         _palette_lab = rgb_to_lab(rgb)
 
 
+def _nearest_in(lab, ref_lab, candidates=None):
+    """Nearest row of `ref_lab` for every row of `lab`, in squared LAB distance.
+
+    Returns (best_idx, best_dist) as parallel arrays. Ties keep the lowest
+    reference index because the comparison is strictly '<'. The loop (rather
+    than a big broadcast) keeps memory flat, which matters for large grids.
+    """
+    n = lab.shape[0]
+    best_dist = np.full(n, np.inf)
+    best_idx = np.zeros(n, dtype=np.int64)
+    for i in (range(ref_lab.shape[0]) if candidates is None else candidates):
+        diff = lab - ref_lab[i]
+        dist = np.einsum('ij,ij->i', diff, diff)
+        mask = dist < best_dist
+        best_dist[mask] = dist[mask]
+        best_idx[mask] = i
+    return best_idx, best_dist
+
+
+def _ensure_floss_cache():
+    if _floss_entries is None:
+        load_floss_table()
+
+
+def load_floss_table(path=None):
+    """Load the floss reference table. Returns the entry count (0 on failure).
+
+    A missing or malformed file is a warning, never a crash: the app simply
+    runs without DMC annotations, exactly as it did before this existed.
+    """
+    global _floss_entries, _floss_lab, _floss_meta, _palette_floss
+    global _floss_by_code, _preferred
+    target = path or FLOSS_TABLE_PATH
+    entries = []
+    meta = {}
+    preferred = {}
+    try:
+        with open(target, 'r', encoding='utf-8') as fh:
+            data = json.load(fh)
+    except (OSError, ValueError) as exc:
+        logger.warning('Floss table unavailable (%s): %s', target, exc)
+    else:
+        rows = data.get('colours') or []
+        for row in rows:
+            code = str(row.get('code', '')).strip()
+            hex_value = str(row.get('hex', '')).strip()
+            if not code or not hex_value:
+                continue
+            try:
+                hex_to_rgb(hex_value)
+            except ValueError:
+                logger.warning('Skipping floss entry with bad hex: %r', row)
+                continue
+            entries.append({
+                'code': code,
+                'name': str(row.get('name') or code).strip(),
+                'hex': hex_value,
+                'index': len(entries),
+            })
+        meta = {k: data.get(k) for k in
+                ('brand', 'version', 'verified', 'strands_per_skein', 'skein_metres')}
+        raw_preferred = data.get('preferred') or {}
+        if isinstance(raw_preferred, dict):
+            preferred = {str(k): str(v) for k, v in raw_preferred.items()}
+        if not entries:
+            logger.warning('Floss table contained no usable entries: %s', target)
+
+    _floss_entries = entries
+    _floss_meta = meta
+    _preferred = preferred
+    _floss_by_code = {e['code']: e for e in entries}
+    _floss_lab = (rgb_to_lab(np.array([hex_to_rgb(e['hex']) for e in entries], dtype=np.float64))
+                  if entries else np.zeros((0, 3)))
+    _palette_floss = None  # invalidate the derived palette mapping
+    return len(entries)
+
+
+def floss_size():
+    _ensure_floss_cache()
+    return len(_floss_entries)
+
+
+def get_floss():
+    """Return the floss table as a list of dicts, or [] when unavailable."""
+    _ensure_floss_cache()
+    return [dict(e) for e in _floss_entries]
+
+
+def floss_meta():
+    """Return table metadata (brand, verification state, skein defaults)."""
+    _ensure_floss_cache()
+    return dict(_floss_meta or {})
+
+
+def _ensure_floss_map():
+    """Cache the palette -> nearest-floss mapping (empty when no table)."""
+    global _palette_floss
+    if _palette_floss is not None:
+        return
+    _ensure_cache()
+    _ensure_floss_cache()
+    if not _floss_entries:
+        _palette_floss = {}
+        return
+    best_idx, best_dist = _nearest_in(_palette_lab, _floss_lab)
+    # Apply reviewed semantic overrides, keeping the reported distance honest
+    # by recomputing it against the pinned floss entry.
+    for i, entry in enumerate(_PALETTE):
+        forced = _preferred.get(entry['code'])
+        if forced and forced in _floss_by_code:
+            j = _floss_by_code[forced]['index']
+            best_idx[i] = j
+            best_dist[i] = float(np.sum((_palette_lab[i] - _floss_lab[j]) ** 2))
+    mapping = {}
+    for i in range(len(_PALETTE)):
+        floss = _floss_entries[int(best_idx[i])]
+        mapping[i] = {
+            'code': floss['code'],
+            'name': floss['name'],
+            'hex': floss['hex'],
+            'lab_distance': round(float(np.sqrt(best_dist[i])), 2),
+        }
+    _palette_floss = mapping
+
+
+def nearest_floss_for_hex(value):
+    """Return the closest floss entry for one hex colour, or None."""
+    _ensure_floss_cache()
+    if not _floss_entries:
+        return None
+    lab = rgb_to_lab(np.array([hex_to_rgb(value)], dtype=np.float64))
+    best_idx, best_dist = _nearest_in(lab, _floss_lab)
+    floss = _floss_entries[int(best_idx[0])]
+    return {
+        'code': floss['code'],
+        'name': floss['name'],
+        'hex': floss['hex'],
+        'index': floss['index'],
+        'lab_distance': round(float(np.sqrt(best_dist[0])), 2),
+    }
+
+
 def get_palette():
-    """Return the palette as a list of dicts, each with an added 'index'."""
-    return [dict(entry, index=i) for i, entry in enumerate(_PALETTE)]
+    """Return the palette as a list of dicts, each with 'index' and, when a
+    floss table is loaded, a 'dmc' block naming the nearest real-world floss."""
+    _ensure_floss_map()
+    palette = []
+    for i, entry in enumerate(_PALETTE):
+        item = dict(entry, index=i)
+        dmc = _palette_floss.get(i)
+        if dmc:
+            item['dmc'] = dict(dmc)
+        palette.append(item)
+    return palette
 
 
 def palette_size():
@@ -185,35 +349,54 @@ def nearest_indices(rgb, allowed=None):
     unique_rgb, inverse_indices = np.unique(rgb_arr, axis=0, return_inverse=True)
 
     lab = rgb_to_lab(unique_rgb)
-    n = lab.shape[0]
-    candidates = list(allowed) if allowed is not None else range(len(_PALETTE))
-
-    best_dist = np.full(n, np.inf)
-    best_idx = np.zeros(n, dtype=np.int64)
-    for i in candidates:
-        pl = _palette_lab[i]
-        diff = lab - pl
-        dist = np.einsum('ij,ij->i', diff, diff)
-        mask = dist < best_dist
-        best_dist[mask] = dist[mask]
-        best_idx[mask] = i
+    candidates = list(allowed) if allowed is not None else None
+    best_idx, _ = _nearest_in(lab, _palette_lab, candidates)
     return best_idx[inverse_indices]
+
+
+def palette_js_source():
+    """Return JavaScript that publishes the palette to the static (Pages) build.
+
+    The static build has no server, so its client-side shim would otherwise need
+    a hand-maintained copy of the palette -- which had already drifted from this
+    module before this function existed. build_site.py injects the result into
+    app.bundle.js, making Python the single source of truth for both builds.
+    """
+    palette = get_palette()
+    meta = floss_meta() or {}
+    floss = {
+        'enabled': any('dmc' in entry for entry in palette),
+        'brand': meta.get('brand') or 'DMC',
+        'verified': bool(meta.get('verified')),
+        'size': floss_size(),
+    }
+    dump = lambda obj: json.dumps(obj, ensure_ascii=False, separators=(',', ':'))
+    return (
+        '/* Generated from App/palette_manager.py by build_site.py. Do not edit. */\n'
+        'window.StitchPalette = ' + dump(palette) + ';\n'
+        'window.StitchFloss = ' + dump(floss) + ';\n'
+    )
 
 
 def build_legend(index_counts):
     """Given {palette_index: count}, return a sorted legend list (most used first)."""
+    _ensure_floss_map()
     legend = []
     for idx, count in index_counts.items():
         if idx < 0 or idx >= len(_PALETTE) or count <= 0:
             continue
         entry = _PALETTE[idx]
-        legend.append({
+        row = {
             'index': idx,
             'code': entry['code'],
             'name': entry['name'],
             'hex': entry['hex'],
             'family': entry['family'],
             'count': int(count),
-        })
+        }
+        dmc = _palette_floss.get(idx)
+        if dmc:
+            row['dmc'] = dict(dmc)
+        legend.append(row)
     legend.sort(key=lambda e: e['count'], reverse=True)
     return legend

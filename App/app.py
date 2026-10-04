@@ -420,6 +420,10 @@ def get_app_config():
     for provider, key in SERVER_API_KEYS.items():
         api_keys_info[provider] = {'available': bool(key), 'masked': mask_api_key(key)}
 
+    floss_cfg = config.get('floss', {}) or {}
+    floss_meta = palette_manager.floss_meta()
+    floss_size = palette_manager.floss_size()
+
     return jsonify({
         'app': config.get('app', {}),
         'grid': GRID_CFG,
@@ -428,6 +432,13 @@ def get_app_config():
             'allowed_extensions': sorted(ALLOWED_EXTENSIONS),
         },
         'palette': palette_manager.get_palette(),
+        'floss': {
+            'enabled': bool(floss_cfg.get('enabled', True)) and floss_size > 0,
+            'brand': floss_cfg.get('brand') or floss_meta.get('brand') or 'DMC',
+            'verified': bool(floss_meta.get('verified')),
+            'size': floss_size,
+        },
+        'skein': config.get('skein', {}) or {},
         'llm': {
             'default_provider': config.get('llm', {}).get('default_provider', 'ollama'),
             'providers': config.get('llm', {}).get('providers', {}),

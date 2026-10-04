@@ -161,6 +161,187 @@ class TestConfigInvariants(unittest.TestCase):
                                 palette_manager.palette_size())
 
 
+class TestFlossMapping(unittest.TestCase):
+    """DMC floss mapping and the palette/JS parity that keeps both builds honest."""
+
+    def _read(self, *parts):
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *parts)
+        with open(path, encoding='utf-8') as fh:
+            return fh.read()
+
+    def setUp(self):
+        # Other tests may have swapped the table out; always start from the real one.
+        palette_manager.load_floss_table()
+
+    def tearDown(self):
+        palette_manager.load_floss_table()
+
+    def test_floss_table_loads_and_is_usable(self):
+        self.assertGreater(palette_manager.floss_size(), 0,
+                           'App/floss_dmc.json must load; a corrupt file would '
+                           'silently disable every DMC label')
+        meta = palette_manager.floss_meta()
+        self.assertEqual(meta.get('brand'), 'DMC')
+        for entry in palette_manager.get_floss():
+            self.assertTrue(entry['code'])
+            self.assertTrue(entry['name'])
+            self.assertRegex(entry['hex'], r'^#[0-9A-Fa-f]{6}$')
+
+    def test_floss_codes_are_unique(self):
+        codes = [e['code'] for e in palette_manager.get_floss()]
+        self.assertEqual(len(codes), len(set(codes)),
+                         'a duplicated floss code makes a shopping list ambiguous')
+
+    def test_every_palette_entry_maps_to_a_real_floss_entry(self):
+        known = {e['code'] for e in palette_manager.get_floss()}
+        unmapped = []
+        for entry in palette_manager.get_palette():
+            dmc = entry.get('dmc')
+            if not dmc:
+                unmapped.append(entry['code'])
+                continue
+            self.assertIn(dmc['code'], known)
+            self.assertIn('lab_distance', dmc)
+        self.assertEqual(unmapped, [],
+                         'these palette entries have no floss match, so their '
+                         'legend rows would render a blank DMC label')
+
+    def test_known_colours_map_to_sensible_floss(self):
+        self.assertEqual(palette_manager.nearest_floss_for_hex('#FFFFFF')['code'], 'B5200')
+        self.assertEqual(palette_manager.nearest_floss_for_hex('#000000')['code'], '310')
+
+    def test_semantic_override_beats_pure_colour_distance(self):
+        # Nearest-colour alone sends pure-ish black to Dark Grey; a stitcher
+        # buying "Black" wants 310, so floss_dmc.json pins it explicitly.
+        palette = {e['code']: e for e in palette_manager.get_palette()}
+        self.assertEqual(palette['BLK']['dmc']['code'], '310')
+
+    def test_missing_table_degrades_gracefully(self):
+        count = palette_manager.load_floss_table(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), 'no_such_table.json'))
+        self.assertEqual(count, 0)
+        self.assertEqual(palette_manager.floss_size(), 0)
+        self.assertIsNone(palette_manager.nearest_floss_for_hex('#123456'))
+        for entry in palette_manager.get_palette():
+            self.assertNotIn('dmc', entry,
+                             'palette must simply omit dmc when no table is loaded')
+
+    def test_malformed_table_degrades_gracefully(self):
+        import json as _json
+        tmp = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bad_floss_tmp.json')
+        with open(tmp, 'w', encoding='utf-8') as fh:
+            _json.dump({'colours': [{'code': 'X', 'hex': 'not-a-colour'},
+                                    {'code': '', 'hex': '#FFFFFF'},
+                                    {'code': '900', 'name': 'Ok', 'hex': '#FFFFFF'}]}, fh)
+        try:
+            self.assertEqual(palette_manager.load_floss_table(tmp), 1,
+                             'only the well-formed row should survive')
+        finally:
+            os.remove(tmp)
+
+    def test_nearest_in_matches_the_original_algorithm(self):
+        # _nearest_in was extracted out of nearest_indices so the floss matcher
+        # could reuse it. The extraction must not have changed any result.
+        palette_manager._ensure_cache()
+        rng = np.random.default_rng(1234)
+        rgb = rng.integers(0, 256, size=(3000, 3)).astype(float)
+
+        got = palette_manager.nearest_indices(rgb)
+
+        unique_rgb, inverse = np.unique(rgb, axis=0, return_inverse=True)
+        lab = palette_manager.rgb_to_lab(unique_rgb)
+        best_dist = np.full(lab.shape[0], np.inf)
+        best_idx = np.zeros(lab.shape[0], dtype=np.int64)
+        for i in range(palette_manager.palette_size()):
+            diff = lab - palette_manager._palette_lab[i]
+            dist = np.einsum('ij,ij->i', diff, diff)
+            mask = dist < best_dist
+            best_dist[mask] = dist[mask]
+            best_idx[mask] = i
+        expected = best_idx[inverse]
+
+        self.assertTrue(np.array_equal(got, expected),
+                        'the refactored matcher changed palette results')
+
+    def test_restricted_matching_still_respects_allowed(self):
+        palette_manager._ensure_cache()
+        rng = np.random.default_rng(99)
+        rgb = rng.integers(0, 256, size=(500, 3)).astype(float)
+        allowed = [0, 1, 2]
+        got = palette_manager.nearest_indices(rgb, allowed=allowed)
+        self.assertTrue(np.isin(got, allowed).all())
+
+    def test_generated_palette_js_round_trips_exactly(self):
+        # build_site.py injects this into app.bundle.js. If it ever stops
+        # matching get_palette(), the static site and the server disagree about
+        # colour -- which is exactly the drift this mechanism exists to stop.
+        import json as _json
+        src = palette_manager.palette_js_source()
+        blob = re.search(r'window\.StitchPalette = (.*?);\n', src)
+        self.assertIsNotNone(blob, 'palette_js_source must emit window.StitchPalette')
+        self.assertEqual(_json.loads(blob.group(1)), palette_manager.get_palette())
+
+        floss = re.search(r'window\.StitchFloss = (.*?);\n', src)
+        self.assertIsNotNone(floss)
+        meta = _json.loads(floss.group(1))
+        self.assertTrue(meta['enabled'])
+        self.assertEqual(meta['size'], palette_manager.floss_size())
+
+    def test_static_build_uses_the_generated_palette(self):
+        adapter = self._read('static', 'static-adapter.js')
+        self.assertIn('window.StitchPalette', adapter,
+                      'static-adapter.js must prefer the generated palette')
+        build = open(os.path.join(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))), '.github', 'scripts', 'build_site.py'),
+            encoding='utf-8').read()
+        self.assertIn('palette_js_source()', build,
+                      'build_site.py must inject the generated palette')
+
+    def test_skein_js_defaults_match_config(self):
+        import json as _json
+        cfg = _json.loads(self._read('config.json'))['skein']
+        js = self._read('static', 'skein.js')
+
+        def default_of(name):
+            m = re.search(re.escape(name) + r':\s*([0-9.]+)', js)
+            self.assertIsNotNone(m, 'skein.js is missing the %s default' % name)
+            return float(m.group(1))
+
+        self.assertEqual(default_of('usedStrands'), float(cfg['used_strands']))
+        self.assertEqual(default_of('wasteFactor'), float(cfg['waste_factor']))
+        self.assertEqual(default_of('stitchesPerSkeinAt14ct'),
+                         float(cfg['stitches_per_skein_at_14ct']))
+
+    def test_skein_module_is_bundled_for_the_static_build(self):
+        build = open(os.path.join(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))), '.github', 'scripts', 'build_site.py'),
+            encoding='utf-8').read()
+        self.assertIn("'skein.js'", build,
+                      'skein.js must be in BUNDLE_SCRIPTS or the static build '
+                      'ships an editor with no skein estimates')
+        self.assertIn('skein.js', self._read('templates', 'index.html'),
+                      'index.html must load skein.js so Flask gets it too')
+
+    def test_verification_harnesses_are_not_gitignored(self):
+        # tools/ was listed under "IDEs and Editors" in .gitignore, so the
+        # harnesses the Pages workflow runs were never committed -- CI would
+        # have failed with "Cannot find module tools/verify_render.js".
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, '.gitignore'), encoding='utf-8') as fh:
+            entries = [ln.strip() for ln in fh]
+        self.assertNotIn('tools/', entries)
+        self.assertNotIn('tools', entries)
+
+        for name in ('verify_render.js', 'verify_pdf.js'):
+            self.assertTrue(os.path.exists(os.path.join(root, 'tools', name)),
+                            'tools/%s is required by CI' % name)
+
+        workflow = open(os.path.join(root, '.github', 'workflows', 'pages.yml'),
+                        encoding='utf-8').read()
+        self.assertIn('tools/verify_render.js', workflow)
+        self.assertIn('tools/verify_pdf.js', workflow)
+
+
 class TestSecurityApp(unittest.TestCase):
     def setUp(self):
         from App.app import app

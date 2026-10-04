@@ -24,7 +24,7 @@
     gridMin: 5,
     arLocked: false,
     arRatio: null, // height / width when locked
-    codeFormat: "code", // 'code' | 'name' | 'rgb' | 'num' | 'sim' | 'hex'
+    codeFormat: "code", // 'code' | 'name' | 'rgb' | 'num' | 'sim' | 'hex' | 'dmc'
     dirty: false, // unsaved changes since last save/load/new
   };
 
@@ -94,6 +94,7 @@
       "infoColors",
       "legendList",
       "legendCount",
+      "skeinSummary",
       "buyYarnBtn",
       "exportPngBtn",
       "exportSvgBtn",
@@ -501,6 +502,11 @@
     if (f === "hex") {
       return e.hex;
     }
+    if (f === "dmc") {
+      // Falls back to the 3-letter palette code when the floss table has no
+      // usable match, so the label is never blank.
+      return e.dmc ? e.dmc.code : e.code;
+    }
     return e.code; // default: 3-letter code
   }
 
@@ -509,14 +515,18 @@
     if (!container) return;
     container.innerHTML = "";
     if (!e) return;
-    [
+    var formats = [
       { key: "code", label: "Code", value: formatEntry(e, "code") },
       { key: "name", label: "Name", value: formatEntry(e, "name") },
       { key: "rgb", label: "RGB", value: formatEntry(e, "rgb") },
       { key: "num", label: "No.", value: formatEntry(e, "num") },
       { key: "sim", label: "Sim", value: formatEntry(e, "sim") },
       { key: "hex", label: "Hex", value: formatEntry(e, "hex") },
-    ].forEach(function (f) {
+    ];
+    if (flossEnabled()) {
+      formats.push({ key: "dmc", label: "DMC", value: formatEntry(e, "dmc") });
+    }
+    formats.forEach(function (f) {
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className =
@@ -1074,6 +1084,64 @@
     toast("Blank " + gs.w + "×" + gs.h + " canvas ready", "ok");
   }
 
+  // ---------- floss + skein helpers ----------
+  function flossConfig() {
+    return (state.config && state.config.floss) || null;
+  }
+
+  function flossEnabled() {
+    var f = flossConfig();
+    return !!(f && f.enabled !== false && f.size !== 0);
+  }
+
+  function flossBrand() {
+    var f = flossConfig();
+    return (f && f.brand) || "DMC";
+  }
+
+  function skeinConfig() {
+    var s = state.config && state.config.skein;
+    return s && s.enabled !== false ? s : null;
+  }
+
+  /** Attach the floss match and the estimated skein count to legend rows. */
+  function annotateUsed(used) {
+    var skn = window.StitchSkein;
+    var raw = skeinConfig();
+    var count = fabricCountValue();
+    used.forEach(function (u) {
+      var e = state.paletteByIndex[u.index];
+      if (e) {
+        if (u.code === undefined) u.code = e.code;
+        if (u.name === undefined) u.name = e.name;
+        if (u.hex === undefined) u.hex = e.hex;
+        u.dmc = e.dmc || null;
+      }
+      u.skeins = skn && raw ? skn.skeinsFor(u.count, count, raw) : 0;
+    });
+    return used;
+  }
+
+  /** One-line estimate for the whole design, or "" when it is not applicable. */
+  function skeinSummaryText(used) {
+    var skn = window.StitchSkein;
+    var raw = skeinConfig();
+    if (!skn || !raw || !used.length) return "";
+    var o = skn.options(raw);
+    var total = 0;
+    var stitches = 0;
+    used.forEach(function (u) {
+      total += u.skeins || 0;
+      stitches += u.count;
+    });
+    return (
+      "≈ " + total + " skein" + (total === 1 ? "" : "s") + " of " +
+      flossBrand() + " floss for " + stitches + " stitches at " +
+      fabricCountValue() + " ct (" + o.usedStrands + " strands, includes " +
+      Math.round(o.wasteFactor * 100) + "% waste). Estimate only."
+    );
+  }
+
   // ---------- affiliate "buy these yarns" ----------
   function affiliateConfig() {
     return (state.config && state.config.app && state.config.app.affiliate) || null;
@@ -1089,13 +1157,29 @@
       btn.style.display = "none";
       return;
     }
-    var names = used
-      .slice(0, 5)
+    // Prefer real floss codes when we know them: "DMC 310 666" is an order a
+    // stitcher can actually fill, unlike a guess at the yarn weight.
+    var brand = flossBrand();
+    var codes = used
       .map(function (u) {
-        return u.name;
+        return u.dmc && u.dmc.code;
       })
-      .join(" ");
-    var query = ((af.base_query || "worsted weight yarn") + " " + names).trim();
+      .filter(function (c) {
+        return !!c;
+      })
+      .slice(0, 8);
+    var query;
+    if (codes.length) {
+      query = ((af.floss_query || brand + " embroidery floss") + " " + codes.join(" ")).trim();
+    } else {
+      var names = used
+        .slice(0, 5)
+        .map(function (u) {
+          return u.name;
+        })
+        .join(" ");
+      query = ((af.base_query || "worsted weight yarn") + " " + names).trim();
+    }
     var template =
       af.url_template || "https://www.amazon.com/s?k={query}&tag={tag}";
     btn.href = template
@@ -1124,6 +1208,8 @@
         return b.count - a.count;
       });
 
+    annotateUsed(used);
+
     els.legendCount.textContent = used.length;
     els.legendList.innerHTML = "";
     if (!used.length) {
@@ -1135,6 +1221,16 @@
         row.className =
           "legend-row" + (u.index === state.selectedIndex ? " selected" : "");
         row.setAttribute("data-index", u.index);
+        var sknHtml = u.skeins
+          ? '<span class="skn">≈' +
+            u.skeins +
+            " skein" +
+            (u.skeins === 1 ? "" : "s") +
+            "</span>"
+          : "";
+        var dmcHtml = flossEnabled() && u.dmc
+          ? '<span class="dmc">' + escapeHtml(flossBrand() + " " + u.dmc.code) + "</span>"
+          : "";
         row.innerHTML =
           '<span class="swatch" style="background:' +
           u.hex +
@@ -1144,15 +1240,23 @@
           "</span>" +
           '<span class="name">' +
           escapeHtml(u.name) +
+          dmcHtml +
           "</span>" +
           '<span class="count">' +
           u.count +
+          sknHtml +
           "</span>";
         row.addEventListener("click", function () {
           selectColor(u.index);
         });
         els.legendList.appendChild(row);
       });
+    }
+
+    if (els.skeinSummary) {
+      var summary = skeinSummaryText(used);
+      els.skeinSummary.textContent = summary;
+      els.skeinSummary.hidden = !summary;
     }
 
     updateBuyYarn(used);
@@ -1639,13 +1743,28 @@
     y += 26;
 
     var counts = state.canvas.getCounts();
-    var used = Object.keys(counts)
-      .map(function (k) {
-        return { index: parseInt(k, 10), count: counts[k] };
-      })
-      .sort(function (a, b) {
-        return b.count - a.count;
+    var used = annotateUsed(
+      Object.keys(counts)
+        .map(function (k) {
+          return { index: parseInt(k, 10), count: counts[k] };
+        })
+        .sort(function (a, b) {
+          return b.count - a.count;
+        }),
+    );
+    var brand = flossBrand();
+    var sknSummary = skeinSummaryText(used);
+
+    if (sknSummary) {
+      ad.text(x, y, sknSummary, {
+        fill: "#444444",
+        size: 10,
+        family: "sans-serif",
+        anchor: "start",
+        baseline: "alphabetic",
       });
+      y += 16;
+    }
 
     var colW = (g.page.width - g.margin * 2) / 2;
     var perCol = Math.ceil(used.length / 2);
@@ -1666,7 +1785,8 @@
       ad.text(
         ex + swatch + 6,
         ey + swatch * 0.78,
-        (e.code || "?") + "  " + (e.name || ""),
+        (e.code || "?") + "  " + (e.name || "") +
+          (u.dmc ? "  ·  " + brand + " " + u.dmc.code : ""),
         {
           fill: "#000000",
           size: 10,
@@ -1675,13 +1795,18 @@
           baseline: "alphabetic",
         },
       );
-      ad.text(ex + colW - 8, ey + swatch * 0.78, String(u.count), {
-        fill: "#444444",
-        size: 10,
-        family: "sans-serif",
-        anchor: "end",
-        baseline: "alphabetic",
-      });
+      ad.text(
+        ex + colW - 8,
+        ey + swatch * 0.78,
+        u.skeins ? u.count + "  (" + u.skeins + " sk)" : String(u.count),
+        {
+          fill: "#444444",
+          size: 10,
+          family: "sans-serif",
+          anchor: "end",
+          baseline: "alphabetic",
+        },
+      );
     });
 
     return page;
@@ -1751,15 +1876,21 @@
     }
     var design = state.canvas.getDesign();
     var counts = state.canvas.getCounts();
-    var legend = Object.keys(counts).map(function (k) {
-      var e = state.paletteByIndex[parseInt(k, 10)];
-      return {
-        index: parseInt(k, 10),
-        code: e ? e.code : "",
-        name: e ? e.name : "",
-        hex: e ? e.hex : "",
-        count: counts[k],
-      };
+    var legend = annotateUsed(
+      Object.keys(counts).map(function (k) {
+        var e = state.paletteByIndex[parseInt(k, 10)];
+        return {
+          index: parseInt(k, 10),
+          code: e ? e.code : "",
+          name: e ? e.name : "",
+          hex: e ? e.hex : "",
+          count: counts[k],
+        };
+      }),
+    );
+    // Compact the floss match down to what a shopping list needs.
+    legend.forEach(function (r) {
+      r.dmc = r.dmc ? { code: r.dmc.code, name: r.dmc.name } : null;
     });
     var doc = {
       app: "cross-canvas-art",
@@ -1897,7 +2028,12 @@
       }
       updateFabricSize();
     });
-    els.fabricCount.addEventListener("change", updateFabricSize);
+    // Fabric count drives both the finished size and the skein estimate.
+    var onFabricChange = function () {
+      updateFabricSize();
+      onDesignChange();
+    };
+    els.fabricCount.addEventListener("change", onFabricChange);
     els.sizeUnit.addEventListener("change", updateFabricSize);
 
     // AI

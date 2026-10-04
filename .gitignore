@@ -32,4 +32,4 @@ venv/
 
 # IDEs and Editors
 .vscode/
-tools/
+_site/

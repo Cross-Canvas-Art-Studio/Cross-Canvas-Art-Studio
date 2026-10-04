@@ -6,6 +6,7 @@ name: Stitchee - GitHub Pages
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -24,6 +25,34 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # build_site.py now imports palette_manager to generate the palette that
+      # the static bundle ships, so the build genuinely needs numpy. Pinned here
+      # so the published site can never be built from a different encoder than
+      # the tests exercise.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r App/requirements.txt
+          pip install pytest
+
+      # These gates exist because the render layer, the PDF writer and the floss
+      # mapping are all verified headlessly. Without them a regression reaches
+      # production unnoticed -- they were written before this step.
+      - name: Python tests
+        run: python -m pytest App/test_app.py -q
+
+      - name: Render-layer checks
+        run: node tools/verify_render.js
+
+      - name: PDF checks
+        run: node tools/verify_pdf.js
 
       - name: Build site
         run: python3 .github/scripts/build_site.py

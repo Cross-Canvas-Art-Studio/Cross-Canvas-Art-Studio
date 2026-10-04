@@ -8,8 +8,20 @@
             "label": "Buy these yarns",
             "tag": "YOUR_AFFILIATE_TAG",
             "base_query": "worsted weight yarn",
+            "floss_query": "DMC embroidery floss",
             "url_template": "https://www.amazon.com/s?k={query}&tag={tag}"
         }
+    },
+    "floss": {
+        "enabled": true,
+        "brand": "DMC",
+        "table": "floss_dmc.json"
+    },
+    "skein": {
+        "enabled": true,
+        "used_strands": 2,
+        "waste_factor": 0.15,
+        "stitches_per_skein_at_14ct": 1700
     },
     "seo": {
         "title": "Stitchee \u2014 Free Cross-Stitch Pattern Maker and Yarn Canvas Designer",

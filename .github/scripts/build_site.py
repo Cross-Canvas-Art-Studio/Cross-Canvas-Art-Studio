@@ -257,13 +257,29 @@ html = re.sub(
 # order, the stale-file cleanup, the <script>-tag rewrite, and (below) the
 # "did the rewrite actually happen?" assertion. Add a new designer script HERE
 # and nowhere else.
-BUNDLE_SCRIPTS = ('symbols.js', 'pdf-writer.js', 'static-adapter.js', 'canvas-renderer.js', 'app.js')
+BUNDLE_SCRIPTS = ('symbols.js', 'pdf-writer.js', 'skein.js', 'static-adapter.js', 'canvas-renderer.js', 'app.js')
 
 bundle_parts = []
 for fname in BUNDLE_SCRIPTS:
     with open(os.path.join(SRC_STATIC, fname), 'r', encoding='utf-8') as f:
         bundle_parts.append(f.read())
 bundle = '\n'.join(bundle_parts)
+
+# Prepend the palette generated from palette_manager.py so static-adapter.js
+# does not have to carry (and slowly diverge from) a hand-written copy. This is
+# prepended rather than added as a file because it guarantees the globals exist
+# before any bundled script runs, and keeps it out of the artifact allow-lists.
+# Falls back to the adapter's inline table if the import is unavailable.
+sys.path.insert(0, os.path.join(ROOT, 'App'))
+try:
+    import palette_manager  # noqa: E402  (path is set up immediately above)
+    bundle = palette_manager.palette_js_source() + bundle
+    print(f'  injected palette ({palette_manager.palette_size()} colours, '
+          f'{palette_manager.floss_size()} floss entries)')
+except Exception as exc:  # pragma: no cover - build-time guard
+    print(f'  WARNING: could not generate the palette ({exc}); '
+          f'static-adapter.js will use its inline fallback table')
+
 with open(os.path.join(OUT_DIR, 'app.bundle.js'), 'w', encoding='utf-8') as f:
     f.write(bundle)
 print(f'  wrote   app.bundle.js ({len(bundle)} bytes)')
