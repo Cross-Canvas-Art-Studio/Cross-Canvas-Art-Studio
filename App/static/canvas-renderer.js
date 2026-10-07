@@ -29,6 +29,24 @@
   var PROGRESS_DIM = "rgba(15,17,23,0.62)"; // already-stitched cells
   var PROGRESS_BAND = "rgba(168,85,247,0.20)"; // the unit being worked on
 
+  // Trace-overlay frame. Also drawn outside drawChart, so handles and marquee
+  // can never reach an export. The canvas is 1:1 with its CSS size, so these
+  // are screen pixels too.
+  var OVERLAY_FRAME = "rgba(168,85,247,0.95)";
+  var OVERLAY_HANDLE = 9;
+  var OVERLAY_MIN_SIZE = 8;
+  // Alt turns a drag into a fine drag: one screen pixel of pointer travel moves
+  // the edge this fraction of a canvas pixel, so a photo that is a hair too wide
+  // can be fitted to the chart's cells instead of jumping a whole stitch.
+  var OVERLAY_FINE_DRAG = 0.2;
+  // Arrow-key nudge, as a fraction of the chart per press (Shift = x10).
+  var OVERLAY_NUDGE = 0.001;
+  // A photo is usually a few percent off, not a few hundred, but the range has
+  // to cover "this scan is 12% too narrow" and a deliberate extreme.
+  var OVERLAY_MIN_SCALE = 0.05;
+  var OVERLAY_MAX_SCALE = 8;
+  var OVERLAY_MAX_OFFSET = 1.5; // in chart widths / heights
+
   /**
    * Run-length encode a progress array into "n,n,n" where the first run counts
    * ZEROS. Progress marks come in long contiguous runs (you work a row at a
@@ -117,6 +135,17 @@
   function luminance(hex) {
     var c = hexToRgb(hex);
     return (0.299 * c.r + 0.587 * c.g + 0.114 * c.b) / 255;
+  }
+
+  // Every route into the overlay alignment (sliders, presets, drag handles)
+  // clamps through these two, so no caller can produce an unusable transform.
+  function _clampOverlayScale(v) {
+    if (!isFinite(v)) return 1;
+    return Math.max(OVERLAY_MIN_SCALE, Math.min(OVERLAY_MAX_SCALE, v));
+  }
+  function _clampOverlayOffset(v) {
+    if (!isFinite(v)) return 0;
+    return Math.max(-OVERLAY_MAX_OFFSET, Math.min(OVERLAY_MAX_OFFSET, v));
   }
 
   // =========================================================== adapters ======
@@ -635,6 +664,16 @@
       this.overlayImage = null;
       this.overlayOn = false;
       this.overlayOpacity = 0.5;
+      // How the photo is mapped onto the chart, and the user's manual nudge on
+      // top of it. Scales are multipliers of the fitted size and offsets are
+      // FRACTIONS of the chart's width/height, so none of it has to be redone
+      // when the user zooms.
+      this.overlayFit = "contain"; // 'contain' | 'cover' | 'stretch'
+      this.overlayScaleX = 1;
+      this.overlayScaleY = 1;
+      this.overlayOffsetX = 0;
+      this.overlayOffsetY = 0;
+      this._ovDrag = null; // active handle drag: {target, start, rect}
       // Selection marquee + clipboard. The outline is drawn outside drawChart,
       // so a selection can never appear in an export.
       this.sel = null;
@@ -845,6 +884,8 @@
       this._drawOverlay();
       this._drawProgressOverlay();
       this._drawSelectionOverlay();
+      // Alignment frame + stretch handles, also on-screen only.
+      this._drawOverlayHandles();
     }
 
     _paintCell(r, c, clearFirst) {
@@ -907,6 +948,7 @@
       this.selectedIndex = index;
     }
     setMode(mode) {
+      if (this.mode !== mode) this._clearOverlayCursor();
       this.mode = mode;
     }
     setBrushSize(size) {
@@ -922,6 +964,12 @@
     // A reference photo the user can stitch over, faded with an opacity slider
     // and toggled off to judge the result. Everything here is drawn outside
     // drawChart, so the overlay is a view aid only: exports are untouched.
+    //
+    // PHOTO ALIGNMENT. A photo of a chart is almost never the exact shape of the
+    // chart you are stitching, so the overlay is not just cover-fitted: the user
+    // can stretch each axis and nudge it until the cells line up. Scales are
+    // multipliers of the fitted size and offsets are fractions of the chart's
+    // width/height, which keeps the alignment valid at any zoom.
 
     setOverlayImage(img) {
       this.overlayImage = img || null;
@@ -941,19 +989,330 @@
       this.render();
     }
 
-    /** Where the photo lands on the chart: "cover"-fitted and centred, so it is
-     *  never stretched out of shape. */
-    _overlayRect() {
+    /** Current alignment, for the UI to mirror back into its controls. */
+    overlayAdjust() {
+      var r = this._overlayRect();
+      var s = this.cellSize || 1;
+      return {
+        fit: this.overlayFit,
+        scaleX: this.overlayScaleX,
+        scaleY: this.overlayScaleY,
+        offsetX: this.overlayOffsetX,
+        offsetY: this.overlayOffsetY,
+        // The photo's size in STITCHES. This is the number to watch while
+        // fitting: when it lands on the chart's own cell count the photo's grid
+        // and the chart's grid coincide.
+        spanX: r ? r.w / s : 0,
+        spanY: r ? r.h / s : 0,
+      };
+    }
+
+    /**
+     * Nudge the photo from the keyboard. Offsets are chart fractions, so one
+     * press moves it a thousandth of the chart — far finer than a stitch — and
+     * `mult` (Shift) steps ten times that.
+     */
+    nudgeOverlay(dx, dy, mult) {
+      var step = OVERLAY_NUDGE * (mult || 1);
+      this.setOverlayAdjust({
+        offsetX: this.overlayOffsetX + dx * step,
+        offsetY: this.overlayOffsetY + dy * step,
+      });
+    }
+
+    /**
+     * Apply a partial alignment change: {fit, scaleX, scaleY, offsetX, offsetY}.
+     * Called by the sliders, by the preset buttons and by the drag handles, so
+     * every route is clamped identically.
+     */
+    setOverlayAdjust(part) {
+      var p = part || {};
+      if (p.fit) {
+        this.overlayFit =
+          p.fit === "cover" || p.fit === "stretch" ? p.fit : "contain";
+      }
+      if (typeof p.scaleX === "number") this.overlayScaleX = _clampOverlayScale(p.scaleX);
+      if (typeof p.scaleY === "number") this.overlayScaleY = _clampOverlayScale(p.scaleY);
+      if (typeof p.offsetX === "number") this.overlayOffsetX = _clampOverlayOffset(p.offsetX);
+      if (typeof p.offsetY === "number") this.overlayOffsetY = _clampOverlayOffset(p.offsetY);
+      this.render();
+      this._notifyOverlay();
+    }
+
+    /** Show the whole photo, centred, at its own aspect ratio. Full reset. */
+    fitOverlay() {
+      this.overlayFit = "contain";
+      this.overlayScaleX = 1;
+      this.overlayScaleY = 1;
+      this.overlayOffsetX = 0;
+      this.overlayOffsetY = 0;
+      this.render();
+      this._notifyOverlay();
+    }
+
+    /** Stretch the photo to fill the chart exactly, aspect ratio be damned. */
+    stretchOverlay() {
+      this.overlayFit = "stretch";
+      this.overlayScaleX = 1;
+      this.overlayScaleY = 1;
+      this.overlayOffsetX = 0;
+      this.overlayOffsetY = 0;
+      this.render();
+      this._notifyOverlay();
+    }
+
+    /** Re-centre at the current size, after dragging the photo off to one side. */
+    centerOverlay() {
+      this.overlayOffsetX = 0;
+      this.overlayOffsetY = 0;
+      this.render();
+      this._notifyOverlay();
+    }
+
+    _notifyOverlay() {
+      if (typeof this.opts.onOverlayChange === "function") {
+        this.opts.onOverlayChange(this.overlayAdjust());
+      }
+    }
+
+    /** The fitted (unscaled) photo size for the current fit mode. */
+    _overlayFitSize() {
       var img = this.overlayImage;
       var iw = img ? img.naturalWidth || img.width : 0;
       var ih = img ? img.naturalHeight || img.height : 0;
       var cw = this.canvas.width;
       var ch = this.canvas.height;
       if (!iw || !ih || !cw || !ch) return null;
-      var scale = Math.max(cw / iw, ch / ih);
-      var w = iw * scale;
-      var h = ih * scale;
-      return { x: (cw - w) / 2, y: (ch - h) / 2, w: w, h: h };
+      // 'stretch' ignores the aspect ratio entirely: each axis maps to the chart.
+      if (this.overlayFit === "stretch") return { w: cw, h: ch };
+      var k =
+        this.overlayFit === "contain"
+          ? Math.min(cw / iw, ch / ih)
+          : Math.max(cw / iw, ch / ih);
+      return { w: iw * k, h: ih * k };
+    }
+
+    /** Where the photo lands on the chart, after fit, manual scale and nudge. */
+    _overlayRect() {
+      var base = this._overlayFitSize();
+      if (!base) return null;
+      var cw = this.canvas.width;
+      var ch = this.canvas.height;
+      var w = base.w * this.overlayScaleX;
+      var h = base.h * this.overlayScaleY;
+      return {
+        x: (cw - w) / 2 + this.overlayOffsetX * cw,
+        y: (ch - h) / 2 + this.overlayOffsetY * ch,
+        w: w,
+        h: h,
+      };
+    }
+
+    /** Pointer position in canvas pixels (the canvas is 1:1 with its CSS box). */
+    _pointFromEvent(e) {
+      var box = this.canvas.getBoundingClientRect();
+      if (!box.width || !box.height) return { x: 0, y: 0 };
+      return {
+        x: (e.clientX - box.left) * (this.canvas.width / box.width),
+        y: (e.clientY - box.top) * (this.canvas.height / box.height),
+      };
+    }
+
+    /**
+     * The eight stretch handles, plus the body which moves the photo.
+     *
+     * Handle positions are clamped INSIDE the canvas. A photo that fills or
+     * overflows the chart — the normal case — would otherwise put its handles on
+     * or past the edge, where they are clipped and impossible to grab, which is
+     * exactly when the user needs them. Hit-testing uses these same clamped
+     * points, so what you can see is what you can grab.
+     */
+    _overlayHandlePoints(r) {
+      var half = OVERLAY_HANDLE / 2;
+      var maxX = Math.max(half, this.canvas.width - half);
+      var maxY = Math.max(half, this.canvas.height - half);
+      var cx = function (v) {
+        return Math.max(half, Math.min(maxX, v));
+      };
+      var cy = function (v) {
+        return Math.max(half, Math.min(maxY, v));
+      };
+      var mx = cx(r.x + r.w / 2);
+      var my = cy(r.y + r.h / 2);
+      return [
+        { id: "nw", x: cx(r.x), y: cy(r.y) },
+        { id: "n", x: mx, y: cy(r.y) },
+        { id: "ne", x: cx(r.x + r.w), y: cy(r.y) },
+        { id: "e", x: cx(r.x + r.w), y: my },
+        { id: "se", x: cx(r.x + r.w), y: cy(r.y + r.h) },
+        { id: "s", x: mx, y: cy(r.y + r.h) },
+        { id: "sw", x: cx(r.x), y: cy(r.y + r.h) },
+        { id: "w", x: cx(r.x), y: my },
+      ];
+    }
+
+    /** Which part of the frame is under a canvas-space point, if any. */
+    _overlayTargetAt(pt) {
+      var r = this._overlayRect();
+      if (!r || !pt) return null;
+      var tol = OVERLAY_HANDLE / 2 + 1;
+      var pts = this._overlayHandlePoints(r);
+      for (var i = 0; i < pts.length; i++) {
+        if (Math.abs(pt.x - pts[i].x) <= tol && Math.abs(pt.y - pts[i].y) <= tol) {
+          return pts[i].id;
+        }
+      }
+      if (pt.x >= r.x && pt.x <= r.x + r.w && pt.y >= r.y && pt.y <= r.y + r.h) {
+        return "move";
+      }
+      return null;
+    }
+
+    /**
+     * What a press at `pt` should grab. Alignment is an explicit mode: the
+     * resize points and the body drag exist only in Align, so neither the points
+     * nor the resize cursors ever intrude on painting or selecting.
+     */
+    _overlayGrabTarget(pt) {
+      if (this.mode !== "overlay") return null;
+      if (!this.overlayOn || !this.overlayImage) return null;
+      return this._overlayTargetAt(pt);
+    }
+
+    _beginOverlayDrag(e, target) {
+      // Nothing to grab while the photo is hidden, and nothing to grab before a
+      // photo is loaded at all.
+      if (!this.overlayOn || !this.overlayImage) return false;
+      var pt = this._pointFromEvent(e);
+      var hit = target || this._overlayTargetAt(pt);
+      if (!hit) return false;
+      var r = this._overlayRect();
+      if (!r) return false;
+      this._ovDrag = {
+        target: hit,
+        start: pt,
+        rect: { x: r.x, y: r.y, w: r.w, h: r.h },
+      };
+      return true;
+    }
+
+    /**
+     * Drag a handle: the opposite edge stays put while this one follows the
+     * pointer, so the photo can be stretched on one axis to line its cells up
+     * with the chart without disturbing the other. Dragging the body moves it.
+     */
+    _overlayDragTo(e) {
+      if (!this._ovDrag) return;
+      var pt = this._pointFromEvent(e);
+      // Alt = fine drag, so the fit can be tuned below one canvas pixel.
+      var k = e.altKey ? OVERLAY_FINE_DRAG : 1;
+      var dx = (pt.x - this._ovDrag.start.x) * k;
+      var dy = (pt.y - this._ovDrag.start.y) * k;
+      var s = this._ovDrag.rect;
+      var t = this._ovDrag.target;
+      var r = { x: s.x, y: s.y, w: s.w, h: s.h };
+      if (t === "move") {
+        r.x += dx;
+        r.y += dy;
+      } else {
+        if (t.indexOf("w") >= 0) {
+          r.x += dx;
+          r.w -= dx;
+        }
+        if (t.indexOf("e") >= 0) r.w += dx;
+        if (t.indexOf("n") >= 0) {
+          r.y += dy;
+          r.h -= dy;
+        }
+        if (t.indexOf("s") >= 0) r.h += dy;
+      }
+      // Never let a handle cross the opposite edge: it would flip the photo and
+      // read as the controls going haywire.
+      if (r.w < OVERLAY_MIN_SIZE) {
+        if (t.indexOf("w") >= 0) r.x = s.x + s.w - OVERLAY_MIN_SIZE;
+        r.w = OVERLAY_MIN_SIZE;
+      }
+      if (r.h < OVERLAY_MIN_SIZE) {
+        if (t.indexOf("n") >= 0) r.y = s.y + s.h - OVERLAY_MIN_SIZE;
+        r.h = OVERLAY_MIN_SIZE;
+      }
+      this._applyOverlayRect(r);
+    }
+
+    /** Write a dragged rectangle back into scale/offset, so the UI can follow. */
+    _applyOverlayRect(r) {
+      var base = this._overlayFitSize();
+      var cw = this.canvas.width;
+      var ch = this.canvas.height;
+      if (!base || !cw || !ch) return;
+      this.overlayScaleX = _clampOverlayScale(r.w / base.w);
+      this.overlayScaleY = _clampOverlayScale(r.h / base.h);
+      this.overlayOffsetX = _clampOverlayOffset((r.x - (cw - r.w) / 2) / cw);
+      this.overlayOffsetY = _clampOverlayOffset((r.y - (ch - r.h) / 2) / ch);
+      this.render();
+      this._notifyOverlay();
+    }
+
+    _endOverlayDrag() {
+      if (!this._ovDrag) return;
+      this._ovDrag = null;
+      this._notifyOverlay();
+    }
+
+    /** Cursor feedback so the handles are discoverable before you grab one. */
+    _overlayHover(e) {
+      // Align only: while painting, the pointer must keep the cursor the tool
+      // implies rather than flickering into resize cursors over the photo edge.
+      if (this.mode !== "overlay") return;
+      if (!this.overlayOn || !this.overlayImage) return;
+      var target = this._overlayTargetAt(this._pointFromEvent(e));
+      var cursors = {
+        nw: "nwse-resize",
+        se: "nwse-resize",
+        ne: "nesw-resize",
+        sw: "nesw-resize",
+        n: "ns-resize",
+        s: "ns-resize",
+        e: "ew-resize",
+        w: "ew-resize",
+        move: "move",
+      };
+      // Empty string, not "default", so the stylesheet keeps control away from
+      // the photo.
+      this.canvas.style.cursor = cursors[target] || "";
+    }
+
+    _clearOverlayCursor() {
+      this.canvas.style.cursor = "";
+    }
+
+    /** Frame + resize points, drawn only for the Align tool. Screen only. */
+    _drawOverlayHandles() {
+      // A resize point is an Align-mode affordance: showing them over the chart
+      // while painting would offer a stretch where the user expects a stitch.
+      if (this.mode !== "overlay") return;
+      if (!this.overlayOn || !this.overlayImage) return;
+      var r = this._overlayRect();
+      if (!r) return;
+      var ctx = this.ctx;
+      var half = OVERLAY_HANDLE / 2;
+      ctx.save();
+      ctx.strokeStyle = OVERLAY_FRAME;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([6, 4]);
+      ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w, r.h);
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#ffffff";
+      ctx.strokeStyle = OVERLAY_FRAME;
+      ctx.lineWidth = 1.5;
+      var pts = this._overlayHandlePoints(r);
+      for (var i = 0; i < pts.length; i++) {
+        ctx.beginPath();
+        ctx.rect(pts[i].x - half, pts[i].y - half, OVERLAY_HANDLE, OVERLAY_HANDLE);
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
     }
 
     /**
@@ -977,12 +1336,12 @@
       var dw = rect.w;
       var dh = rect.h;
       if (typeof x === "number") {
-        // Which part of the (cover-fitted) photo does this rectangle cover?
+        // Which part of the (transformed) photo does this rectangle cover?
         var left = Math.max(x, rect.x);
         var top = Math.max(y, rect.y);
         var right = Math.min(x + w, rect.x + rect.w);
         var bottom = Math.min(y + h, rect.y + rect.h);
-        if (right <= left || bottom <= top) return; // letterboxed gap
+        if (right <= left || bottom <= top) return; // outside the photo
         sx = (left - rect.x) * (iw / rect.w);
         sy = (top - rect.y) * (ih / rect.h);
         sw = (right - left) * (iw / rect.w);
@@ -1720,6 +2079,18 @@
           self._beginPan(e);
           return;
         }
+        // The photo's resize points work in EVERY tool so they are always there
+        // to grab; only the body drag belongs to Align mode.
+        if (e.button === 0) {
+          var ovTarget = self._overlayGrabTarget(self._pointFromEvent(e));
+          if (ovTarget) {
+            self._beginOverlayDrag(e, ovTarget);
+            return;
+          }
+        }
+        // Align mode never edits stitches: a click that misses the photo is a
+        // no-op rather than a paint.
+        if (self.mode === "overlay") return;
         self._painting = true;
         self._lastCell = -1;
 
@@ -1782,6 +2153,10 @@
           self._panTo(e);
           return;
         }
+        if (self._ovDrag) {
+          self._overlayDragTo(e);
+          return;
+        }
         if (!self._painting) return;
         if (self.mode === "select") {
           if (!self._selDragging || !self.sel) return;
@@ -1798,6 +2173,7 @@
       });
       window.addEventListener("mouseup", function () {
         self._endPan();
+        self._endOverlayDrag();
         if (self._painting) {
           self._painting = false;
           if (self.mode === "select") {
@@ -1817,6 +2193,16 @@
       // so the pan must not be left stuck on.
       window.addEventListener("blur", function () {
         self._endPan();
+        self._endOverlayDrag();
+      });
+      // Hover feedback for the alignment handles. Bound to the canvas so it only
+      // runs while the pointer is actually over the chart.
+      this.canvas.addEventListener("mousemove", function (e) {
+        if (self._ovDrag) return;
+        self._overlayHover(e);
+      });
+      this.canvas.addEventListener("mouseleave", function () {
+        if (!self._ovDrag) self._clearOverlayCursor();
       });
     }
 

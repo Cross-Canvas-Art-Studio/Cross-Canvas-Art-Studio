@@ -783,6 +783,55 @@ textarea {
   color: var(--text-faint);
   margin-left: 4px;
 }
+/* Compact labelled slider, for rows that carry several controls at once. */
+.mini-slider {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.mini-slider input[type="range"] {
+  width: 72px;
+  accent-color: var(--brand);
+}
+/* The readout doubles as the precise entry point, hence a field not an output. */
+.mini-num {
+  width: 58px;
+  padding: 1px 3px;
+  background: var(--bg-3);
+  color: var(--text);
+  border: 1px solid var(--border-2);
+  border-radius: 4px;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.mini-num:focus {
+  outline: none;
+  border-color: var(--brand);
+}
+.overlay-span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.overlay-span-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.tool[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 
 .canvas-wrap {
   position: relative;

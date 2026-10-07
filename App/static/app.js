@@ -81,6 +81,20 @@
       "toolFill",
       "toolProgress",
       "toolSelect",
+      "toolOverlay",
+      "overlayOptions",
+      "ovFitBtn",
+      "ovStretchBtn",
+      "ovCenterBtn",
+      "ovScaleX",
+      "ovScaleXVal",
+      "ovScaleY",
+      "ovScaleYVal",
+      "ovOffsetX",
+      "ovOffsetXVal",
+      "ovOffsetY",
+      "ovOffsetYVal",
+      "ovSpanVal",
       "brushSize",
       "btnUndo",
       "btnRedo",
@@ -1115,6 +1129,7 @@
     els.overlayOn.disabled = !hasImage;
     els.overlayOpacity.disabled = !hasImage;
     els.overlayClearBtn.disabled = !hasImage;
+    els.toolOverlay.disabled = !hasImage;
     // The slider and the remove button only earn their toolbar space once a
     // photo is loaded, hence the group class rather than per-element hiding.
     els.overlayGroup.classList.toggle("has-photo", !!hasImage);
@@ -1127,9 +1142,15 @@
     els.overlayDrop.setAttribute("aria-label", tip);
     // Announced to screen readers, since the name itself has no room on screen.
     els.overlayName.textContent = hasImage ? "Tracing " + name : "";
+    // The alignment row appears with the photo and leaves with it, so
+    // syncToolOptions() has to run on this path too and not only on tool changes.
+    syncToolOptions();
     if (!hasImage) {
       els.overlayOn.checked = false;
       state.canvas.setOverlayImage(null);
+      // Align mode has nothing left to align, so hand the tools back.
+      if (state.canvas.mode === "overlay") setMode("paint");
+      syncOverlayControls();
       return;
     }
     var pct = clampInt(els.overlayOpacity.value, 0, 100, 50);
@@ -1137,6 +1158,7 @@
     state.canvas.setOverlayImage(state.overlay);
     state.canvas.setOverlayOpacity(pct / 100);
     state.canvas.setOverlayOn(true);
+    syncOverlayControls();
   }
 
   function onOverlaySelected(file) {
@@ -1407,6 +1429,7 @@
     els.toolFill.classList.toggle("active", mode === "fill");
     els.toolProgress.classList.toggle("active", mode === "progress");
     els.toolSelect.classList.toggle("active", mode === "select");
+    els.toolOverlay.classList.toggle("active", mode === "overlay");
     syncToolOptions();
   }
 
@@ -1421,6 +1444,34 @@
     els.progressOptions.hidden = !(
       mode === "progress" || els.progressOn.checked
     );
+    // Alignment is a tool like the others, so its controls follow the tool:
+    // they appear with Align and get out of the way for everything else.
+    els.overlayOptions.hidden = mode !== "overlay";
+  }
+
+  /** The readouts are editable number fields, so both sides get the value. */
+  function setRange(input, field, value) {
+    input.value = value;
+    field.value = value;
+  }
+
+  function round2(v) {
+    return Math.round(v * 100) / 100;
+  }
+
+  /** Mirror the canvas alignment back into the controls (drag handles included). */
+  function syncOverlayControls() {
+    if (!state.canvas || !els.ovScaleX) return;
+    var a = state.canvas.overlayAdjust();
+    setRange(els.ovScaleX, els.ovScaleXVal, round2(a.scaleX * 100));
+    setRange(els.ovScaleY, els.ovScaleYVal, round2(a.scaleY * 100));
+    setRange(els.ovOffsetX, els.ovOffsetXVal, round2(a.offsetX * 100));
+    setRange(els.ovOffsetY, els.ovOffsetYVal, round2(a.offsetY * 100));
+    if (els.ovSpanVal) {
+      els.ovSpanVal.textContent = a.spanX
+        ? round2(a.spanX) + " \u00d7 " + round2(a.spanY)
+        : "\u2014";
+    }
   }
   function updateZoomLabel() {
     els.zoomLevel.textContent = state.canvas.zoomPercent() + "%";
@@ -2352,6 +2403,16 @@
         return;
       }
       if (!state.canvas || state.canvas.isEmpty()) return;
+      // In Align mode the arrows nudge the tracing photo (Shift = 10x), which is
+      // the finest way to seat it on the chart's cells. Otherwise they nudge a
+      // selection, as before.
+      if (state.canvas.mode === "overlay" && e.key.indexOf("Arrow") === 0) {
+        e.preventDefault();
+        var odr = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+        var odc = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
+        state.canvas.nudgeOverlay(odc, odr, e.shiftKey ? 10 : 1);
+        return;
+      }
       if (mod && k === "a") {
         e.preventDefault();
         state.canvas.selectAll();
@@ -2406,6 +2467,49 @@
     // progress tracker
     els.toolProgress.addEventListener("click", function () {
       setMode("progress");
+    });
+    els.toolOverlay.addEventListener("click", function () {
+      setMode("overlay");
+    });
+    // Photo alignment: presets, plus one coarse slider and one precise number
+    // box per axis, so a photo that is a few percent too narrow can be seated
+    // exactly on the chart's cells.
+    els.ovFitBtn.addEventListener("click", function () {
+      state.canvas.fitOverlay();
+    });
+    els.ovStretchBtn.addEventListener("click", function () {
+      state.canvas.stretchOverlay();
+    });
+    els.ovCenterBtn.addEventListener("click", function () {
+      state.canvas.centerOverlay();
+    });
+    [
+      [els.ovScaleX, els.ovScaleXVal, "scaleX"],
+      [els.ovScaleY, els.ovScaleYVal, "scaleY"],
+      [els.ovOffsetX, els.ovOffsetXVal, "offsetX"],
+      [els.ovOffsetY, els.ovOffsetYVal, "offsetY"],
+    ].forEach(function (trio) {
+      var rangeEl = trio[0];
+      var numEl = trio[1];
+      var key = trio[2];
+      var apply = function (percent) {
+        var part = {};
+        part[key] = percent / 100;
+        state.canvas.setOverlayAdjust(part);
+      };
+      rangeEl.addEventListener("input", function () {
+        apply(parseFloat(this.value) || 0);
+      });
+      // Typed values commit on Enter/blur rather than per keystroke, so a
+      // half-typed "1" never yanks the photo around mid-edit.
+      numEl.addEventListener("change", function () {
+        var v = parseFloat(this.value);
+        if (isNaN(v)) {
+          syncOverlayControls();
+          return;
+        }
+        apply(Math.max(-1000, Math.min(1000, v)));
+      });
     });
     els.progressOn.addEventListener("change", function () {
       state.canvas.setProgressOn(this.checked);
@@ -2545,6 +2649,9 @@
       },
       onSelectionChange: function () {
         updateSelectionUI();
+      },
+      onOverlayChange: function () {
+        syncOverlayControls();
       },
     });
     initFeatureFlags();
