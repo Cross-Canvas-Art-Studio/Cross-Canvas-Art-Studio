@@ -257,7 +257,7 @@ html = re.sub(
 # order, the stale-file cleanup, the <script>-tag rewrite, and (below) the
 # "did the rewrite actually happen?" assertion. Add a new designer script HERE
 # and nowhere else.
-BUNDLE_SCRIPTS = ('symbols.js', 'pdf-writer.js', 'skein.js', 'static-adapter.js', 'canvas-renderer.js', 'app.js')
+BUNDLE_SCRIPTS = ('symbols.js', 'pdf-writer.js', 'skein.js', 'grid-detect.js', 'static-adapter.js', 'canvas-renderer.js', 'app.js')
 
 bundle_parts = []
 for fname in BUNDLE_SCRIPTS:

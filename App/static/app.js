@@ -19,6 +19,8 @@
     selectedIndex: -1,
     selectedFile: null,
     imageNaturalSize: null,
+    overlay: null, // decoded reference photo to trace over (memory only)
+    overlayUrl: null, // blob URL backing state.overlay, revoked on replace
     currentProjectId: null,
     gridMax: 500,
     gridMin: 5,
@@ -50,6 +52,14 @@
       "imgMaxColorsVal",
       "resampleMode",
       "analyzeBtn",
+      "overlayGroup",
+      "overlayDrop",
+      "overlayInput",
+      "overlayName",
+      "overlayOn",
+      "overlayOpacity",
+      "overlayOpacityVal",
+      "overlayClearBtn",
       "aiProvider",
       "aiTestBtn",
       "aiModel",
@@ -922,14 +932,53 @@
     img.onload = function () {
       var w = img.naturalWidth,
         h = img.naturalHeight;
+      // A premade pattern is drawn on its own guide grid; measure it here so
+      // the canvas can be matched to it (see applyPatternGrid).
+      var pattern = null;
+      if (window.StitchGridDetect) {
+        try {
+          pattern = window.StitchGridDetect.detectFromImage(img);
+        } catch (e) {
+          pattern = null;
+        }
+      }
       URL.revokeObjectURL(url);
-      callback(w, h);
+      callback(w, h, pattern);
     };
     img.onerror = function () {
       URL.revokeObjectURL(url);
-      callback(null, null);
+      callback(null, null, null);
     };
     img.src = url;
+  }
+
+  function setImageSizeHint(w, h, pattern) {
+    var text = "Original: " + w + "\u00d7" + h + " px";
+    if (pattern) {
+      text += " \u00b7 pattern grid " + pattern.cols + "\u00d7" + pattern.rows;
+    }
+    els.imgDimsHint.textContent = text;
+    els.imgDimsHint.hidden = false;
+  }
+
+  /**
+   * Adopt the grid the source chart is drawn on. Squeezing a 182-cell pattern
+   * into a 60-cell canvas is what makes an import unreadable, so when the guide
+   * grid is unmistakable the canvas follows it. The inputs stay editable, and
+   * a non-chart photo detects nothing so nothing changes.
+   */
+  function applyPatternGrid(pattern) {
+    els.gridWidth.value = pattern.cols;
+    els.gridHeight.value = pattern.rows;
+    if (state.arLocked) state.arRatio = pattern.rows / pattern.cols;
+    updateFabricSize();
+    toast(
+      "Pattern grid detected \u2014 canvas set to " +
+        pattern.cols +
+        "\u00d7" +
+        pattern.rows,
+      "ok",
+    );
   }
 
   function autoSizeFromImage() {
@@ -1006,14 +1055,14 @@
     };
     reader.readAsDataURL(file);
     els.analyzeBtn.disabled = false;
-    // Read dimensions so Auto button can scale the grid correctly.
-    readImageDimensions(file, function (w, h) {
-      if (w && h) {
-        state.imageNaturalSize = { w: w, h: h };
-        els.autoSizeBtn.disabled = false;
-        els.imgDimsHint.textContent = "Original: " + w + "\u00d7" + h + " px";
-        els.imgDimsHint.hidden = false;
-      }
+    // Read dimensions so Auto button can scale the grid correctly, and look
+    // for a premade pattern's own guide grid while the image is decoded.
+    readImageDimensions(file, function (w, h, pattern) {
+      if (!w || !h) return;
+      state.imageNaturalSize = { w: w, h: h };
+      els.autoSizeBtn.disabled = false;
+      setImageSizeHint(w, h, pattern);
+      if (pattern) applyPatternGrid(pattern);
     });
   }
 
@@ -1055,6 +1104,71 @@
         els.analyzeBtn.textContent = "Render to canvas";
         toast("Analysis failed", "error");
       });
+  }
+
+  // ---------- trace overlay ----------
+  // A reference photo laid over the chart so the user can stitch on top of it
+  // and fade it out to check the result. Deliberately memory-only: it is never
+  // uploaded, saved with a project or exported, so a multi-megabyte photo can
+  // never blow the localStorage quota or leave the device.
+  function setOverlayStatus(hasImage, name) {
+    els.overlayOn.disabled = !hasImage;
+    els.overlayOpacity.disabled = !hasImage;
+    els.overlayClearBtn.disabled = !hasImage;
+    // The slider and the remove button only earn their toolbar space once a
+    // photo is loaded, hence the group class rather than per-element hiding.
+    els.overlayGroup.classList.toggle("has-photo", !!hasImage);
+    els.overlayDrop.classList.toggle("has-image", !!hasImage);
+    els.overlayDrop.textContent = hasImage ? "Replace" : "Photo";
+    var tip = hasImage
+      ? "Tracing photo: " + name + " (click to replace)"
+      : "Choose a photo to trace over the chart";
+    els.overlayDrop.title = tip;
+    els.overlayDrop.setAttribute("aria-label", tip);
+    // Announced to screen readers, since the name itself has no room on screen.
+    els.overlayName.textContent = hasImage ? "Tracing " + name : "";
+    if (!hasImage) {
+      els.overlayOn.checked = false;
+      state.canvas.setOverlayImage(null);
+      return;
+    }
+    var pct = clampInt(els.overlayOpacity.value, 0, 100, 50);
+    els.overlayOn.checked = true;
+    state.canvas.setOverlayImage(state.overlay);
+    state.canvas.setOverlayOpacity(pct / 100);
+    state.canvas.setOverlayOn(true);
+  }
+
+  function onOverlaySelected(file) {
+    if (!file || !/^image\//.test(file.type)) {
+      toast("Please choose an image file", "error");
+      return;
+    }
+    var url = URL.createObjectURL(file);
+    var img = new Image();
+    img.onload = function () {
+      // Hold the blob URL open for as long as the image is in use: the canvas
+      // may be repainted long after the file input was cleared.
+      if (state.overlayUrl) URL.revokeObjectURL(state.overlayUrl);
+      state.overlayUrl = url;
+      state.overlay = img;
+      setOverlayStatus(true, file.name);
+      toast("Overlay ready \u2014 fade it with the opacity slider", "ok");
+    };
+    img.onerror = function () {
+      URL.revokeObjectURL(url);
+      toast("Could not read that image", "error");
+    };
+    img.src = url;
+  }
+
+  function clearOverlay() {
+    if (state.overlayUrl) URL.revokeObjectURL(state.overlayUrl);
+    state.overlayUrl = null;
+    state.overlay = null;
+    els.overlayInput.value = "";
+    setOverlayStatus(false, "");
+    toast("Overlay removed", "ok");
   }
 
   // ---------- design application ----------
@@ -1310,6 +1424,108 @@
   }
   function updateZoomLabel() {
     els.zoomLevel.textContent = state.canvas.zoomPercent() + "%";
+  }
+
+  function zoomBy(delta) {
+    state.canvas.setZoom(delta);
+    updateZoomLabel();
+  }
+
+  /**
+   * Zoom keeping whatever is under the pointer under the pointer, so the chart
+   * does not jump out from under the cursor mid-inspection. scrollLeft/Top can
+   * only move once the chart overflows its wrapper, which is exactly when it
+   * matters.
+   */
+  function zoomAtPointer(delta, clientX, clientY) {
+    var wrap = els.canvasWrap;
+    var before = state.canvas.cellSize;
+    var rect = els.stitchCanvas.getBoundingClientRect();
+    var px = clientX - rect.left;
+    var py = clientY - rect.top;
+    zoomBy(delta);
+    var k = state.canvas.cellSize / before;
+    if (!wrap || k === 1) return;
+    wrap.scrollLeft += px * (k - 1);
+    wrap.scrollTop += py * (k - 1);
+  }
+
+  // Ctrl/⌘ + wheel over the canvas zooms it. Accumulated because a trackpad's
+  // pinch arrives as a flood of tiny deltas that would otherwise race straight
+  // to the zoom limit.
+  var WHEEL_STEP = 40;
+  var wheelAccum = 0;
+
+  function onCanvasWheel(e) {
+    if (!e.ctrlKey && !e.metaKey) return; // plain wheel keeps scrolling
+    if (!state.canvas || state.canvas.isEmpty()) return;
+    e.preventDefault();
+    var dy = e.deltaY;
+    if (e.deltaMode === 1) dy *= 16; // Firefox counts lines, not pixels
+    wheelAccum += dy;
+    if (Math.abs(wheelAccum) < WHEEL_STEP) return;
+    var dir = wheelAccum < 0 ? 2 : -2;
+    wheelAccum = 0;
+    zoomAtPointer(dir, e.clientX, e.clientY);
+  }
+
+  // ---------- collapsible panels ----------
+  // Every sidebar panel that has a heading gets a disclosure control. The
+  // toggle is built around the existing <h2> instead of in the markup, so panel
+  // heads that also carry a search box or a badge keep working untouched.
+  var PANELS_KEY = "stitchee_panels";
+
+  function loadPanelState() {
+    try {
+      return JSON.parse(localStorage.getItem(PANELS_KEY)) || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function savePanelState() {
+    var out = {};
+    Array.prototype.forEach.call(
+      document.querySelectorAll(".panel.toggleable"),
+      function (p) {
+        out[p.getAttribute("data-panel")] = p.classList.contains("collapsed");
+      },
+    );
+    try {
+      localStorage.setItem(PANELS_KEY, JSON.stringify(out));
+    } catch (e) {
+      /* collapsing is a nicety: never block on storage */
+    }
+  }
+
+  function initCollapsiblePanels() {
+    var saved = loadPanelState();
+    Array.prototype.forEach.call(
+      document.querySelectorAll(".panel > .panel-head"),
+      function (head) {
+        var panel = head.parentElement;
+        var h2 = head.querySelector("h2");
+        if (!h2) return;
+        var title = (h2.textContent || "").trim();
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "panel-toggle";
+        btn.appendChild(h2); // moves the heading inside the button
+        head.insertBefore(btn, head.firstChild);
+        panel.classList.add("toggleable");
+        panel.setAttribute("data-panel", title);
+        var collapsed = !!saved[title];
+        panel.classList.toggle("collapsed", collapsed);
+        btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+        btn.title = collapsed ? "Expand " + title : "Collapse " + title;
+        btn.addEventListener("click", function () {
+          var now = panel.classList.toggle("collapsed");
+          btn.setAttribute("aria-expanded", now ? "false" : "true");
+          btn.title = now ? "Expand " + title : "Collapse " + title;
+          savePanelState();
+        });
+      },
+    );
   }
 
   function setStitchStyle(style) {
@@ -2005,6 +2221,37 @@
       }
     });
     els.analyzeBtn.addEventListener("click", analyzeImage);
+    // trace overlay: pick or drop a photo, toggle it, fade it. #overlayDrop is
+    // a real <button>, so the browser gives us Enter/Space for free.
+    els.overlayDrop.addEventListener("click", function () {
+      els.overlayInput.click();
+    });
+    els.overlayInput.addEventListener("change", function () {
+      if (this.files[0]) onOverlaySelected(this.files[0]);
+    });
+    ["dragover", "dragenter"].forEach(function (ev) {
+      els.overlayDrop.addEventListener(ev, function (e) {
+        e.preventDefault();
+        els.overlayDrop.classList.add("dragover");
+      });
+    });
+    ["dragleave", "drop"].forEach(function (ev) {
+      els.overlayDrop.addEventListener(ev, function (e) {
+        e.preventDefault();
+        els.overlayDrop.classList.remove("dragover");
+      });
+    });
+    els.overlayDrop.addEventListener("drop", function (e) {
+      if (e.dataTransfer.files[0]) onOverlaySelected(e.dataTransfer.files[0]);
+    });
+    els.overlayOn.addEventListener("change", function () {
+      state.canvas.setOverlayOn(this.checked);
+    });
+    els.overlayOpacity.addEventListener("input", function () {
+      els.overlayOpacityVal.textContent = this.value;
+      state.canvas.setOverlayOpacity(clampInt(this.value, 0, 100, 50) / 100);
+    });
+    els.overlayClearBtn.addEventListener("click", clearOverlay);
     els.autoSizeBtn.addEventListener("click", autoSizeFromImage);
     els.arLockBtn.addEventListener("click", toggleArLock);
     // Propagate dimension changes when aspect ratio is locked.
@@ -2068,17 +2315,18 @@
       state.canvas.setBrushSize(this.value);
     });
     els.zoomIn.addEventListener("click", function () {
-      state.canvas.setZoom(2);
-      updateZoomLabel();
+      zoomBy(2);
     });
     els.zoomOut.addEventListener("click", function () {
-      state.canvas.setZoom(-2);
-      updateZoomLabel();
+      zoomBy(-2);
     });
     els.zoomFit.addEventListener("click", function () {
       state.canvas.fitToView();
       updateZoomLabel();
     });
+    // Ctrl + wheel zooms the chart. Bound to the canvas area only, so the rest
+    // of the page keeps normal scrolling and browser zoom.
+    els.canvasWrap.addEventListener("wheel", onCanvasWheel, { passive: false });
     els.btnUndo.addEventListener("click", undoAction);
     els.btnRedo.addEventListener("click", redoAction);
     window.addEventListener("keydown", function (e) {
@@ -2285,6 +2533,7 @@
 
   function init() {
     cacheEls();
+    initCollapsiblePanels();
     state.canvas = new CrossStitchCanvas(els.stitchCanvas, {
       onChange: function () {
         markDirty();

@@ -161,6 +161,20 @@
                     <button id="styleSlash" class="tool" type="button" title="Single diagonal stitch (/)">/</button>
                     <button id="styleBackslash" class="tool" type="button" title="Reverse single diagonal stitch (\)">\</button>
                 </div>
+                <!-- Trace overlay: a reference photo laid over the chart. Lives in
+                     the toolbar because it is a view aid, like Grid/Symbols/Codes. -->
+                <div class="tool-group overlay-group" id="overlayGroup">
+                    <label class="check" title="Show the tracing photo over the chart"><input type="checkbox" id="overlayOn" disabled> Trace</label>
+                    <input type="file" id="overlayInput" accept="image/*" hidden>
+                    <button id="overlayDrop" class="tool overlay-pick" type="button"
+                            title="Choose a photo to trace over the chart" aria-label="Choose a photo to trace over the chart">Photo</button>
+                    <input type="range" id="overlayOpacity" class="overlay-opacity" min="0" max="100" value="50"
+                           disabled title="Overlay opacity" aria-label="Overlay opacity">
+                    <output id="overlayOpacityVal" class="overlay-opacity-val">50</output>
+                    <button id="overlayClearBtn" class="tool overlay-clear" type="button"
+                            title="Remove the overlay photo" aria-label="Remove the overlay photo" disabled>✕</button>
+                    <span id="overlayName" class="visually-hidden" role="status"></span>
+                </div>
                 <div class="tool-group right">
                     <button id="clearBtn" class="tool danger" type="button" title="Clear canvas">Clear</button>
                 </div>
@@ -243,7 +257,7 @@
                         <input type="range" id="imgMaxColors" min="2" max="52" value="16">
                     </label>
                     <label class="select-label">Detail
-                        <select id="resampleMode">
+                        <select id="resampleMode" title="How the photo is turned into stitches">
                             <option value="smooth" selected>Smooth (blend colours)</option>
                             <option value="balanced">Balanced</option>
                             <option value="blocky">Blocky (sharp pixels)</option>
@@ -426,8 +440,10 @@
                 <ol class="help-steps">
                     <li><strong>Choose a canvas size</strong> — up to 500&times;500 stitches.</li>
                     <li><strong>Image tab</strong> — upload a picture; it pixelates and matches colours.</li>
+                    <li><strong>Trace overlay</strong> — lay a photo over the chart, fade it with the opacity slider, then switch it off to see your stitches.</li>
                     <li><strong>Blank tab</strong> — start empty and paint by hand.</li>
                     <li><strong>Custom mode</strong> — pickc a colour and click a cell to stitch it; <em>right-click</em> to clear it.</li>
+                    <li><strong>Navigate</strong> — <em>middle-click drag</em> pans the chart, <em>Ctrl + scroll</em> zooms it, and clicking any sidebar heading collapses that panel.</li>
                     <li><strong>Legend</strong> — shows exactly which yarns and stitch count of each.</li>
                     <li><strong>Export / Save</strong> — download a PNG or JSON, or save it on the server.</li>
                 </ol>
@@ -440,6 +456,7 @@
     <script src="{{ url_for('static', filename='symbols.js') }}"></script>
     <script src="{{ url_for('static', filename='pdf-writer.js') }}"></script>
     <script src="{{ url_for('static', filename='skein.js') }}"></script>
+    <script src="{{ url_for('static', filename='grid-detect.js') }}"></script>
     <script src="{{ url_for('static', filename='canvas-renderer.js') }}"></script>
     <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>

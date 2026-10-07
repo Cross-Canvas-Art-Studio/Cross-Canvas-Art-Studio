@@ -447,7 +447,7 @@
           var cv = document.createElement("canvas");
           cv.width = reqW;
           cv.height = reqH;
-          var ctx = cv.getContext("2d");
+          var ctx = cv.getContext("2d", { willReadFrequently: true });
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = "high";
           ctx.drawImage(img, 0, 0, reqW, reqH);

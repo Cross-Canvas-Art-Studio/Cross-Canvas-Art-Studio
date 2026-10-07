@@ -628,6 +628,13 @@
       this.progressMode = "row"; // 'row' | 'column' | 'diagonal'
       this._markValue = 1;
       this._curUnit = null;
+      // Trace overlay: a reference photo drawn ON TOP of the chart so the user
+      // can stitch over it and fade it out to check their work. Painted in
+      // render()/_paintCell, i.e. outside drawChart, which is what guarantees
+      // it can never reach a PNG, SVG or PDF export.
+      this.overlayImage = null;
+      this.overlayOn = false;
+      this.overlayOpacity = 0.5;
       // Selection marquee + clipboard. The outline is drawn outside drawChart,
       // so a selection can never appear in an export.
       this.sel = null;
@@ -643,6 +650,11 @@
       this._painting = false;
       this._paintValue = -1;
       this._lastCell = -1;
+      // Middle-click drag pans the chart (see _beginPan). The canvas itself
+      // never scrolls: its parent, .canvas-wrap, does.
+      this._panning = false;
+      this._panStart = null;
+      this._panOrigin = null;
       this._bindEvents();
     }
 
@@ -826,8 +838,11 @@
       // Full repaint through the shared adapter layer, so what is on screen is
       // produced by exactly the same code that produces the PNG/SVG/PDF.
       drawChart(this._chartOpts(this._ad, s, {}));
-      // Progress and selection overlays are on-screen only; they are drawn
-      // OUTSIDE drawChart so they can never reach the PNG, SVG or PDF exports.
+      // Reference photo (on screen only) sits on top of the chart, where a
+      // tracing aid belongs. Progress and selection overlays come after it so
+      // they stay readable, and all three are drawn OUTSIDE drawChart so they
+      // can never reach the PNG, SVG or PDF exports.
+      this._drawOverlay();
       this._drawProgressOverlay();
       this._drawSelectionOverlay();
     }
@@ -870,6 +885,9 @@
         ad.line([[x, y + 0.5], [x2, y + 0.5]], { stroke: gridShade(r), lineWidth: 1 });
         ad.line([[x, y2 + 0.5], [x2, y2 + 0.5]], { stroke: gridShade(r + 1), lineWidth: 1 });
       }
+      // Re-apply the reference photo over just this cell, otherwise painting a
+      // stitch would punch a hole in the tracing overlay.
+      this._drawOverlay(x, y, s, s);
       this._paintProgressCell(r, c);
     }
 
@@ -898,6 +916,87 @@
       this.stitchStyle =
         style === "slash" || style === "backslash" ? style : "cross";
       this.render();
+    }
+
+    // ---- trace overlay ----
+    // A reference photo the user can stitch over, faded with an opacity slider
+    // and toggled off to judge the result. Everything here is drawn outside
+    // drawChart, so the overlay is a view aid only: exports are untouched.
+
+    setOverlayImage(img) {
+      this.overlayImage = img || null;
+      if (!this.overlayImage) this.overlayOn = false;
+      this.render();
+    }
+
+    setOverlayOn(on) {
+      this.overlayOn = !!on && !!this.overlayImage;
+      this.render();
+    }
+
+    setOverlayOpacity(value) {
+      var v = parseFloat(value);
+      if (isNaN(v)) v = 0.5;
+      this.overlayOpacity = Math.max(0, Math.min(1, v));
+      this.render();
+    }
+
+    /** Where the photo lands on the chart: "cover"-fitted and centred, so it is
+     *  never stretched out of shape. */
+    _overlayRect() {
+      var img = this.overlayImage;
+      var iw = img ? img.naturalWidth || img.width : 0;
+      var ih = img ? img.naturalHeight || img.height : 0;
+      var cw = this.canvas.width;
+      var ch = this.canvas.height;
+      if (!iw || !ih || !cw || !ch) return null;
+      var scale = Math.max(cw / iw, ch / ih);
+      var w = iw * scale;
+      var h = ih * scale;
+      return { x: (cw - w) / 2, y: (ch - h) / 2, w: w, h: h };
+    }
+
+    /**
+     * Draw the photo. With no arguments it covers the whole chart; with a
+     * rectangle it repaints just that slice, which is what keeps incremental
+     * stitch painting cheap.
+     */
+    _drawOverlay(x, y, w, h) {
+      if (!this.overlayOn || !this.overlayImage) return;
+      var rect = this._overlayRect();
+      if (!rect) return;
+      var img = this.overlayImage;
+      var iw = img.naturalWidth || img.width;
+      var ih = img.naturalHeight || img.height;
+      var sx = 0;
+      var sy = 0;
+      var sw = iw;
+      var sh = ih;
+      var dx = rect.x;
+      var dy = rect.y;
+      var dw = rect.w;
+      var dh = rect.h;
+      if (typeof x === "number") {
+        // Which part of the (cover-fitted) photo does this rectangle cover?
+        var left = Math.max(x, rect.x);
+        var top = Math.max(y, rect.y);
+        var right = Math.min(x + w, rect.x + rect.w);
+        var bottom = Math.min(y + h, rect.y + rect.h);
+        if (right <= left || bottom <= top) return; // letterboxed gap
+        sx = (left - rect.x) * (iw / rect.w);
+        sy = (top - rect.y) * (ih / rect.h);
+        sw = (right - left) * (iw / rect.w);
+        sh = (bottom - top) * (ih / rect.h);
+        dx = left;
+        dy = top;
+        dw = right - left;
+        dh = bottom - top;
+      }
+      var ctx = this.ctx;
+      ctx.save();
+      ctx.globalAlpha = this.overlayOpacity;
+      ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+      ctx.restore();
     }
 
     clearAll() {
@@ -1554,14 +1653,73 @@
       }
     }
 
+    // ---- panning ----
+    // Middle-click drags the chart around. The canvas is not a scroll container
+    // itself (it is exactly as big as the chart), so panning moves its parent,
+    // .canvas-wrap. Nothing here touches `cells`, so it cannot edit the design.
+
+    _beginPan(e) {
+      var wrap = this.canvas.parentElement;
+      if (!wrap) return;
+      this._panning = true;
+      this._panStart = { x: e.clientX, y: e.clientY };
+      this._panOrigin = {
+        left: wrap.scrollLeft,
+        top: wrap.scrollTop,
+        winX: typeof window.scrollX === "number" ? window.scrollX : 0,
+        winY: typeof window.scrollY === "number" ? window.scrollY : 0,
+      };
+      this.canvas.classList.add("panning");
+    }
+
+    _panTo(e) {
+      var wrap = this.canvas.parentElement;
+      if (!wrap || !this._panStart || !this._panOrigin) return;
+      // Drag right -> look further left, exactly like a direct-manipulation pan.
+      var dx = e.clientX - this._panStart.x;
+      var dy = e.clientY - this._panStart.y;
+      var scrollX = wrap.scrollWidth > wrap.clientWidth;
+      var scrollY = wrap.scrollHeight > wrap.clientHeight;
+      if (scrollX) wrap.scrollLeft = this._panOrigin.left - dx;
+      if (scrollY) wrap.scrollTop = this._panOrigin.top - dy;
+      // An axis the wrapper cannot scroll has to pan the PAGE instead: on a
+      // short window a zoomed chart makes the wrapper grow rather than clip, so
+      // scrollTop sits at 0 forever and a vertical drag would do nothing.
+      if ((!scrollX || !scrollY) && typeof window.scrollTo === "function") {
+        window.scrollTo(
+          this._panOrigin.winX - (scrollX ? 0 : dx),
+          this._panOrigin.winY - (scrollY ? 0 : dy),
+        );
+      }
+    }
+
+    _endPan() {
+      if (!this._panning) return;
+      this._panning = false;
+      this._panStart = null;
+      this._panOrigin = null;
+      this.canvas.classList.remove("panning");
+    }
+
     _bindEvents() {
       var self = this;
       this.canvas.addEventListener("contextmenu", function (e) {
         e.preventDefault();
       });
+      // Middle-click is reserved for panning, so it must not also pop up the
+      // browser's autoscroll / "open in new tab" behaviour.
+      this.canvas.addEventListener("auxclick", function (e) {
+        if (e.button === 1) e.preventDefault();
+      });
       this.canvas.addEventListener("mousedown", function (e) {
         if (!self.width) return;
         e.preventDefault();
+        // Middle-click is the pan handle in EVERY tool, so it can never paint,
+        // mark progress or start a marquee by accident.
+        if (e.button === 1) {
+          self._beginPan(e);
+          return;
+        }
         self._painting = true;
         self._lastCell = -1;
 
@@ -1620,6 +1778,10 @@
         }
       });
       window.addEventListener("mousemove", function (e) {
+        if (self._panning) {
+          self._panTo(e);
+          return;
+        }
         if (!self._painting) return;
         if (self.mode === "select") {
           if (!self._selDragging || !self.sel) return;
@@ -1635,6 +1797,7 @@
         else self._paintAt(e);
       });
       window.addEventListener("mouseup", function () {
+        self._endPan();
         if (self._painting) {
           self._painting = false;
           if (self.mode === "select") {
@@ -1649,6 +1812,11 @@
           }
         }
         self._lastCell = -1;
+      });
+      // A drag can end outside the window (alt-tab, release over another app),
+      // so the pan must not be left stuck on.
+      window.addEventListener("blur", function () {
+        self._endPan();
       });
     }
 

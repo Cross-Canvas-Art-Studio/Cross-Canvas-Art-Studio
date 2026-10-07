@@ -252,6 +252,49 @@ textarea {
   letter-spacing: 0.6px;
   color: var(--text-dim);
 }
+/* Collapsible panels: the heading itself is the disclosure control. */
+.panel-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.panel-toggle::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 0;
+  height: 0;
+  border-left: 5px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transform: rotate(90deg);
+  transition: transform 0.15s ease;
+  opacity: 0.65;
+}
+.panel.collapsed .panel-toggle::before {
+  transform: rotate(0deg);
+}
+.panel-toggle:hover h2 {
+  color: var(--text);
+}
+.panel-toggle:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.panel.collapsed > *:not(.panel-head) {
+  display: none;
+}
+.panel.collapsed .panel-head {
+  margin-bottom: 0;
+}
 .hint {
   color: var(--text-faint);
   font-size: 12px;
@@ -499,6 +542,41 @@ textarea {
   display: none;
 }
 
+/* ---------- Trace overlay (lives in the canvas toolbar) ---------- */
+.overlay-group {
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+.overlay-pick.has-image,
+.overlay-pick.dragover {
+  border-color: var(--brand);
+  color: var(--brand);
+  background: var(--brand-soft);
+}
+/* The opacity slider and Clear only earn their toolbar space once a photo is
+   loaded, hence the group class rather than hiding elements one by one. */
+.overlay-group .overlay-opacity,
+.overlay-group .overlay-opacity-val,
+.overlay-group .overlay-clear {
+  display: none;
+}
+.overlay-group.has-photo .overlay-opacity {
+  display: inline-block;
+  width: 84px;
+  vertical-align: middle;
+  accent-color: var(--brand);
+}
+.overlay-group.has-photo .overlay-opacity-val {
+  display: inline;
+  min-width: 22px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.overlay-group.has-photo .overlay-clear {
+  display: inline-block;
+}
+
 /* ---------- Selected yarn + palette ---------- */
 .selected-yarn {
   display: flex;
@@ -732,6 +810,10 @@ textarea {
   image-rendering: pixelated;
   display: block;
   margin: auto;
+}
+/* Middle-click drag: show that the chart is being panned, not painted. */
+#stitchCanvas.panning {
+  cursor: grabbing;
 }
 .canvas-empty {
   position: absolute;

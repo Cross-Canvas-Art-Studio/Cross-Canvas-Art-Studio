@@ -41,6 +41,9 @@ def analyze(image_bytes, width, height, max_colors=16, alpha_threshold=128,
 
     grid is a list of `height` rows, each a list of `width` ints where each int
     is a global palette index or -1 for an empty (unstitched) cell.
+
+    resample picks how source pixels are folded into one stitch: 'smooth'
+    (LANCZOS blend), 'balanced' (bilinear) or 'blocky' (nearest neighbour).
     """
     width = _clamp(width, min_size, max_size, 60)
     height = _clamp(height, min_size, max_size, 80)
@@ -48,7 +51,8 @@ def analyze(image_bytes, width, height, max_colors=16, alpha_threshold=128,
         palette_max = palette_manager.palette_size()
     max_colors = _clamp(max_colors, 2, palette_max, 16)
     alpha_threshold = _clamp(alpha_threshold, 0, 255, 128)
-    resample_filter = RESAMPLE_MODES.get(resample, Image.LANCZOS)
+    if resample not in RESAMPLE_MODES:
+        resample = 'smooth'
 
     try:
         image = Image.open(io.BytesIO(image_bytes))
@@ -57,7 +61,12 @@ def analyze(image_bytes, width, height, max_colors=16, alpha_threshold=128,
     except Exception as exc:  # noqa: BLE001 - surface a clean error to the caller
         raise ValueError(f'Could not read image: {exc}')
 
-    resized = image.resize((width, height), resample_filter)
+    # reducing_gap lets LANCZOS/BILINEAR do an exact integer box-average pass
+    # first: faster, and closer to a fair sample of the source when the
+    # reduction is large (e.g. a 4000px photo down to a 60px grid).
+    gap = 2.0 if resample in ('smooth', 'balanced') else None
+    resample_filter = RESAMPLE_MODES[resample]
+    resized = image.resize((width, height), resample_filter, reducing_gap=gap)
     arr = np.asarray(resized, dtype=np.uint8).reshape(-1, 4)
     rgb = arr[:, :3].astype(np.float64)
     alpha = arr[:, 3]
