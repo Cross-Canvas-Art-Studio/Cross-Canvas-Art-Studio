@@ -18,14 +18,38 @@
     canvas: null,
     selectedIndex: -1,
     selectedFile: null,
+    locateMode: "colour",
     imageNaturalSize: null,
     overlay: null, // decoded reference photo to trace over (memory only)
     overlayUrl: null, // blob URL backing state.overlay, revoked on replace
     currentProjectId: null,
+    notes: "",
+    // 'pattern' = a design made in Stitchee; 'chart' = an imported chart marked
+    // up over its own artwork (source image + alignment transform).
+    docKind: "pattern",
+    source: null, // {id,name,mime,w,h} — the bytes live in IndexedDB
+    fit: null, // {fit,scaleX,scaleY,offsetX,offsetY} for the imported chart
+    chartFile: null, // picked but not yet imported
+    // MULTI-PAGE CHARTS. `pages` is the source of truth: each entry is one
+    // imported sheet placed at a cell offset on the ONE seamless grid.
+    // `source` above is kept as a derived mirror of page 0 so the existing
+    // save/export/draft paths keep working unchanged.
+    pages: [],
+    activePage: 0,
+    pageUrls: [], // object URLs backing the decoded page images
+    chartFiles: null, // picked but not yet imported (may be several pages)
+    chartFileInfo: null, // per-file {w,h,pattern} from the grid detector
+    chartDims: null,
+    chartPattern: null,
     gridMax: 500,
     gridMin: 5,
     arLocked: false,
     arRatio: null, // height / width when locked
+    stitchPart: 0, // FRAC_* flags the paint tools lay down (0 = full cross)
+    blendIndex: -1, // partner floss for a blend, or -1 for a solid colour
+    annotKind: "arrow", // 'arrow' | 'ellipse' | 'rect' | 'text'
+    annotText: "", // label text for the next text annotation
+    noteCell: null, // {r,c} the note input is currently editing
     codeFormat: "code", // 'code' | 'name' | 'rgb' | 'num' | 'sim' | 'hex' | 'dmc'
     dirty: false, // unsaved changes since last save/load/new
   };
@@ -71,6 +95,28 @@
       "generateBtn",
       "aiStatus",
       "newBlankBtn",
+      "chartDropZone",
+      "chartInput",
+      "chartPreview",
+      "chartHint",
+      "chartImportBtn",
+      "readChartBtn",
+      "chartConvertBtn",
+      "chartShow",
+      "chartShowRow",
+      "pagesPanel",
+      "pagesList",
+      "pageEditor",
+      "addPageBtn",
+      "addPageInput",
+      "joinRightBtn",
+      "joinBelowBtn",
+      "pageCol",
+      "pageRow",
+      "pageCols",
+      "pageRows",
+      "pageRotateBtn",
+      "pageRemoveBtn",
       "paletteSearch",
       "selectedSwatch",
       "selectedName",
@@ -79,6 +125,38 @@
       "toolPaint",
       "toolErase",
       "toolFill",
+      "toolPick",
+      "toolBack",
+      "toolAnnot",
+      "toolNote",
+      "annotOptions",
+      "annotCount",
+      "annotClearBtn",
+      "annotText",
+      "annotArrow",
+      "annotEllipse",
+      "annotRect",
+      "annotLabel",
+      "noteOptions",
+      "noteInput",
+      "noteSaveBtn",
+      "noteClearBtn",
+      "noteCount",
+      "stitchPart",
+      "stitchPartHint",
+      "canvasToolbar",
+      "toolbarStatic",
+      "toolbarDynamic",
+      "optionsBar",
+      "stitchCluster",
+      "brushGroup",
+      "stitchPlaceGroup",
+      "stitchDrawGroup",
+      "viewBtn",
+      "viewMenu",
+      "blendOn",
+      "blendWith",
+      "blendHint",
       "toolProgress",
       "toolSelect",
       "toolOverlay",
@@ -130,9 +208,17 @@
       "progressDiagonal",
       "progressPercent",
       "progressHint",
+      "progressStats",
       "progressClearBtn",
       "progressOptions",
       "selectOptions",
+      "toggleLocate",
+      "locateOptions",
+      "locateByColour",
+      "locateBySymbol",
+      "locateCount",
+      "locateNextBtn",
+      "locateClearBtn",
       "selDims",
       "selCopyBtn",
       "selCutBtn",
@@ -149,12 +235,17 @@
       "importJsonBtn",
       "importJsonInput",
       "projectTitle",
+      "projectNotes",
       "saveProjectBtn",
       "projectList",
       "toast",
       "helpBtn",
       "helpModal",
       "helpClose",
+      "shadeCardBtn",
+      "shadeCardModal",
+      "shadeCardClose",
+      "shadeCardBody",
       "brandSubtitle",
     ].forEach(function (id) {
       els[id] = $(id);
@@ -190,6 +281,222 @@
   function markClean() {
     state.dirty = false;
     clearDraft();
+  }
+
+  /** Per-chart free-text notes, kept in sync with the Notes textarea. */
+  function setNotes(text) {
+    state.notes = typeof text === "string" ? text : "";
+    if (els.projectNotes) els.projectNotes.value = state.notes;
+  }
+
+  // ---------- stitch types (fractional stitches + backstitch) ----------
+  // A cell's COLOUR lives in `cells`; the layers describe the MARK. They travel
+  // as run-length strings, so an ordinary pattern (no partial stitches, no
+  // outline) saves exactly the bytes it did before these layers existed.
+  function layerRuns(arr) {
+    if (!arr) return null;
+    var C = window.CrossStitchCanvas;
+    if (!C) return null;
+    var text = C.bytesToRuns(arr);
+    return text || null;
+  }
+
+  function layerBytes(str, length) {
+    var C = window.CrossStitchCanvas;
+    if (!C || !str || !length) return null;
+    if (length > C.MAX_LAYER_LENGTH) return null;
+    return C.runsToBytes(str, length);
+  }
+
+  /** The stitch-type layers, ready to persist. Absent when there are none. */
+  function designLayers() {
+    if (!state.canvas) return { frac: null, back: null, blend: null };
+    var L = state.canvas.getLayers();
+    return {
+      frac: layerRuns(L.frac),
+      back: layerRuns(L.back),
+      blend: layerRuns(L.blend),
+    };
+  }
+
+  /** Decode a document's stitch-type layers for a grid of this size. */
+  function docLayers(doc, w, h) {
+    var C = window.CrossStitchCanvas;
+    return {
+      frac: layerBytes(doc && doc.frac, w * h),
+      back: layerBytes(doc && doc.back, w * h * (C ? C.BACK.EDGES : 4)),
+      blend: layerBytes(doc && doc.blend, w * h),
+    };
+  }
+
+  // ---------- blended threads ----------
+  //
+  // A blend is two flosses held together in one stitch, which is how a chart
+  // shows a shade you cannot buy. The colour in `cells` stays the PRIMARY - the
+  // one you pick in the palette - and the blend layer names the partner, so
+  // colour counts, the legend and the shopping list all keep working.
+  function setBlendPartner(index) {
+    state.blendIndex = typeof index === "number" && index >= 0 ? index : -1;
+    applyBlendToCanvas();
+    updateBlendHint();
+  }
+
+  function setBlendOn(on) {
+    if (els.blendOn) els.blendOn.checked = !!on;
+    if (els.blendWith) els.blendWith.disabled = !on;
+    applyBlendToCanvas();
+    updateBlendHint();
+  }
+
+  /** The canvas only learns the partner while blends are switched on. */
+  function applyBlendToCanvas() {
+    if (!state.canvas) return;
+    state.canvas.setBlendPartner(blendActive() ? state.blendIndex : -1);
+  }
+
+  function blendActive() {
+    return !!(els.blendOn && els.blendOn.checked && state.blendIndex >= 0);
+  }
+
+  function updateBlendHint() {
+    if (!els.blendHint) return;
+    var primary = state.paletteByIndex[state.selectedIndex];
+    var partner = state.paletteByIndex[state.blendIndex];
+    if (!blendActive()) {
+      els.blendHint.textContent = "two flosses together";
+      return;
+    }
+    if (!partner) {
+      els.blendHint.textContent = "pick a second colour";
+      return;
+    }
+    if (state.blendIndex === state.selectedIndex) {
+      els.blendHint.textContent = "pick a different second colour";
+      return;
+    }
+    els.blendHint.textContent =
+      (primary ? primary.code : "?") + " + " + partner.code + " blend";
+  }
+
+  /**
+   * Fill the partner dropdown from whatever palette this build ships. Note this
+   * is the BUILT-IN palette (DMC + the app's own yarns), not a full shade card -
+   * see the share panel for the codes this build actually knows.
+   */
+  function buildBlendOptions() {
+    if (!els.blendWith) return;
+    var sel = els.blendWith;
+    sel.innerHTML = "";
+    var none = document.createElement("option");
+    none.value = "-1";
+    none.textContent = "Blend with\u2026";
+    sel.appendChild(none);
+    state.palette.forEach(function (e) {
+      var o = document.createElement("option");
+      o.value = String(e.index);
+      o.textContent = e.code + " \u2014 " + e.name;
+      sel.appendChild(o);
+    });
+    // Default to the first colour that differs from the current selection, so
+    // ticking "Blend" does something visible straight away.
+    var first = -1;
+    for (var i = 0; i < state.palette.length; i++) {
+      if (state.palette[i].index !== state.selectedIndex) {
+        first = state.palette[i].index;
+        break;
+      }
+    }
+    sel.value = String(first);
+    state.blendIndex = first;
+    setBlendOn(false);
+  }
+
+  function setStitchPart(flags) {
+    var C = window.CrossStitchCanvas;
+    state.stitchPart = flags | 0;
+    state.canvas.setStitchPart(state.stitchPart);
+    if (els.stitchPartHint) {
+      els.stitchPartHint.textContent = state.stitchPart
+        ? C.fracLabel(state.stitchPart) + " stitches"
+        : "full cross stitches";
+    }
+  }
+
+  /** Counts of the extra stitch types, for the canvas info line. */
+  function stitchTypeText() {
+    var parts = [];
+    var frac = state.canvas.fractionalCount();
+    if (frac) parts.push(frac + " partial");
+    var back = state.canvas.backSegmentCount();
+    if (back) parts.push(back + " backstitch");
+    return parts.length ? "· " + parts.join(" · ") : "";
+  }
+
+  /**
+   * The annotation + note layers, ready to persist. They are the stitcher's own
+   * reminders, so they save with the document even though they never print.
+   */
+  function designOverlays() {
+    var out = { annots: null, cellNotes: null };
+    if (!state.canvas) return out;
+    var annots = state.canvas.annotations();
+    if (annots.length) out.annots = annots;
+    var notes = state.canvas.cellNotesMap();
+    if (Object.keys(notes).length) out.cellNotes = notes;
+    return out;
+  }
+
+  /** Apply a loaded document's annotation + note layers. */
+  function applyOverlays(doc) {
+    if (!state.canvas) return;
+    state.canvas.setAnnotations(doc && doc.annots);
+    state.canvas.setCellNotes(doc && doc.cellNotes);
+    refreshOverlayCounts();
+  }
+
+  function refreshOverlayCounts() {
+    if (els.annotCount) {
+      var n = state.canvas ? state.canvas.annotationCount() : 0;
+      els.annotCount.textContent =
+        n + (n === 1 ? " mark" : " marks");
+    }
+    if (els.noteCount) {
+      var c = state.canvas ? state.canvas.cellNoteCount() : 0;
+      els.noteCount.textContent = c + (c === 1 ? " cell" : " cells");
+    }
+  }
+
+  function setAnnotKind(kind) {
+    state.annotKind = kind;
+    state.canvas.setAnnotKind(kind);
+    [
+      [els.annotArrow, "arrow"],
+      [els.annotEllipse, "ellipse"],
+      [els.annotRect, "rect"],
+      [els.annotLabel, "text"],
+    ].forEach(function (pair) {
+      if (pair[0]) pair[0].classList.toggle("active", pair[1] === kind);
+    });
+    // The label text only matters for a label, so it steps forward for one.
+    if (els.annotText) els.annotText.disabled = kind !== "text";
+  }
+
+  /** Enter/Clear for the note on the cell the user last clicked. */
+  function commitNote() {
+    if (!state.noteCell) {
+      toast("Click a stitch on the canvas first", "warn");
+      return;
+    }
+    var c = state.noteCell;
+    if (state.canvas.setCellNote(c.r, c.c, els.noteInput.value)) {
+      state.canvas._pushHistory();
+      markDirty();
+      refreshOverlayCounts();
+      toast(
+        els.noteInput.value.trim() ? "Note saved" : "Note cleared",
+        "ok",
+      );
+    }
   }
 
   // ---------- draft autosave ----------
@@ -228,6 +535,8 @@
 
   function saveDraft() {
     if (!state.canvas || state.canvas.isEmpty()) return;
+    var layers = designLayers();
+    var overlays = designOverlays();
     try {
       var cells = state.canvas.cells;
       var bytes = new Uint8Array(
@@ -240,6 +549,19 @@
         JSON.stringify({
           v: 1,
           title: els.projectTitle.value.trim(),
+          notes: state.notes,
+          kind: state.docKind,
+          source: state.docKind === "chart" ? state.source : null,
+          // The joined page list (geometry + IndexedDB ids). `source` above is
+          // kept as the single-page mirror an older reader understands.
+          pages: state.docKind === "chart" ? pageDescriptors() : null,
+          // Stitch-type layers, run-length encoded (null when unused).
+          frac: layers.frac,
+          back: layers.back,
+          blend: layers.blend,
+          // Annotations + per-cell notes: the stitcher's own reminders.
+          annots: overlays.annots,
+          cellNotes: overlays.cellNotes,
           width: state.canvas.width,
           height: state.canvas.height,
           projectId: state.currentProjectId,
@@ -344,15 +666,34 @@
         doc = null;
       }
     }
-    // A size change means the stored marks no longer line up with the grid.
-    if (!doc || doc.w !== state.canvas.width || doc.h !== state.canvas.height) {
+    // A size change means the stored marks no longer line up with the grid —
+    // UNLESS the grid only grew, which is exactly what adding another page of a
+    // stitch-along does. Marks are anchored at the top-left, so a chart that got
+    // wider or taller keeps every stitch already marked.
+    if (!doc) {
       state.canvas.setProgress(null);
       updateProgressUI();
       return;
     }
-    state.canvas.setProgress(
-      window.CrossStitchCanvas.progressFromRuns(doc.runs, doc.w * doc.h),
-    );
+    if (doc.w !== state.canvas.width || doc.h !== state.canvas.height) {
+      if (doc.w > state.canvas.width || doc.h > state.canvas.height) {
+        state.canvas.setProgress(null);
+        updateProgressUI();
+        return;
+      }
+      var src = window.CrossStitchCanvas.progressFromRuns(doc.runs, doc.w * doc.h);
+      var grown = new Uint8Array(state.canvas.width * state.canvas.height);
+      for (var pr = 0; pr < doc.h; pr++) {
+        for (var pc = 0; pc < doc.w; pc++) {
+          grown[pr * state.canvas.width + pc] = src[pr * doc.w + pc];
+        }
+      }
+      state.canvas.setProgress(grown);
+    } else {
+      state.canvas.setProgress(
+        window.CrossStitchCanvas.progressFromRuns(doc.runs, doc.w * doc.h),
+      );
+    }
     if (doc.mode) {
       state.canvas.setProgressMode(doc.mode);
       syncProgressModeButtons(doc.mode);
@@ -385,9 +726,14 @@
   }
 
   function updateProgressUI(st) {
-    if (!state.canvas || state.canvas.isEmpty()) {
+    var empty = !state.canvas || state.canvas.isEmpty();
+    // Nothing to report on an empty canvas, so the readout steps aside rather
+    // than showing a row of dashes next to the finished-size line.
+    if (els.progressGroup) els.progressGroup.hidden = empty;
+    if (empty) {
       els.progressPercent.textContent = "0%";
       els.progressHint.textContent = "\u2014";
+      if (els.progressStats) els.progressStats.textContent = "\u2014";
       return;
     }
     st = st || state.canvas.progressStats();
@@ -395,17 +741,29 @@
     if (st.unit === null) {
       els.progressHint.textContent =
         "All " + st.total + " stitches marked stitched.";
-      return;
+    } else {
+      var noun =
+        st.mode === "column"
+          ? "Column"
+          : st.mode === "diagonal"
+            ? "Diagonal"
+            : "Row";
+      els.progressHint.textContent =
+        noun + " " + st.unitLabel + " of " + st.units + " \u00b7 " + st.done +
+        " / " + st.total + " stitches";
     }
-    var noun =
-      st.mode === "column"
-        ? "Column"
-        : st.mode === "diagonal"
-          ? "Diagonal"
-          : "Row";
-    els.progressHint.textContent =
-      noun + " " + st.unitLabel + " of " + st.units + " \u00b7 " + st.done +
-      " / " + st.total + " stitches";
+    if (els.progressStats) els.progressStats.textContent = progressStatsText(st);
+  }
+
+  /**
+   * The one figure the status line does NOT already carry: how much is left. The
+   * stitch count, the colour count and the finished size sit immediately to its
+   * left on the same line, so repeating them here was pure noise.
+   */
+  function progressStatsText(st) {
+    if (!state.canvas || state.canvas.isEmpty()) return "\u2014";
+    var remaining = Math.max(0, st.total - st.done);
+    return remaining + " left";
   }
 
   function setProgressMode(mode) {
@@ -476,10 +834,16 @@
       for (var c = 0; c < doc.width; c++) row.push(cells[r * doc.width + c]);
       grid.push(row);
     }
-    state.canvas.loadGrid(doc.width, doc.height, grid);
+    var dl = docLayers(doc, doc.width, doc.height);
+    state.canvas.loadGrid(
+      doc.width, doc.height, grid, dl.frac, dl.back, dl.blend,
+    );
+    applyOverlays(doc);
     syncGridInputs(doc.width, doc.height);
     state.currentProjectId = doc.projectId || null;
     els.projectTitle.value = doc.title || "";
+    setNotes(doc.notes || "");
+    restoreProjectKind(doc, false);
     loadProgress();
     showCanvas(true);
     updateZoomLabel();
@@ -643,6 +1007,8 @@
       count +
       " ct";
     updateInfoDims();
+    // Fabric/unit changes shift the finished size shown in the stats line too.
+    if (state.canvas && !state.canvas.isEmpty()) updateProgressUI();
   }
 
   function updateInfoDims() {
@@ -699,6 +1065,7 @@
 
         state.canvas.setPalette(state.palette);
         buildPalette();
+        buildBlendOptions();
         buildProviders();
         if (state.palette.length) {
           selectColor(state.palette[0].index);
@@ -749,7 +1116,7 @@
     });
   }
 
-  function selectColor(index) {
+  function selectColor(index, keepTool) {
     state.selectedIndex = index;
     state.canvas.setSelected(index);
     var e = state.paletteByIndex[index];
@@ -758,6 +1125,7 @@
       els.selectedName.textContent = e.name;
       buildFormatPanel(e);
     }
+    updateBlendHint();
     Array.prototype.forEach.call(
       els.paletteGroups.querySelectorAll(".swatch-btn"),
       function (b) {
@@ -778,7 +1146,9 @@
       },
     );
     // painting with a colour implies paint mode
-    setMode("paint");
+    if (!keepTool) setMode("paint");
+    // while locating, switching colour re-targets the spotlight
+    if (els.toggleLocate && els.toggleLocate.checked) applySpotlight();
   }
 
   function filterPalette() {
@@ -1193,11 +1563,849 @@
     toast("Overlay removed", "ok");
   }
 
+  // ---------- import an existing chart (markup mode) ----------
+  // An imported chart keeps its OWN artwork as the canvas: the image bytes are
+  // stored in IndexedDB (photo-sized files never fit in localStorage), the grid
+  // is an empty canvas sized to the chart, and the artwork is drawn UNDER the
+  // grid so progress is marked straight onto the original.
+  //
+  // A chart is usually printed across SEVERAL SHEETS, so each imported sheet
+  // becomes a PAGE placed at a cell offset on the one seamless grid: the whole
+  // design is marked up as a single chart instead of a pile of projects, and the
+  // legend, Locate/Spotlight and the stitch count all see the complete chart.
+  // The grid is always exactly the bounding box of the pages, which is what
+  // makes a stitch-along safe — adding the next page only grows the canvas at
+  // its edge, so markup already made keeps its cell coordinates.
+
+  function setChartModeUI(on) {
+    state.docKind = on ? "chart" : "pattern";
+    // The toolbar's trace-overlay controls would be confusing in chart mode (the
+    // artwork IS the canvas, not a tracing photo), so they step aside for the
+    // chart's own "Show the imported chart" toggle.
+    // The toolbar's Trace cluster is only in the row while the Align tool is (or
+    // in chart mode a page is being seated). syncToolOptions() owns that.
+    els.chartShowRow.hidden = !on;
+    els.chartConvertBtn.hidden = !on;
+    els.readChartBtn.hidden = !on;
+    els.pagesPanel.hidden = !on;
+    if (on) els.chartShow.checked = true;
+    // A chart's grid is empty (the stitches come from its artwork), so every
+    // cell has to be markable even though no palette colour is set.
+    if (state.canvas) state.canvas.setAllCellsStitchable(!!on);
+    syncToolOptions();
+  }
+
+  // ---- chart pages ----
+  /** Persistable half of a page: everything except the decoded image. */
+  function pageDescriptor(p) {
+    return {
+      id: p.id,
+      name: p.name,
+      mime: p.mime,
+      w: p.w,
+      h: p.h,
+      col: p.col,
+      row: p.row,
+      cols: p.cols,
+      rows: p.rows,
+      rot: p.rot || 0,
+      crop: p.crop || null,
+    };
+  }
+  function pageDescriptors() {
+    return state.pages.map(pageDescriptor);
+  }
+  function numOr(v, fallback) {
+    var n = typeof v === "number" ? v : parseFloat(v);
+    return isFinite(n) ? n : fallback;
+  }
+
+  /**
+   * Read a stored chart document into live page descriptors. Documents saved
+   * before multi-page support carry one `source` plus a `fit` transform; that is
+   * converted into the equivalent single page so existing charts open unchanged.
+   */
+  function resolvePages(p) {
+    var raw = p && p.pages;
+    if (!Array.isArray(raw) || !raw.length) {
+      if (!p || !p.source || !p.source.id) return [];
+      var geom = window.CrossStitchCanvas.pageFromFit(
+        p.fit, p.width, p.height, p.source.w, p.source.h,
+      );
+      raw = [
+        {
+          id: p.source.id,
+          name: p.source.name,
+          mime: p.source.mime,
+          w: p.source.w,
+          h: p.source.h,
+          col: geom.col,
+          row: geom.row,
+          cols: geom.cols,
+          rows: geom.rows,
+          rot: 0,
+        },
+      ];
+    }
+    return raw
+      .map(function (d) {
+        if (!d || !d.id) return null;
+        return {
+          id: d.id,
+          name: d.name || "page",
+          mime: d.mime || "image/png",
+          w: numOr(d.w, 0),
+          h: numOr(d.h, 0),
+          col: numOr(d.col, 0),
+          row: numOr(d.row, 0),
+          cols: Math.max(1, numOr(d.cols, 1)),
+          rows: Math.max(1, numOr(d.rows, 1)),
+          rot: numOr(d.rot, 0),
+          crop: d.crop || null,
+          img: null,
+        };
+      })
+      .filter(Boolean);
+  }
+
+  /** Push the page list onto the canvas and keep the legacy mirror in step. */
+  function syncPagesToCanvas() {
+    if (!state.canvas) return;
+    state.canvas.setOverlayOpacity(1);
+    state.canvas.setSubstratePages(
+      state.pages.map(function (p) {
+        return {
+          img: p.img,
+          col: p.col,
+          row: p.row,
+          cols: p.cols,
+          rows: p.rows,
+          rot: p.rot,
+          crop: p.crop,
+        };
+      }),
+    );
+    state.canvas.setActivePage(state.activePage);
+    if (state.pages.length) {
+      els.toolOverlay.disabled = false;
+      state.canvas.setOverlayOn(els.chartShow ? els.chartShow.checked : true);
+    }
+    // `state.source` is only a convenience mirror of page 0 now; the save,
+    // export and draft paths read it as the chart's source descriptor.
+    state.source = state.pages.length ? pageDescriptor(state.pages[0]) : null;
+  }
+
+  /** Decode one page's stored image. The blob URL is KEPT, because the artwork
+   *  is drawn on every repaint and re-read by "Read chart colours". */
+  function loadPageImage(p) {
+    var store = window.StitchImageStore;
+    if (!store || !p || !p.id) return Promise.resolve(null);
+    if (p.img) return Promise.resolve(p.img);
+    return store.get(p.id).then(function (blob) {
+      if (!blob) return null;
+      return new Promise(function (resolve) {
+        var url = URL.createObjectURL(blob);
+        state.pageUrls.push(url);
+        var img = new Image();
+        img.onload = function () {
+          resolve(img);
+        };
+        img.onerror = function () {
+          resolve(null);
+        };
+        img.src = url;
+      });
+    });
+  }
+
+  /** Decode every page. Resolves false if any image is missing from the device. */
+  function loadAllPageImages() {
+    var store = window.StitchImageStore;
+    if (!state.pages.length) return Promise.resolve(true);
+    if (!store || !store.supported()) return Promise.resolve(false);
+    var ok = true;
+    return Promise.all(
+      state.pages.map(function (p) {
+        return loadPageImage(p).then(function (img) {
+          p.img = img;
+          if (!img) ok = false;
+          return img;
+        });
+      }),
+    ).then(function () {
+      return ok;
+    });
+  }
+
+  /**
+   * Make the grid exactly the bounding box of the pages. Appending a page to the
+   * right/bottom only GROWS the canvas, which is why existing markup and
+   * progress survive — that is the stitch-along guarantee. A page pushed to the
+   * left/above moves the origin instead, shifting the artwork and the markup
+   * together so they stay aligned.
+   */
+  function fitGridToPages() {
+    var C = window.CrossStitchCanvas;
+    var b = C.pageBoundsOf(state.pages);
+    if (!b) return false;
+    var dCol = b.col < 0 ? Math.ceil(-b.col) : 0;
+    var dRow = b.row < 0 ? Math.ceil(-b.row) : 0;
+    if (dCol || dRow) {
+      state.pages.forEach(function (p) {
+        p.col += dCol;
+        p.row += dRow;
+      });
+      b = C.pageBoundsOf(state.pages);
+    }
+    var capped = false;
+    var needW = Math.max(state.canvas.width + dCol, Math.ceil(b.col + b.cols));
+    var needH = Math.max(state.canvas.height + dRow, Math.ceil(b.row + b.rows));
+    if (needW > state.gridMax) {
+      needW = state.gridMax;
+      capped = true;
+    }
+    if (needH > state.gridMax) {
+      needH = state.gridMax;
+      capped = true;
+    }
+    if (
+      needW !== state.canvas.width ||
+      needH !== state.canvas.height ||
+      dCol ||
+      dRow
+    ) {
+      state.canvas.resizeGrid(needW, needH, dCol, dRow);
+    }
+    return capped;
+  }
+
+  function round1(v) {
+    return Math.round(v * 10) / 10;
+  }
+
+  function syncPageControls() {
+    var p = state.pages[state.activePage];
+    if (!els.pageEditor) return;
+    els.pageEditor.hidden = !p;
+    if (!p) return;
+    els.pageCol.value = round1(p.col);
+    els.pageRow.value = round1(p.row);
+    els.pageCols.value = round1(p.cols);
+    els.pageRows.value = round1(p.rows);
+  }
+
+  /** Rebuild the page list. Built with DOM calls so a file name can never be
+   *  interpreted as markup. */
+  function refreshPagesUI() {
+    var list = els.pagesList;
+    if (!list) return;
+    list.innerHTML = "";
+    if (!state.pages.length) {
+      if (els.pageEditor) els.pageEditor.hidden = true;
+      return;
+    }
+    state.pages.forEach(function (p, i) {
+      var row = document.createElement("div");
+      row.className = "page-item" + (i === state.activePage ? " active" : "");
+      row.setAttribute("role", "button");
+      row.setAttribute("tabindex", "0");
+      row.setAttribute("data-index", String(i));
+      row.title = "Edit this page";
+
+      var name = document.createElement("span");
+      name.className = "page-name";
+      name.textContent = i + 1 + ". " + (p.name || "page");
+
+      var meta = document.createElement("span");
+      meta.className = "page-meta";
+      meta.textContent =
+        round1(p.cols) + "\u00d7" + round1(p.rows) +
+        " @ " + round1(p.col) + "," + round1(p.row) +
+        (p.rot ? " \u00b7 " + p.rot + "\u00b0" : "");
+
+      row.appendChild(name);
+      row.appendChild(meta);
+
+      [
+        ["up", "\u2191", "Move this page earlier"],
+        ["down", "\u2193", "Move this page later"],
+      ].forEach(function (spec) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "page-order-btn";
+        b.setAttribute("data-act", spec[0]);
+        b.title = spec[2];
+        b.textContent = spec[1];
+        row.appendChild(b);
+      });
+
+      list.appendChild(row);
+    });
+    syncPageControls();
+  }
+
+  function setActivePage(i) {
+    state.activePage = Math.max(0, Math.min(state.pages.length - 1, i || 0));
+    if (state.canvas) state.canvas.setActivePage(state.activePage);
+    refreshPagesUI();
+  }
+
+  /** Move the active page by whole cells (the arrow keys, Align mode). */
+  function nudgeActivePage(dc, dr, mult) {
+    var p = state.pages[state.activePage];
+    if (!p) return;
+    var step = mult || 1;
+    p.col += dc * step;
+    p.row += dr * step;
+    fitGridToPages();
+    syncPagesToCanvas();
+    refreshPagesUI();
+    syncGridInputs(state.canvas.width, state.canvas.height);
+    markDirty();
+  }
+
+  /** Commit a geometry edit from the number boxes. */
+  function setActivePageGeometry(part) {
+    var p = state.pages[state.activePage];
+    if (!p) return;
+    if (typeof part.col === "number") p.col = part.col;
+    if (typeof part.row === "number") p.row = part.row;
+    if (typeof part.cols === "number") p.cols = Math.max(1, part.cols);
+    if (typeof part.rows === "number") p.rows = Math.max(1, part.rows);
+    var capped = fitGridToPages();
+    syncPagesToCanvas();
+    refreshPagesUI();
+    syncGridInputs(state.canvas.width, state.canvas.height);
+    if (capped) toast("The canvas is at its 500-stitch limit", "warn");
+    markDirty();
+  }
+
+  /** Rotate the active page a quarter turn. The footprint swaps too, so the
+   *  artwork keeps its shape instead of being squashed into the old box. */
+  function rotateActivePage() {
+    var p = state.pages[state.activePage];
+    if (!p) return;
+    p.rot = ((p.rot || 0) + 90) % 360;
+    var t = p.cols;
+    p.cols = p.rows;
+    p.rows = t;
+    fitGridToPages();
+    syncPagesToCanvas();
+    refreshPagesUI();
+    syncGridInputs(state.canvas.width, state.canvas.height);
+    markDirty();
+    toast("Page rotated", "ok");
+  }
+
+  function removeActivePage() {
+    var i = state.activePage;
+    var p = state.pages[i];
+    if (!p) return;
+    if (state.pages.length === 1) {
+      // The last page is the chart: dropping it leaves nothing to mark up.
+      detachSource();
+      state.canvas.newBlank(
+        clampInt(els.gridWidth.value, state.gridMin, state.gridMax, 60),
+        clampInt(els.gridHeight.value, state.gridMin, state.gridMax, 80),
+      );
+      syncGridInputs(state.canvas.width, state.canvas.height);
+      onDesignChange();
+      markDirty();
+      return;
+    }
+    state.pages.splice(i, 1);
+    state.activePage = Math.max(0, Math.min(state.pages.length - 1, i - 1));
+    // The page is gone from the document, so its bytes are orphaned: drop them
+    // rather than leak an image for every page the user removes.
+    var store = window.StitchImageStore;
+    if (store && p.id) store.remove(p.id);
+    fitGridToPages();
+    syncPagesToCanvas();
+    refreshPagesUI();
+    syncGridInputs(state.canvas.width, state.canvas.height);
+    markDirty();
+    toast("Page removed", "ok");
+  }
+
+  /** Reorder the page list (also the draw order). Positions are untouched. */
+  function moveActivePage(dir) {
+    var i = state.activePage;
+    var j = i + dir;
+    if (j < 0 || j >= state.pages.length) return;
+    var t = state.pages[i];
+    state.pages[i] = state.pages[j];
+    state.pages[j] = t;
+    state.activePage = j;
+    syncPagesToCanvas();
+    refreshPagesUI();
+    markDirty();
+  }
+
+  /** Seat the active page hard against the previous one: the seamless join. */
+  function joinActivePage(dir) {
+    var i = state.activePage;
+    var p = state.pages[i];
+    var prev = i > 0 ? state.pages[i - 1] : null;
+    if (!p) return;
+    if (!prev) {
+      toast("This is the first page — nothing to join it to", "warn");
+      return;
+    }
+    if (dir === "below") {
+      p.col = Math.round(prev.col);
+      p.row = Math.round(prev.row + prev.rows);
+    } else {
+      p.col = Math.round(prev.col + prev.cols);
+      p.row = Math.round(prev.row);
+    }
+    fitGridToPages();
+    syncPagesToCanvas();
+    refreshPagesUI();
+    syncGridInputs(state.canvas.width, state.canvas.height);
+    markDirty();
+    toast(dir === "below" ? "Joined below the previous page" : "Joined to the right of the previous page", "ok");
+  }
+
+  /** Drop every reference to an imported chart. The stored images are KEPT, so a
+   *  saved chart project can still be re-opened on this device. */
+  function detachSource() {
+    state.source = null;
+    state.fit = null;
+    state.pages = [];
+    state.activePage = 0;
+    state.chartFile = null;
+    state.chartFiles = null;
+    state.chartFileInfo = null;
+    state.chartDims = null;
+    state.chartPattern = null;
+    state.overlay = null;
+    if (state.pageUrls && state.pageUrls.length) {
+      state.pageUrls.forEach(function (u) {
+        URL.revokeObjectURL(u);
+      });
+      state.pageUrls = [];
+    }
+    if (state.overlayUrl) {
+      URL.revokeObjectURL(state.overlayUrl);
+      state.overlayUrl = null;
+    }
+    if (state.canvas) {
+      state.canvas.setOverlayOn(false);
+      state.canvas.setOverlayImage(null);
+      state.canvas.setSubstratePages([]);
+    }
+    if (els.chartInput) els.chartInput.value = "";
+    if (els.addPageInput) els.addPageInput.value = "";
+    if (els.chartPreview) els.chartPreview.hidden = true;
+    if (els.chartImportBtn) {
+      els.chartImportBtn.disabled = true;
+      els.chartImportBtn.textContent = "Import chart";
+    }
+    setChartModeUI(false);
+    refreshPagesUI();
+  }
+
+  /**
+   * Restore a loaded project's document kind. A chart needs its artwork decoded
+   * from IndexedDB, which is async, so this returns a promise.
+   */
+  function restoreProjectKind(p, keepClean) {
+    var pages = p && p.kind === "chart" ? resolvePages(p) : [];
+    if (pages.length) {
+      state.pages = pages;
+      state.activePage = 0;
+      state.chartFile = null;
+      state.chartFiles = null;
+      state.chartFileInfo = null;
+      // Legacy charts kept their transform in `fit`; pages supersede it.
+      state.fit = null;
+      setChartModeUI(true);
+      refreshPagesUI();
+      return loadAllPageImages().then(function (ok) {
+        if (!ok) {
+          toast(
+            "Import the chart image again \u2014 it is not stored on this device",
+            "warn",
+          );
+        }
+        // Normally the saved grid already bounds the pages; only a hand-edited
+        // or truncated document should ever need growing here.
+        var b = window.CrossStitchCanvas.pageBoundsOf(state.pages);
+        if (
+          b &&
+          (b.col < 0 ||
+            b.row < 0 ||
+            Math.ceil(b.col + b.cols) > state.canvas.width ||
+            Math.ceil(b.row + b.rows) > state.canvas.height)
+        ) {
+          fitGridToPages();
+          syncGridInputs(state.canvas.width, state.canvas.height);
+        }
+        syncPagesToCanvas();
+        refreshPagesUI();
+        if (keepClean) markClean();
+      });
+    }
+    detachSource();
+    return Promise.resolve();
+  }
+
+  /** A user picked one or more chart pages: preview the first and measure them
+   *  all, so the import can match each sheet's own guide grid. */
+  function onChartSelected(files) {
+    var list = Array.prototype.slice.call(files || []).filter(function (f) {
+      return f && /^image\//.test(f.type);
+    });
+    if (!list.length) {
+      toast("Please choose an image file", "error");
+      return;
+    }
+    state.chartFiles = list;
+    state.chartFileInfo = list.map(function () {
+      return null;
+    });
+    state.chartFile = list[0];
+    els.chartImportBtn.disabled = true;
+
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      els.chartPreview.src = e.target.result;
+      els.chartPreview.hidden = false;
+    };
+    reader.readAsDataURL(list[0]);
+
+    var pending = list.length;
+    els.chartHint.textContent =
+      "Reading " + list.length + " page" + (list.length > 1 ? "s" : "") + "\u2026";
+    list.forEach(function (file, i) {
+      readImageDimensions(file, function (w, h, pattern) {
+        state.chartFileInfo[i] = { w: w, h: h, pattern: pattern };
+        pending--;
+        if (pending > 0) return;
+        var detected = state.chartFileInfo.filter(function (info) {
+          return info && info.pattern;
+        }).length;
+        var first = state.chartFileInfo[0] || {};
+        var cols = first.pattern
+          ? first.pattern.cols
+          : clampInt(els.gridWidth.value, state.gridMin, state.gridMax, 60);
+        var rows = first.pattern
+          ? first.pattern.rows
+          : clampInt(els.gridHeight.value, state.gridMin, state.gridMax, 80);
+        els.chartHint.textContent =
+          list.length +
+          (list.length > 1 ? " pages" : " page") +
+          " \u00b7 page 1 is " +
+          (first.pattern
+            ? cols + "\u00d7" + rows + " cells (detected)"
+            : "your current canvas size \u2014 adjust it if that is wrong") +
+          (list.length > 1
+            ? " \u00b7 " + detected + " of " + list.length +
+              " grids detected \u00b7 joined left to right"
+            : "");
+        els.chartImportBtn.disabled = false;
+      });
+    });
+  }
+
+  /** Import the picked sheets as joined pages on one seamless canvas. */
+  function importChart() {
+    var files = state.chartFiles;
+    if (!files || !files.length) {
+      toast("Choose a chart image first", "error");
+      return;
+    }
+    var store = window.StitchImageStore;
+    if (!store || !store.supported()) {
+      toast("This browser cannot store chart images", "error");
+      return;
+    }
+    var infos = state.chartFileInfo || [];
+    var fallbackCols = clampInt(els.gridWidth.value, state.gridMin, state.gridMax, 60);
+    var fallbackRows = clampInt(els.gridHeight.value, state.gridMin, state.gridMax, 80);
+    var pages = [];
+    var runningCol = 0;
+
+    els.chartImportBtn.disabled = true;
+    els.chartImportBtn.textContent = "Importing\u2026";
+
+    var chain = Promise.resolve();
+    files.forEach(function (file, i) {
+      chain = chain.then(function () {
+        var info = infos[i] || {};
+        var cols = info.pattern ? info.pattern.cols : fallbackCols;
+        var rows = info.pattern ? info.pattern.rows : fallbackRows;
+        return store.put(file).then(function (id) {
+          pages.push({
+            id: id,
+            name: file.name || "page-" + (i + 1),
+            mime: file.type || "image/png",
+            w: info.w || 0,
+            h: info.h || 0,
+            col: runningCol,
+            row: 0,
+            cols: cols,
+            rows: rows,
+            rot: 0,
+            crop: null,
+            img: null,
+          });
+          // The seamless join: each page begins exactly where the last ended.
+          runningCol += cols;
+        });
+      });
+    });
+
+    chain
+      .then(function () {
+        state.pages = pages;
+        state.activePage = 0;
+        // A chart is an EMPTY grid — nothing is stitched in Stitchee colours —
+        // whose substrate is the joined artwork.
+        var b = window.CrossStitchCanvas.pageBoundsOf(pages);
+        state.canvas.newBlank(
+          Math.min(state.gridMax, Math.ceil(b.cols)),
+          Math.min(state.gridMax, Math.ceil(b.rows)),
+        );
+        state.currentProjectId = null;
+        setNotes("");
+        setChartModeUI(true);
+        return loadAllPageImages();
+      })
+      .then(function () {
+        var capped = fitGridToPages();
+        syncPagesToCanvas();
+        refreshPagesUI();
+        syncGridInputs(state.canvas.width, state.canvas.height);
+        showCanvas(true);
+        updateZoomLabel();
+        onDesignChange();
+        markDirty();
+        els.chartImportBtn.disabled = false;
+        els.chartImportBtn.textContent = "Import chart";
+        // Seating the pages on the grid is the very next job.
+        setMode("overlay");
+        toast(
+          pages.length +
+            (pages.length > 1 ? " pages joined" : " chart imported") +
+            " (" + state.canvas.width + "\u00d7" + state.canvas.height +
+            (capped ? ", capped at the 500-stitch limit" : "") +
+            ") \u2014 drag the frame until the grid lines up",
+          capped ? "warn" : "ok",
+        );
+      })
+      .catch(function () {
+        els.chartImportBtn.disabled = false;
+        els.chartImportBtn.textContent = "Import chart";
+        toast("Could not import that chart", "error");
+      });
+  }
+
+  /**
+   * Add more pages to the chart already on screen. This is the stitch-along:
+   * the new sheets are seated after the current right edge and the canvas grows
+   * to hold them, so every mark already made keeps its place.
+   */
+  function addChartPages(files) {
+    var list = Array.prototype.slice.call(files || []).filter(function (f) {
+      return f && /^image\//.test(f.type);
+    });
+    if (!list.length) {
+      toast("Please choose an image file", "error");
+      return;
+    }
+    var C = window.CrossStitchCanvas;
+    if (state.pages.length + list.length > C.MAX_SUBSTRATE_PAGES) {
+      toast("That is more pages than this chart can hold", "error");
+      return;
+    }
+    var store = window.StitchImageStore;
+    if (!store || !store.supported()) {
+      toast("This browser cannot store chart images", "error");
+      return;
+    }
+    var b = state.canvas.pageBounds() || { col: 0, row: 0, cols: 0, rows: 0 };
+    var runningCol = Math.ceil(b.col + b.cols);
+    var added = [];
+    var fallbackCols = clampInt(els.gridWidth.value, state.gridMin, state.gridMax, 60);
+    var fallbackRows = clampInt(els.gridHeight.value, state.gridMin, state.gridMax, 80);
+
+    els.addPageBtn.disabled = true;
+    var chain = Promise.resolve();
+    list.forEach(function (file, i) {
+      chain = chain.then(function () {
+        return new Promise(function (resolve) {
+          readImageDimensions(file, function (w, h, pattern) {
+            var cols = pattern ? pattern.cols : fallbackCols;
+            var rows = pattern ? pattern.rows : fallbackRows;
+            store.put(file).then(function (id) {
+              added.push({
+                id: id,
+                name: file.name || "page-" + (state.pages.length + i + 1),
+                mime: file.type || "image/png",
+                w: w || 0,
+                h: h || 0,
+                col: runningCol,
+                row: 0,
+                cols: cols,
+                rows: rows,
+                rot: 0,
+                crop: null,
+                img: null,
+              });
+              runningCol += cols;
+              resolve();
+            }, resolve);
+          });
+        });
+      });
+    });
+
+    chain
+      .then(function () {
+        state.pages = state.pages.concat(added);
+        state.activePage = state.pages.length - added.length;
+        setChartModeUI(true);
+        return loadAllPageImages();
+      })
+      .then(function () {
+        var capped = fitGridToPages();
+        syncPagesToCanvas();
+        refreshPagesUI();
+        syncGridInputs(state.canvas.width, state.canvas.height);
+        state.canvas.fitToView();
+        updateZoomLabel();
+        onDesignChange();
+        markDirty();
+        els.addPageBtn.disabled = false;
+        if (els.addPageInput) els.addPageInput.value = "";
+        setMode("overlay");
+        toast(
+          "Added " + added.length + " page" + (added.length > 1 ? "s" : "") +
+            (capped
+              ? " \u2014 the canvas is at its 500-stitch limit"
+              : " \u2014 drag the frame to line it up"),
+          capped ? "warn" : "ok",
+        );
+      })
+      .catch(function () {
+        els.addPageBtn.disabled = false;
+        toast("Could not add that page", "error");
+      });
+  }
+
+
+  /**
+   * Compose the joined pages into ONE bitmap for the convert pipeline. The
+   * pages are drawn at their grid offsets through the same code that renders
+   * them on screen, so a converted multi-page chart matches what was marked up.
+   */
+  function composePagesBlob() {
+    return new Promise(function (resolve) {
+      var w = state.canvas.width;
+      var h = state.canvas.height;
+      // The analyser resamples to the grid, so a modest bitmap loses nothing and
+      // keeps a wide chart from allocating a needlessly huge canvas.
+      var cell = Math.max(2, Math.min(20, Math.floor(2400 / Math.max(w, h, 1))));
+      var canvas = state.canvas.renderSubstrate(cell);
+      if (!canvas || typeof canvas.toBlob !== "function") {
+        resolve(null);
+        return;
+      }
+      canvas.toBlob(function (blob) {
+        resolve(blob);
+      }, "image/png");
+    });
+  }
+
+  /** Read the imported chart's colours, best-effort, then hand over to painting. */
+  function readChart() {
+    if (state.docKind !== "chart" || !state.pages.length) {
+      toast("Import a chart first", "warn");
+      return;
+    }
+    var grid = state.canvas.readSubstrateGrid();
+    if (!grid) {
+      toast("Nothing to read", "error");
+      return;
+    }
+    if (!state.canvas.applyReadGrid(grid)) {
+      toast("Nothing to read", "error");
+      return;
+    }
+    var colours = state.canvas.colorCount();
+    toast(
+      colours
+        ? "Read " + colours + " colours \u2014 fix any with Pick and Paint"
+        : "No stitch colours found \u2014 this chart may use symbols over a key",
+      colours ? "ok" : "warn",
+    );
+  }
+
+  /**
+   * Run the ordinary analyse pipeline over the imported chart's artwork.
+   *
+   * A joined multi-page chart is converted as ONE image: the pages are composed
+   * into a single bitmap at their grid offsets first, so the converted pattern
+   * is the whole design rather than page 1 on its own.
+   */
+  function convertChartToPattern() {
+    var store = window.StitchImageStore;
+    var first = state.pages[0] || null;
+    var pending;
+    if (state.chartFile) {
+      pending = Promise.resolve(state.chartFile);
+    } else if (state.pages.length > 1) {
+      pending = composePagesBlob();
+    } else {
+      pending = store && first && first.id
+        ? store.get(first.id)
+        : Promise.resolve(null);
+    }
+    els.chartConvertBtn.disabled = true;
+    var name = (first && first.name) || "chart";
+    pending
+      .then(function (blob) {
+        if (!blob) throw new Error("missing source image");
+        var gs = gridSize();
+        var fd = new FormData();
+        fd.append("image", blob, name);
+        fd.append("width", gs.w);
+        fd.append("height", gs.h);
+        fd.append("max_colors", els.imgMaxColors.value);
+        fd.append("resample", els.resampleMode.value);
+        return fetch("/api/analyze-image", { method: "POST", body: fd }).then(
+          function (r) {
+            return r.json().then(function (d) {
+              return { ok: r.ok, d: d };
+            });
+          },
+        );
+      })
+      .then(function (res) {
+        els.chartConvertBtn.disabled = false;
+        if (!res.ok) {
+          toast(res.d.error || "Conversion failed", "error");
+          return;
+        }
+        applyDesign(res.d, name.replace(/\.[^.]+$/, ""));
+        toast("Converted \u00b7 " + res.d.stats.color_count + " yarn colours", "ok");
+      })
+      .catch(function () {
+        els.chartConvertBtn.disabled = false;
+        toast("Conversion failed", "error");
+      });
+  }
+
   // ---------- design application ----------
   function applyDesign(design, title) {
     state.canvas.loadGrid(design.width, design.height, design.grid);
     syncGridInputs(design.width, design.height);
     state.currentProjectId = null;
+    setNotes("");
+    // A generated/converted design is a PATTERN, so any imported chart artwork
+    // underneath it is no longer the substrate.
+    detachSource();
     if (title && !els.projectTitle.value) {
       els.projectTitle.value = title;
     }
@@ -1211,6 +2419,8 @@
     var gs = gridSize();
     state.canvas.newBlank(gs.w, gs.h);
     state.currentProjectId = null;
+    setNotes("");
+    detachSource();
     showCanvas(true);
     if (state.selectedIndex < 0 && state.palette.length)
       selectColor(state.palette[0].index);
@@ -1241,6 +2451,108 @@
   }
 
   /** Attach the floss match and the estimated skein count to legend rows. */
+  /**
+   * Thread equivalents: how much of a full stitch's thread one backstitch
+   * segment uses. A cross is two legs plus the return journey; a backstitch
+   * segment is about one leg, so half a stitch is the fair equivalent when
+   * estimating skeins. It is only used for the ESTIMATE — the legend still
+   * reports the real segment count.
+   */
+  var BACK_STITCH_EQUIV = 0.5;
+
+  function stitchEquiv(u) {
+    // `blendHalf` is already the half-stitch-per-side share, so a blended stitch
+    // contributes half a stitch of thread to each of its two colours.
+    return (u.count || 0) + (u.back || 0) * BACK_STITCH_EQUIV + (u.blendHalf || 0);
+  }
+
+  /**
+   * The legend / shopping list: ONE row per floss, whether that floss is used
+   * for stitches, for a backstitch outline, or both.
+   *
+   * A colour used ONLY as an outline has no cells at all, so `getCounts()` never
+   * mentions it. Building the list from the union is what stops a chart outlined
+   * in DMC 310 from telling you to buy every colour except the black.
+   */
+  function legendRows() {
+    var counts = state.canvas.getCounts();
+    var backs = state.canvas.backCounts ? state.canvas.backCounts() : {};
+    var blends = state.canvas.blendCounts ? state.canvas.blendCounts() : {};
+    var byIndex = {};
+    function slot(i) {
+      if (!byIndex[i]) {
+        byIndex[i] = {
+          index: i,
+          count: 0,
+          back: 0,
+          blendHalf: 0,
+          blendStitches: 0,
+        };
+      }
+      return byIndex[i];
+    }
+    Object.keys(counts).forEach(function (k) {
+      slot(parseInt(k, 10)).count = counts[k];
+    });
+    Object.keys(backs).forEach(function (k) {
+      slot(parseInt(k, 10)).back = backs[k];
+    });
+
+    // A blended stitch is two flosses held together, so it uses HALF a stitch's
+    // thread of EACH colour. Charge half to each side and take those stitches
+    // back off the primary's solid count, or the same stitch would appear in
+    // both the pair row and the primary row and be bought twice.
+    var pairs = [];
+    Object.keys(blends).forEach(function (key) {
+      var parts = key.split(",");
+      var a = parseInt(parts[0], 10);
+      var b = parseInt(parts[1], 10);
+      var n = blends[key];
+      if (!(n > 0) || !isFinite(a) || !isFinite(b) || a === b) return;
+      slot(a).count -= n;
+      slot(a).blendHalf += n * 0.5;
+      slot(a).blendStitches += n;
+      slot(b).blendHalf += n * 0.5;
+      slot(b).blendStitches += n;
+      pairs.push({ a: a, b: b, count: n });
+    });
+
+    var used = Object.keys(byIndex).map(function (k) {
+      var u = byIndex[k];
+      var e = state.paletteByIndex[u.index];
+      u.code = e ? e.code : "?";
+      u.name = e ? e.name : "Unknown";
+      u.hex = e ? e.hex : "#888";
+      return u;
+    });
+    // One row per BLEND, named for both flosses. The thread estimate stays on
+    // the two colour rows, so this row is the picture and the stitch count.
+    pairs.forEach(function (p) {
+      var ea = state.paletteByIndex[p.a];
+      var eb = state.paletteByIndex[p.b];
+      used.push({
+        index: p.a,
+        partnerIndex: p.b,
+        isBlend: true,
+        count: p.count,
+        back: 0,
+        blendHalf: 0,
+        blendStitches: 0,
+        code: (ea ? ea.code : "?") + " + " + (eb ? eb.code : "?"),
+        name:
+          (ea ? ea.name : "Unknown") + " + " + (eb ? eb.name : "Unknown"),
+        hex: ea ? ea.hex : "#888",
+        hex2: eb ? eb.hex : "#888",
+      });
+    });
+    // Most thread first, so a heavily-outlined colour is not buried at the end
+    // just because it has no stitches.
+    used.sort(function (a, b) {
+      return stitchEquiv(b) - stitchEquiv(a) || (b.back || 0) - (a.back || 0);
+    });
+    return annotateUsed(used);
+  }
+
   function annotateUsed(used) {
     var skn = window.StitchSkein;
     var raw = skeinConfig();
@@ -1251,9 +2563,18 @@
         if (u.code === undefined) u.code = e.code;
         if (u.name === undefined) u.name = e.name;
         if (u.hex === undefined) u.hex = e.hex;
-        u.dmc = e.dmc || null;
+        // A blend row is titled for TWO flosses, so it must not inherit one
+        // floss's DMC match (it would put a wrong code on the shopping list).
+        if (!u.isBlend) u.dmc = e.dmc || null;
       }
-      u.skeins = skn && raw ? skn.skeinsFor(u.count, count, raw) : 0;
+      // The skein estimate has to include the outline, or a colour used only for
+      // backstitch would be reported as needing no floss at all. A blend row
+      // owns none of the thread - the two colour rows do - so it holds none.
+      u.skeins = u.isBlend
+        ? 0
+        : skn && raw
+          ? skn.skeinsFor(stitchEquiv(u), count, raw)
+          : 0;
     });
     return used;
   }
@@ -1266,13 +2587,20 @@
     var o = skn.options(raw);
     var total = 0;
     var stitches = 0;
+    var backs = 0;
     used.forEach(function (u) {
       total += u.skeins || 0;
-      stitches += u.count;
+      stitches += u.count || 0;
+      backs += u.back || 0;
     });
+    // Backstitch is quoted in segments, not stitches, so it is named separately
+    // rather than folded silently into the stitch total.
+    var work =
+      stitches + " stitches" +
+      (backs ? " + " + backs + " backstitch segments" : "");
     return (
       "≈ " + total + " skein" + (total === 1 ? "" : "s") + " of " +
-      flossBrand() + " floss for " + stitches + " stitches at " +
+      flossBrand() + " floss for " + work + " at " +
       fabricCountValue() + " ct (" + o.usedStrands + " strands, includes " +
       Math.round(o.wasteFactor * 100) + "% waste). Estimate only."
     );
@@ -1327,24 +2655,7 @@
 
   // ---------- legend + info ----------
   function onDesignChange() {
-    var counts = state.canvas.getCounts();
-    var used = Object.keys(counts)
-      .map(function (k) {
-        var idx = parseInt(k, 10);
-        var e = state.paletteByIndex[idx];
-        return {
-          index: idx,
-          count: counts[k],
-          code: e ? e.code : "?",
-          name: e ? e.name : "Unknown",
-          hex: e ? e.hex : "#888",
-        };
-      })
-      .sort(function (a, b) {
-        return b.count - a.count;
-      });
-
-    annotateUsed(used);
+    var used = legendRows();
 
     els.legendCount.textContent = used.length;
     els.legendList.innerHTML = "";
@@ -1367,10 +2678,32 @@
         var dmcHtml = flossEnabled() && u.dmc
           ? '<span class="dmc">' + escapeHtml(flossBrand() + " " + u.dmc.code) + "</span>"
           : "";
+        // An outline-only colour has no stitch count, so "0" would read as a
+        // mistake; the backstitch length is the number that matters there.
+        var cntHtml = u.count ? String(u.count) : "";
+        var backHtml = u.back
+          ? '<span class="bkn" title="Backstitch segments in this colour">' +
+            u.back + " backstitch</span>"
+          : "";
+        // A blend has no skein figure of its own: its thread is charged to the
+        // two colour rows, half a stitch each. Say so rather than showing "0".
+        var blendHtml = u.isBlend
+          ? '<span class="bkn" title="Blended stitches: half a stitch of each floss">' +
+            "blend \u00b7 \u00bd each</span>"
+          : "";
+        var shareHtml =
+          !u.isBlend && u.blendStitches
+            ? '<span class="bkn" title="Stitches blended with another floss">' +
+              u.blendStitches + " in blends</span>"
+            : "";
+        // Two colours in one stitch: the swatch is split so the row shows the
+        // blend at a glance, exactly the way the stitch is drawn.
+        var swatchHtml = u.isBlend
+          ? '<span class="swatch blend" style="background:linear-gradient(135deg,' +
+            u.hex + ' 0 50%,' + u.hex2 + ' 50% 100%)"></span>'
+          : '<span class="swatch" style="background:' + u.hex + '"></span>';
         row.innerHTML =
-          '<span class="swatch" style="background:' +
-          u.hex +
-          '"></span>' +
+          swatchHtml +
           '<span class="code">' +
           escapeHtml(formatEntry(u, state.codeFormat)) +
           "</span>" +
@@ -1379,7 +2712,10 @@
           dmcHtml +
           "</span>" +
           '<span class="count">' +
-          u.count +
+          cntHtml +
+          backHtml +
+          blendHtml +
+          shareHtml +
           sknHtml +
           "</span>";
         row.addEventListener("click", function () {
@@ -1397,16 +2733,24 @@
 
     updateBuyYarn(used);
 
+    // The markup badges are driven from the same place as the legend, so adding
+    // or removing an annotation or a note updates the count immediately.
+    refreshOverlayCounts();
+
     updateInfoDims();
     if (!state.canvas.isEmpty()) {
       els.infoStitches.textContent =
-        "· " + state.canvas.stitchCount() + " stitches";
+        "· " + state.canvas.stitchCount() + " stitches" +
+        // Partial stitches and backstitch segments are extra marks in the same
+        // chart, so they belong on the same readout as the stitch count.
+        (stitchTypeText() ? " " + stitchTypeText() : "");
       els.infoColors.textContent =
         "· " + state.canvas.colorCount() + " colours";
     }
     // Painting changes the stitch total, which shifts the progress percentage.
     scheduleProgressUiRefresh();
     updateSelectionUI();
+    refreshLocateCount();
   }
 
   function escapeHtml(s) {
@@ -1421,15 +2765,162 @@
     });
   }
 
+  // ---------- shade card ----------
+  // Every palette colour with its code and nearest DMC floss, so the whole
+  // stash can be surveyed at once (the legend lists only the colours in use).
+  function buildShadeCard() {
+    var host = els.shadeCardBody;
+    if (!host) return;
+    host.innerHTML = "";
+    if (!state.palette.length) {
+      host.innerHTML = '<p class="shade-card-empty">Palette not loaded yet.</p>';
+      return;
+    }
+    state.palette.forEach(function (e) {
+      var item = document.createElement("button");
+      item.type = "button";
+      item.className = "shade-item";
+      item.title = "Paint with " + e.name;
+      var dmcHtml =
+        flossEnabled() && e.dmc
+          ? '<span class="shade-dmc">' +
+            escapeHtml(flossBrand() + " " + e.dmc.code) +
+            "</span>"
+          : "";
+      item.innerHTML =
+        '<span class="shade-swatch" style="background:' +
+        e.hex +
+        '"></span>' +
+        '<span class="shade-meta">' +
+        '<span class="shade-code">' +
+        escapeHtml(e.code || "") +
+        "</span>" +
+        '<span class="shade-name">' +
+        escapeHtml(e.name || "") +
+        "</span>" +
+        dmcHtml +
+        "</span>";
+      item.addEventListener("click", function () {
+        selectColor(e.index);
+        closeShadeCard();
+      });
+      host.appendChild(item);
+    });
+  }
+
+  function openShadeCard() {
+    if (!els.shadeCardModal) return;
+    buildShadeCard();
+    els.shadeCardModal.classList.add("active");
+    els.shadeCardModal.setAttribute("aria-hidden", "false");
+    if (els.shadeCardClose) els.shadeCardClose.focus();
+  }
+
+  function closeShadeCard() {
+    if (!els.shadeCardModal) return;
+    els.shadeCardModal.classList.remove("active");
+    els.shadeCardModal.setAttribute("aria-hidden", "true");
+    if (els.shadeCardBtn) els.shadeCardBtn.focus();
+  }
+
+  // ---------- locate / spotlight ----------
+  // Dim the chart and ring every stitch of the selected colour (or every stitch
+  // sharing the selected colour's symbol). Drawn by the canvas outside
+  // drawChart, so it is a view aid only and never reaches an export.
+  function locateValue() {
+    if (state.selectedIndex < 0) return null;
+    return state.locateMode === "symbol"
+      ? state.canvas.glyphFor(state.selectedIndex)
+      : state.selectedIndex;
+  }
+
+  function applySpotlight() {
+    if (!state.canvas) return;
+    if (!els.toggleLocate.checked) {
+      state.canvas.clearSpotlight();
+      return;
+    }
+    var value = locateValue();
+    if (value === null) {
+      els.toggleLocate.checked = false;
+      toast("Pick a colour to locate first", "warn");
+      state.canvas.clearSpotlight();
+      return;
+    }
+    state.canvas.setSpotlight({ kind: state.locateMode, value: value });
+  }
+
+  function refreshLocateCount() {
+    if (!els.locateCount || !state.canvas) return;
+    if (!state.canvas.hasSpotlight()) {
+      els.locateCount.textContent = "\u2014";
+      return;
+    }
+    var n = state.canvas.spotlightCount();
+    els.locateCount.textContent = n + (n === 1 ? " stitch" : " stitches");
+  }
+
+  function updateLocateUI() {
+    refreshLocateCount();
+  }
+
+  function setLocateMode(mode) {
+    state.locateMode = mode === "symbol" ? "symbol" : "colour";
+    els.locateByColour.classList.toggle("active", state.locateMode === "colour");
+    els.locateBySymbol.classList.toggle("active", state.locateMode === "symbol");
+    if (els.toggleLocate.checked) applySpotlight();
+  }
+
+  function clearLocate() {
+    els.toggleLocate.checked = false;
+    if (state.canvas) state.canvas.clearSpotlight();
+    syncToolOptions();
+  }
+
+  /** Centre the chart on a cell (used by "Next unstitched"). */
+  function scrollToCell(cell) {
+    if (!cell || !els.canvasWrap || !state.canvas) return;
+    var s = state.canvas.cellSize;
+    var wrap = els.canvasWrap;
+    wrap.scrollLeft = cell.c * s - wrap.clientWidth / 2 + s / 2;
+    wrap.scrollTop = cell.r * s - wrap.clientHeight / 2 + s / 2;
+  }
+
+  function locateNextUnstitched() {
+    if (!state.canvas || !state.canvas.hasSpotlight()) {
+      toast("Turn Locate on first", "warn");
+      return;
+    }
+    var cell = state.canvas.nextUnstitched();
+    if (!cell) {
+      toast("No unstitched stitches of this colour left", "ok");
+      return;
+    }
+    scrollToCell(cell);
+  }
+
   // ---------- tools ----------
   function setMode(mode) {
     state.canvas.setMode(mode);
     els.toolPaint.classList.toggle("active", mode === "paint");
     els.toolErase.classList.toggle("active", mode === "erase");
     els.toolFill.classList.toggle("active", mode === "fill");
+    els.toolPick.classList.toggle("active", mode === "pick");
+    els.toolBack.classList.toggle("active", mode === "back");
+    els.toolAnnot.classList.toggle("active", mode === "annotate");
+    els.toolNote.classList.toggle("active", mode === "note");
     els.toolProgress.classList.toggle("active", mode === "progress");
     els.toolSelect.classList.toggle("active", mode === "select");
     els.toolOverlay.classList.toggle("active", mode === "overlay");
+    // Picking the tracker turns the view ON. Marks are recorded whether or not
+    // the overlay is showing, so without this you could mark stitches and see
+    // nothing at all — the single most confusing way to meet the feature.
+    if (mode === "progress" && !state.canvas.progressOn) {
+      els.progressOn.checked = true;
+      state.canvas.setProgressOn(true);
+      scheduleProgressSave();
+      updateProgressUI();
+    }
     syncToolOptions();
   }
 
@@ -1441,12 +2932,92 @@
   function syncToolOptions() {
     var mode = state.canvas ? state.canvas.mode : "paint";
     els.selectOptions.hidden = mode !== "select";
-    els.progressOptions.hidden = !(
-      mode === "progress" || els.progressOn.checked
-    );
+    // ONLY while the Progress tool is up. It used to stay visible whenever
+    // tracking was on, which stacked it under another tool's row and resized the
+    // canvas out from under the pointer. Nothing is lost: the live readout moved
+    // to the info line under the canvas, where it is visible while you paint.
+    els.progressOptions.hidden = mode !== "progress";
     // Alignment is a tool like the others, so its controls follow the tool:
-    // they appear with Align and get out of the way for everything else.
-    els.overlayOptions.hidden = mode !== "overlay";
+    // they appear with Align and get out of the way for everything else. In
+    // chart mode there is no tracing photo — Align seats a PAGE, whose controls
+    // live with the page list instead of here.
+    els.overlayOptions.hidden = mode !== "overlay" || state.docKind === "chart";
+    // The markup layers bring their own controls, like every other tool.
+    if (els.annotOptions) els.annotOptions.hidden = mode !== "annotate";
+    if (els.noteOptions) els.noteOptions.hidden = mode !== "note";
+    // The locate row stays up while locating, regardless of the active tool.
+    els.locateOptions.hidden = !els.toggleLocate.checked;
+    syncToolContextual(mode);
+    syncOptionsBar();
+  }
+
+  /**
+   * Show the toolbar controls that only apply to some tools, and hide the rest.
+   * Size and Stitch-place change what a click LAYS DOWN, so they only mean
+   * something to the tools that place stitches; showing them while Annotating is
+   * noise. The Trace cluster is only useful to the Align tool, which is the only
+   * one that can move the photo.
+   *
+   * All of it lives in the RIGHT-hand zone, so none of this coming and going can
+   * move the static tools on the left.
+   */
+  function syncToolContextual(mode) {
+    var places = mode === "paint" || mode === "fill" || mode === "erase";
+    var parts = mode === "paint" || mode === "fill" || mode === "back";
+    if (els.brushGroup) els.brushGroup.hidden = !places;
+    if (els.stitchPlaceGroup) els.stitchPlaceGroup.hidden = !parts;
+    // The cluster exists only to hold those two, so it goes when they both do -
+    // otherwise it would be a label and a divider rule around nothing.
+    if (els.stitchCluster) {
+      els.stitchCluster.hidden = !places && !parts;
+    }
+    if (els.overlayGroup) {
+      // The Trace cluster is only useful to Align - but it is ALSO the only way to
+      // load a photo, and the Align button stays disabled until one is loaded. So
+      // it remains in the row while there is no photo yet, and steps aside once
+      // there is one (you are then either aligning it or not).
+      var hasPhoto = !!state.overlay;
+      els.overlayGroup.hidden =
+        state.docKind === "chart" || (mode !== "overlay" && hasPhoto);
+    }
+    // With nothing left to show, the zone itself goes: an empty right-hand block
+    // would still draw its divider rule. The static zone is never touched.
+    if (els.toolbarDynamic) {
+      var stitchShown = els.stitchCluster && !els.stitchCluster.hidden;
+      var traceShown = els.overlayGroup && !els.overlayGroup.hidden;
+      els.toolbarDynamic.hidden = !stitchShown && !traceShown;
+    }
+  }
+
+  /** The View popover: one button, closed by Escape or a click anywhere else. */
+  function setViewMenuOpen(open) {
+    if (!els.viewMenu || !els.viewBtn) return;
+    els.viewMenu.hidden = !open;
+    els.viewBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    els.viewBtn.classList.toggle("active", !!open);
+  }
+
+  /**
+   * The options bar exists only while one of its rows does. Below the toolbar the
+   * canvas is the flexible element, so an empty bar would be a band of nothing
+   * pushing the chart down - and the rows themselves are the single source of
+   * truth for whether anything applies.
+   */
+  function syncOptionsBar() {
+    if (!els.optionsBar) return;
+    var rows = [
+      els.selectOptions,
+      els.progressOptions,
+      els.annotOptions,
+      els.noteOptions,
+      els.locateOptions,
+      els.overlayOptions,
+    ];
+    var any = false;
+    rows.forEach(function (row) {
+      if (row && !row.hidden) any = true;
+    });
+    els.optionsBar.hidden = !any;
   }
 
   /** The readouts are editable number fields, so both sides get the value. */
@@ -1696,6 +3267,8 @@
       return;
     }
     var design = state.canvas.getDesign();
+    var layers = designLayers();
+    var overlays = designOverlays();
     var title = els.projectTitle.value.trim() || "Untitled Design";
     var isUpdate = !!state.currentProjectId;
     var url = isUpdate
@@ -1710,7 +3283,26 @@
     fetch(url, {
       method: method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: title, grid: design.grid }),
+      body: JSON.stringify({
+        title: title,
+        grid: design.grid,
+        notes: state.notes,
+        kind: state.docKind,
+        source: state.docKind === "chart" ? state.source : null,
+        pages: state.docKind === "chart" ? pageDescriptors() : null,
+        // STITCH TYPES: the mark each cell carries, and the outlines on the cell
+        // borders. Omitted entirely when a design uses neither, so an ordinary
+        // pattern's document looks exactly as it always did.
+        frac: layers.frac,
+        back: layers.back,
+        // BLENDS: the partner floss of every cell stitched with two flosses
+        // held together. Also omitted when unused.
+        blend: layers.blend,
+        // Your own reminders about the chart. They never print, but they are
+        // part of the document, so they travel with it.
+        annots: overlays.annots,
+        cellNotes: overlays.cellNotes,
+      }),
     })
       .then(function (r) {
         return r.json().then(function (d) {
@@ -1810,10 +3402,16 @@
           return;
         }
         var p = res.d.project;
-        state.canvas.loadGrid(p.width, p.height, p.grid);
+        var pl = docLayers(p, p.width, p.height);
+        state.canvas.loadGrid(
+          p.width, p.height, p.grid, pl.frac, pl.back, pl.blend,
+        );
+        applyOverlays(p);
         syncGridInputs(p.width, p.height);
         state.currentProjectId = p.id;
         els.projectTitle.value = p.title;
+        setNotes(p.notes || "");
+        restoreProjectKind(p, true);
         loadProgress();
         showCanvas(true);
         updateZoomLabel();
@@ -2142,27 +3740,41 @@
       return;
     }
     var design = state.canvas.getDesign();
-    var counts = state.canvas.getCounts();
-    var legend = annotateUsed(
-      Object.keys(counts).map(function (k) {
-        var e = state.paletteByIndex[parseInt(k, 10)];
-        return {
-          index: parseInt(k, 10),
-          code: e ? e.code : "",
-          name: e ? e.name : "",
-          hex: e ? e.hex : "",
-          count: counts[k],
-        };
-      }),
-    );
-    // Compact the floss match down to what a shopping list needs.
-    legend.forEach(function (r) {
-      r.dmc = r.dmc ? { code: r.dmc.code, name: r.dmc.name } : null;
+    var layers = designLayers();
+    var overlays = designOverlays();
+    // The same rows the legend shows, so an export cannot disagree with what the
+    // user read on screen.
+    var legend = legendRows().map(function (r) {
+      return {
+        index: r.index,
+        code: r.code,
+        name: r.name,
+        hex: r.hex,
+        count: r.count,
+        // A shopping list needs backstitch as its own line: a chart outlined in
+        // one floss but stitched in another needs both on the order.
+        backstitch: r.back || 0,
+        skeins: r.skeins || 0,
+        dmc: r.dmc ? { code: r.dmc.code, name: r.dmc.name } : null,
+      };
     });
     var doc = {
       app: "cross-canvas-art",
       version: 1,
       title: els.projectTitle.value.trim() || "Untitled Design",
+      notes: state.notes,
+      kind: state.docKind,
+      // The image BYTES are never exported (IndexedDB only): a chart export
+      // carries the page geometry + names so it can be re-linked locally.
+      source: state.docKind === "chart" ? state.source : null,
+      pages: state.docKind === "chart" ? pageDescriptors() : null,
+      // Stitch-type layers, run-length encoded so a sparse outline stays small.
+      frac: layers.frac,
+      back: layers.back,
+      blend: layers.blend,
+      // Annotations and per-cell notes (on-screen only, but saved).
+      annots: overlays.annots,
+      cellNotes: overlays.cellNotes,
       width: design.width,
       height: design.height,
       grid: design.grid,
@@ -2180,10 +3792,16 @@
       try {
         var doc = JSON.parse(e.target.result);
         if (!doc.grid || !doc.width || !doc.height) throw new Error("bad");
-        state.canvas.loadGrid(doc.width, doc.height, doc.grid);
+        var jl = docLayers(doc, doc.width, doc.height);
+        state.canvas.loadGrid(
+          doc.width, doc.height, doc.grid, jl.frac, jl.back, jl.blend,
+        );
+        applyOverlays(doc);
         syncGridInputs(doc.width, doc.height);
         state.currentProjectId = null;
         if (doc.title) els.projectTitle.value = doc.title;
+        setNotes(doc.notes || "");
+        restoreProjectKind(doc, true);
         showCanvas(true);
         updateZoomLabel();
         onDesignChange();
@@ -2226,6 +3844,7 @@
           $("sourceUpload").hidden = tab !== "upload";
           $("sourceAI").hidden = tab !== "ai";
           $("sourceBlank").hidden = tab !== "blank";
+          $("sourceChart").hidden = tab !== "chart";
         });
       },
     );
@@ -2349,6 +3968,91 @@
     // blank
     els.newBlankBtn.addEventListener("click", newBlank);
 
+    // import an existing chart (markup mode)
+    els.chartDropZone.addEventListener("click", function () {
+      els.chartInput.click();
+    });
+    els.chartDropZone.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        els.chartInput.click();
+      }
+    });
+    els.chartInput.addEventListener("change", function () {
+      if (this.files.length) onChartSelected(this.files);
+    });
+    ["dragover", "dragenter"].forEach(function (ev) {
+      els.chartDropZone.addEventListener(ev, function (e) {
+        e.preventDefault();
+        els.chartDropZone.classList.add("dragover");
+      });
+    });
+    ["dragleave", "drop"].forEach(function (ev) {
+      els.chartDropZone.addEventListener(ev, function (e) {
+        e.preventDefault();
+        els.chartDropZone.classList.remove("dragover");
+      });
+    });
+    els.chartDropZone.addEventListener("drop", function (e) {
+      if (e.dataTransfer.files.length) onChartSelected(e.dataTransfer.files);
+    });
+    els.chartImportBtn.addEventListener("click", importChart);
+    els.readChartBtn.addEventListener("click", readChart);
+    els.chartConvertBtn.addEventListener("click", convertChartToPattern);
+    els.chartShow.addEventListener("change", function () {
+      state.canvas.setOverlayOn(this.checked);
+    });
+
+    // chart pages
+    els.addPageBtn.addEventListener("click", function () {
+      els.addPageInput.click();
+    });
+    els.addPageInput.addEventListener("change", function () {
+      if (this.files.length) addChartPages(this.files);
+    });
+    els.joinRightBtn.addEventListener("click", function () {
+      joinActivePage("right");
+    });
+    els.joinBelowBtn.addEventListener("click", function () {
+      joinActivePage("below");
+    });
+    els.pageRotateBtn.addEventListener("click", rotateActivePage);
+    els.pageRemoveBtn.addEventListener("click", removeActivePage);
+    [
+      [els.pageCol, "col"],
+      [els.pageRow, "row"],
+      [els.pageCols, "cols"],
+      [els.pageRows, "rows"],
+    ].forEach(function (pair) {
+      pair[0].addEventListener("change", function () {
+        var part = {};
+        part[pair[1]] = parseFloat(this.value);
+        setActivePageGeometry(part);
+      });
+    });
+    // One delegated listener for the whole list, so reordering pages does not
+    // need a handler per row that has to be rebuilt with it.
+    els.pagesList.addEventListener("click", function (e) {
+      var t = e.target;
+      if (!t || !t.closest) return;
+      var orderBtn = t.closest("button[data-act]");
+      if (orderBtn) {
+        moveActivePage(orderBtn.getAttribute("data-act") === "up" ? -1 : 1);
+        return;
+      }
+      var item = t.closest(".page-item");
+      if (item) setActivePage(parseInt(item.getAttribute("data-index"), 10));
+    });
+    els.pagesList.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      var t = e.target;
+      if (!t || !t.closest) return;
+      var item = t.closest(".page-item");
+      if (!item) return;
+      e.preventDefault();
+      setActivePage(parseInt(item.getAttribute("data-index"), 10));
+    });
+
     // palette search
     els.paletteSearch.addEventListener("input", filterPalette);
 
@@ -2362,6 +4066,88 @@
     els.toolFill.addEventListener("click", function () {
       setMode("fill");
     });
+    els.toolPick.addEventListener("click", function () {
+      setMode("pick");
+    });
+    els.toolBack.addEventListener("click", function () {
+      setMode("back");
+    });
+    els.toolAnnot.addEventListener("click", function () {
+      setMode("annotate");
+    });
+    els.toolNote.addEventListener("click", function () {
+      setMode("note");
+    });
+
+    // Annotations: a shape to drag out, or a label to click down.
+    [
+      [els.annotArrow, "arrow"],
+      [els.annotEllipse, "ellipse"],
+      [els.annotRect, "rect"],
+      [els.annotLabel, "text"],
+    ].forEach(function (pair) {
+      pair[0].addEventListener("click", function () {
+        setAnnotKind(pair[1]);
+      });
+    });
+    els.annotText.addEventListener("input", function () {
+      state.annotText = this.value;
+      state.canvas.setAnnotText(this.value);
+    });
+    els.annotClearBtn.addEventListener("click", function () {
+      if (!state.canvas.clearAnnotations()) return;
+      state.canvas._pushHistory();
+      markDirty();
+      refreshOverlayCounts();
+      toast("Annotations cleared", "ok");
+    });
+
+    // Per-cell notes: click a stitch to load its note, then Save or Clear.
+    els.noteSaveBtn.addEventListener("click", commitNote);
+    els.noteClearBtn.addEventListener("click", function () {
+      if (!state.noteCell) return;
+      if (state.canvas.setCellNote(state.noteCell.r, state.noteCell.c, "")) {
+        els.noteInput.value = "";
+        state.canvas._pushHistory();
+        markDirty();
+        refreshOverlayCounts();
+        toast("Note cleared", "ok");
+      }
+    });
+    els.noteInput.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        commitNote();
+      }
+    });
+    // Clicking a stitch with the Note tool loads that cell's note into the box.
+    els.stitchCanvas.addEventListener("click", function (e) {
+      if (state.canvas.mode !== "note") return;
+      var cell = state.canvas._cellFromEvent(e);
+      if (!cell) return;
+      state.noteCell = { r: cell.r, c: cell.c };
+      els.noteInput.value = state.canvas.cellNoteAt(cell.r, cell.c);
+      els.noteInput.focus();
+    });
+    // Stitch type: what the paint, fill and erase tools lay down. A partial
+    // stitch keeps the cell's colour, so it still counts, legends and estimates
+    // exactly like a full cross.
+    els.stitchPart.addEventListener("change", function () {
+      setStitchPart(parseInt(this.value, 10) || 0);
+    });
+    // Blended threads: two flosses held together in one stitch.
+    if (els.blendOn) {
+      els.blendOn.addEventListener("change", function () {
+        setBlendOn(this.checked);
+      });
+    }
+    if (els.blendWith) {
+      els.blendWith.addEventListener("change", function () {
+        setBlendPartner(parseInt(this.value, 10));
+        // Choosing a second floss IS the intent to blend, so the box follows.
+        if (state.blendIndex >= 0 && !els.blendOn.checked) setBlendOn(true);
+      });
+    }
     els.brushSize.addEventListener("change", function () {
       state.canvas.setBrushSize(this.value);
     });
@@ -2392,6 +4178,12 @@
       }
       var mod = e.ctrlKey || e.metaKey;
       var k = e.key.toLowerCase();
+      // Escape closes the View popover from anywhere, including with an empty
+      // canvas (which returns early further down).
+      if (e.key === "Escape" && els.viewMenu && !els.viewMenu.hidden) {
+        setViewMenuOpen(false);
+        return;
+      }
       if (mod && k === "z") {
         e.preventDefault();
         undoAction();
@@ -2410,7 +4202,13 @@
         e.preventDefault();
         var odr = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
         var odc = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
-        state.canvas.nudgeOverlay(odc, odr, e.shiftKey ? 10 : 1);
+        // In chart mode Align moves the ACTIVE PAGE a cell at a time; otherwise
+        // it nudges the tracing photo, as before.
+        if (state.pages.length) {
+          nudgeActivePage(odc, odr, e.shiftKey ? 10 : 1);
+        } else {
+          state.canvas.nudgeOverlay(odc, odr, e.shiftKey ? 10 : 1);
+        }
         return;
       }
       if (mod && k === "a") {
@@ -2463,6 +4261,36 @@
     els.toggleStitch.addEventListener("change", function () {
       state.canvas.setOption("showStitch", this.checked);
     });
+
+    // View popover: one button for the display toggles. A click outside or Escape
+    // closes it; clicking a checkbox inside deliberately does NOT, so several can
+    // be changed in a row.
+    if (els.viewBtn && els.viewMenu) {
+      els.viewBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        setViewMenuOpen(els.viewMenu.hidden);
+      });
+      els.viewMenu.addEventListener("click", function (e) {
+        e.stopPropagation();
+      });
+      document.addEventListener("click", function () {
+        setViewMenuOpen(false);
+      });
+    }
+
+    // locate / spotlight
+    els.toggleLocate.addEventListener("change", function () {
+      applySpotlight();
+      syncToolOptions();
+    });
+    els.locateByColour.addEventListener("click", function () {
+      setLocateMode("colour");
+    });
+    els.locateBySymbol.addEventListener("click", function () {
+      setLocateMode("symbol");
+    });
+    els.locateNextBtn.addEventListener("click", locateNextUnstitched);
+    els.locateClearBtn.addEventListener("click", clearLocate);
 
     // progress tracker
     els.toolProgress.addEventListener("click", function () {
@@ -2550,6 +4378,10 @@
 
     // projects / export
     els.projectTitle.addEventListener("input", markDirty);
+    els.projectNotes.addEventListener("input", function () {
+      state.notes = this.value;
+      markDirty();
+    });
     els.saveProjectBtn.addEventListener("click", saveProject);
     els.exportPngBtn.addEventListener("click", exportPng);
     els.exportSvgBtn.addEventListener("click", exportSvg);
@@ -2611,6 +4443,13 @@
       }
     });
 
+    // shade card
+    els.shadeCardBtn.addEventListener("click", openShadeCard);
+    els.shadeCardClose.addEventListener("click", closeShadeCard);
+    els.shadeCardModal.addEventListener("click", function (e) {
+      if (e.target === els.shadeCardModal) closeShadeCard();
+    });
+
     window.addEventListener("beforeunload", function (e) {
       if (!state.dirty) return undefined;
       e.preventDefault();
@@ -2652,10 +4491,48 @@
       },
       onOverlayChange: function () {
         syncOverlayControls();
+        // Re-seating an imported chart's artwork is an edit, so it must be saved
+        // like any other change.
+        if (state.docKind === "chart") markDirty();
+      },
+      onSpotlightChange: function () {
+        updateLocateUI();
+      },
+      onPick: function (index) {
+        // Eyedropper: adopt the colour but STAY in the tool, so several colours
+        // can be picked one after another.
+        selectColor(index, true);
+        var e = state.paletteByIndex[index];
+        toast("Picked " + (e ? e.name : "colour"), "ok");
+      },
+      onPageChange: function (index, geom) {
+        // A page is being dragged: mirror it into the page list live, but do NOT
+        // re-fit the grid mid-drag (that would shift the page under the pointer).
+        var p = state.pages[index];
+        if (!p) return;
+        if (typeof geom.col === "number") p.col = geom.col;
+        if (typeof geom.row === "number") p.row = geom.row;
+        if (typeof geom.cols === "number") p.cols = Math.max(1, geom.cols);
+        if (typeof geom.rows === "number") p.rows = Math.max(1, geom.rows);
+        syncPageControls();
+      },
+      onPageCommit: function () {
+        // Drag finished: now grow/re-origin the grid so it contains the chart.
+        var capped = fitGridToPages();
+        syncGridInputs(state.canvas.width, state.canvas.height);
+        syncPagesToCanvas();
+        refreshPagesUI();
+        if (capped) toast("The canvas is at its 500-stitch limit", "warn");
+        markDirty();
       },
     });
     initFeatureFlags();
     bind();
+    // Mirror the default stitch type into the readout and the canvas, so the two
+    // are never out of step on a fresh page.
+    setStitchPart(0);
+    setAnnotKind("arrow");
+    refreshOverlayCounts();
     updateSelectionUI();
     syncToolOptions();
     loadConfig();

@@ -9,6 +9,11 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%237c3aed'/%3E%3Cpath d='M8 8l16 16M24 8L8 24' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#0f1117">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Stitchee">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="{{ seo_site_name }}">
     <meta property="og:title" content="{{ seo_title }}">
@@ -80,6 +85,7 @@
                 </span>
                 <span class="ext-tool-name">Font Builder Studio</span>
             </a>
+            <button id="installBtn" class="btn-ghost install-btn" type="button" title="Install Stitchee as an app" hidden>Install app</button>
             <button id="helpBtn" class="btn-ghost" type="button" title="How it works">Help</button>
             <div id="authHeader" class="auth-header" style="display:none"></div>
         </div>
@@ -91,6 +97,7 @@
             <section class="panel">
                 <div class="panel-head">
                     <h2>Yarn palette</h2>
+                    <button id="shadeCardBtn" class="btn-ghost shade-card-btn" type="button" title="Shade card: every yarn colour with its code and DMC floss">Shades</button>
                     <input type="search" id="paletteSearch" placeholder="Filter…" class="mini-search">
                 </div>
                 <div class="selected-yarn">
@@ -100,6 +107,17 @@
                     </div>
                 </div>
                 <div id="codeFormats" class="code-formats" aria-label="Colour label format"></div>
+                <!-- Blended threads: two flosses held together in one stitch, which
+                     is how a chart shows a colour you cannot buy. Lives here
+                     because it is a property of the colour you are painting with. -->
+                <div class="blend-row">
+                    <label class="check" title="Paint with two flosses held together (a blend)">
+                        <input type="checkbox" id="blendOn"> Blend
+                    </label>
+                    <select id="blendWith" disabled aria-label="Second floss to blend with"
+                            title="The second floss in the blend"></select>
+                    <span class="hint" id="blendHint">two flosses together</span>
+                </div>
                 <div id="paletteGroups" class="palette-groups"></div>
             </section>
 
@@ -117,76 +135,174 @@
 
         <!-- ============ CENTER: CANVAS ============ -->
         <section class="canvas-area">
-            <div class="canvas-toolbar">
-                <div class="tool-group">
-                    <button id="toolPaint" class="tool active" type="button" title="Paint (left click)">&#9998; Paint</button>
-                    <button id="toolErase" class="tool" type="button" title="Erase (right click)">
-                        <svg width="15" height="11" viewBox="0 0 15 11" aria-hidden="true" style="vertical-align:-2px;margin-right:3px"><rect x=".5" y=".5" width="14" height="10" rx="1.5" fill="currentColor" opacity=".85"/><rect x=".5" y="5.5" width="6" height="5" rx="1" fill="#a855f7"/><line x1=".5" y1="5.5" x2="14.5" y2="5.5" stroke="rgba(0,0,0,.35)" stroke-width="1"/></svg>Erase
-                    </button>
-                    <button id="toolFill" class="tool" type="button" title="Fill (flood fill)">&#128396; Fill</button>
-                    <button id="toolProgress" class="tool" type="button" title="Progress tracker: click stitches to mark them stitched (right-click clears)">&#10003; Progress</button>
-                    <button id="toolSelect" class="tool" type="button" title="Select tool: drag a rectangle to select an area">&#9744; Select</button>
-                    <button id="toolOverlay" class="tool" type="button" disabled
-                        title="Align the tracing photo: drag it to move, drag a handle to stretch it">&#9707; Align</button>
+            <!-- The toolbar is grouped into named clusters so ~30 controls read as
+                 a handful of ideas: what you DRAW, how a stitch is made, what you
+                 MARK UP, what you TRACK, movement, and what you SEE. Every id is
+                 stable - the option rows and the JS both key off them. The icons
+                 are inline SVG (never emoji, which render differently on every
+                 platform) and share `.tool-icon` for stroke weight. -->
+            <div class="canvas-toolbar" id="canvasToolbar">
+                <!-- STATIC LEFT. Nothing in this block ever appears or disappears,
+                     so every tool button stays exactly where you last found it. The
+                     changing settings live on the right precisely so that them
+                     coming and going cannot shift these buttons. -->
+                <div class="tool-static" id="toolbarStatic">
+                <div class="tool-cluster">
+                    <span class="tool-cluster-label">Draw</span>
+                    <div class="tool-group">
+                        <button id="toolPaint" class="tool active" type="button" title="Paint (left click)"><svg class="tool-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M11.2 2.3l2.5 2.5-7.4 7.4-3.6 1.1 1.1-3.6z"/><path d="M9.7 3.8l2.5 2.5"/></svg>Paint</button>
+                        <button id="toolErase" class="tool" type="button" title="Erase (right click)"><svg class="tool-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.4 12.5l-3.6-3.6a1.6 1.6 0 0 1 0-2.2l4.3-4.3a1.6 1.6 0 0 1 2.2 0l3.6 3.6a1.6 1.6 0 0 1 0 2.2l-4.3 4.3z"/><path d="M4.6 6.6l4.8 4.8"/><path d="M2.5 13.8h11"/></svg>Erase</button>
+                        <button id="toolFill" class="tool" type="button" title="Fill (flood fill)"><svg class="tool-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M7 2.4l5.6 5.6-4 4a1.6 1.6 0 0 1-2.3 0L2.4 8.1a1.6 1.6 0 0 1 0-2.2z"/><path d="M4.4 4.9l3.4-3.4"/><path d="M13.6 10.6c.9 1.2.9 2.1-.1 2.1s-1-.9.1-2.1z"/></svg>Fill</button>
+                        <button id="toolPick" class="tool" type="button" title="Eyedropper: pick a colour from the canvas or the imported chart"><svg class="tool-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M11.6 1.6l2.8 2.8-2.4 2.4-2.8-2.8z"/><path d="M8.8 4.4l-6 6-.7 2.9 2.9-.7 6-6"/></svg>Pick</button>
+                    </div>
                 </div>
-                <div class="tool-group">
-                    <label class="brush-size-label" style="display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text-faint);">
-                        Size:
-                        <select id="brushSize" style="background: var(--bg-3); color: var(--text); border: 1px solid var(--border-2); border-radius: 4px; padding: 2px 4px; font-size: 12px; cursor: pointer;">
-                            <option value="1">1px</option>
-                            <option value="2">2px</option>
-                            <option value="3">3px</option>
-                            <option value="4">4px</option>
-                            <option value="5">5px</option>
-                        </select>
-                    </label>
+
+                <!-- How a stitch is MADE (the brush size and which PART of a stitch
+                     a click lays down) lives in the changing zone on the right: it
+                     only applies to tools that place stitches, so it cannot sit in
+                     the static block without moving the tools when it hides. -->
+                <div class="tool-cluster">
+                    <span class="tool-cluster-label">Mark</span>
+                    <div class="tool-group">
+                        <button id="toolBack" class="tool" type="button" title="Backstitch: drag along a cell border to run an outline over the stitches (right-click clears a segment)"><svg class="tool-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 10.5h12" stroke-dasharray="3 2.4"/><path d="M4 5.5h8"/></svg>Backstitch</button>
+                        <button id="toolAnnot" class="tool" type="button" title="Annotate: draw an arrow, circle, box or label over the chart. On screen only - never exported."><svg class="tool-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 13.5L13 3"/><path d="M13 3l-4.6 1.1 3.5 3.5z" fill="currentColor" stroke="none"/></svg>Annotate</button>
+                        <button id="toolNote" class="tool" type="button" title="Note: click a stitch to attach a private reminder to it. On screen only - never exported."><svg class="tool-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 1.8v12.4"/><path d="M4.5 2.8h7.6l-1.9 2.6 1.9 2.6H4.5z"/></svg>Note</button>
+                    </div>
                 </div>
-                <div class="tool-group">
-                    <button id="btnUndo" class="tool" type="button" title="Undo (Ctrl+Z)" aria-label="Undo">&#8630;</button>
-                    <button id="btnRedo" class="tool" type="button" title="Redo (Ctrl+Y)" aria-label="Redo">&#8631;</button>
+
+                <div class="tool-cluster">
+                    <span class="tool-cluster-label">Track</span>
+                    <div class="tool-group">
+                        <button id="toolProgress" class="tool" type="button" title="Progress tracker: click stitches to mark them stitched (right-click clears)"><svg class="tool-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.8 8.6l3.3 3.3L13.2 4.8"/></svg>Progress</button>
+                        <button id="toolSelect" class="tool" type="button" title="Select tool: drag a rectangle to select an area"><svg class="tool-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="1.2" stroke-dasharray="3.2 2.2"/></svg>Select</button>
+                        <button id="toolOverlay" class="tool" type="button" disabled
+                            title="Align the tracing photo: drag it to move, drag a handle to stretch it"><svg class="tool-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 5.5V2h3.5M10.5 2H14v3.5M14 10.5V14h-3.5M5.5 14H2v-3.5"/><path d="M8 5.4v5.2M5.4 8h5.2"/></svg>Align</button>
+                    </div>
                 </div>
-                <div class="tool-group">
-                    <button id="zoomOut" class="tool" type="button" title="Zoom out" aria-label="Zoom out">&minus;</button>
-                    <span id="zoomLevel" class="zoom-level">100%</span>
-                    <button id="zoomIn" class="tool" type="button" title="Zoom in" aria-label="Zoom in">+</button>
-                    <button id="zoomFit" class="tool" type="button" title="Fit to view">Fit</button>
+
+                <div class="tool-cluster">
+                    <span class="tool-cluster-label">Move</span>
+                    <div class="tool-group">
+                        <button id="btnUndo" class="tool" type="button" title="Undo (Ctrl+Z)" aria-label="Undo"><svg class="tool-icon solo" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.2 8h6.4a3 3 0 0 1 0 6H5.4"/><path d="M6.2 5L3.2 8l3 3"/></svg></button>
+                        <button id="btnRedo" class="tool" type="button" title="Redo (Ctrl+Y)" aria-label="Redo"><svg class="tool-icon solo" viewBox="0 0 16 16" aria-hidden="true"><path d="M12.8 8H6.4a3 3 0 0 0 0 6h4.2"/><path d="M9.8 5l3 3-3 3"/></svg></button>
+                    </div>
+                    <div class="tool-group">
+                        <button id="zoomOut" class="tool" type="button" title="Zoom out" aria-label="Zoom out"><svg class="tool-icon solo" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2L14 14"/><path d="M5 7h4"/></svg></button>
+                        <span id="zoomLevel" class="zoom-level">100%</span>
+                        <button id="zoomIn" class="tool" type="button" title="Zoom in" aria-label="Zoom in"><svg class="tool-icon solo" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2L14 14"/><path d="M5 7h4M7 5v4"/></svg></button>
+                        <button id="zoomFit" class="tool" type="button" title="Fit to view"><svg class="tool-icon solo" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg></button>
+                    </div>
                 </div>
-                <div class="tool-group">
-                    <label class="check"><input type="checkbox" id="toggleGridLines" checked> Grid</label>
-                    <label class="check"><input type="checkbox" id="toggleGlyphs" title="Show a monochrome symbol in each stitch (for black-and-white printing)"> Symbols</label>
-                    <label class="check"><input type="checkbox" id="toggleCodes" title="Show the yarn code in each stitch"> Codes</label>
-                    <label class="check"><input type="checkbox" id="toggleStitch" checked> Stitches</label>
+
+                <div class="tool-cluster">
+                    <span class="tool-cluster-label">View</span>
+                    <div class="tool-group">
+                        <!-- Everything the canvas shows, behind one button, rather than
+                             five always-on checkboxes eating the row. Same inputs, so
+                             the rest of the app keeps reading them by id. -->
+                        <button id="viewBtn" class="tool" type="button" aria-expanded="false" aria-controls="viewMenu"
+                                title="What the canvas shows: grid lines, symbols, codes, stitching, Locate, and how stitches are drawn"><svg class="tool-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 8S4 3.6 8 3.6 14.5 8 14.5 8 12 12.4 8 12.4 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="1.8"/></svg>View</button>
+                        <div class="view-menu" id="viewMenu" hidden role="group" aria-label="Canvas display options">
+                            <label class="check"><input type="checkbox" id="toggleGridLines" checked> Grid lines</label>
+                            <label class="check"><input type="checkbox" id="toggleGlyphs" title="Show a monochrome symbol in each stitch (for black-and-white printing)"> Symbols</label>
+                            <label class="check"><input type="checkbox" id="toggleCodes" title="Show the yarn code in each stitch"> Codes</label>
+                            <label class="check"><input type="checkbox" id="toggleStitch" checked> Stitching</label>
+                            <div class="view-sep" aria-hidden="true"></div>
+                            <label class="check"><input type="checkbox" id="toggleLocate" title="Dim every stitch except the selected colour"> Locate the selected colour</label>
+                            <div class="view-sep" aria-hidden="true"></div>
+                            <!-- How every stitch is DRAWN, as opposed to what a click
+                                 PLACES (the Stitch cluster): the two used to sit side
+                                 by side showing the same X and / glyphs. -->
+                            <div class="view-row">
+                                <span class="view-row-label">Draw stitches as</span>
+                                <div class="seg" id="stitchDrawGroup">
+                                    <button id="styleCross" class="tool active" type="button" title="Full cross stitch (X)" aria-label="Draw stitches as full crosses"><svg class="tool-icon solo" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9"/></svg></button>
+                                    <button id="styleSlash" class="tool" type="button" title="Single diagonal stitch (/)" aria-label="Draw stitches as forward diagonals"><svg class="tool-icon solo" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 12L12 4"/></svg></button>
+                                    <button id="styleBackslash" class="tool" type="button" title="Reverse single diagonal stitch (\)" aria-label="Draw stitches as backward diagonals"><svg class="tool-icon solo" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8"/></svg></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="tool-group">
-                    <span class="stitch-style-label">Pattern</span>
-                    <button id="styleCross" class="tool active" type="button" title="Full cross stitch (X)" aria-label="Cross stitch pattern">✕</button>
-                    <button id="styleSlash" class="tool" type="button" title="Single diagonal stitch (/)">/</button>
-                    <button id="styleBackslash" class="tool" type="button" title="Reverse single diagonal stitch (\)">\</button>
+                </div><!-- /tool-static -->
+                <!-- CHANGING RIGHT. Only the settings that come and go with the active
+                     tool, kept hard against the right edge with Clear so their
+                     appearance cannot nudge the static tools on the left. The whole
+                     block is one flex item, so Clear keeps the same position whether
+                     the settings are showing or not. -->
+                <div class="tool-right" id="toolbarRight">
+                <div class="tool-dynamic" id="toolbarDynamic">
+                    <!-- How a stitch is MADE: the brush size and which PART of a
+                         stitch a click lays down. The cell keeps its colour either
+                         way, so a half or quarter stitch still counts and still
+                         appears in the legend. -->
+                    <div class="tool-cluster" id="stitchCluster">
+                        <span class="tool-cluster-label">Stitch</span>
+                        <div class="tool-group" id="brushGroup">
+                            <label class="brush-size-label" style="display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text-faint);">
+                                Size:
+                                <select id="brushSize" style="background: var(--bg-3); color: var(--text); border: 1px solid var(--border-2); border-radius: 4px; padding: 2px 4px; font-size: 12px; cursor: pointer;">
+                                    <option value="1">1px</option>
+                                    <option value="2">2px</option>
+                                    <option value="3">3px</option>
+                                    <option value="4">4px</option>
+                                    <option value="5">5px</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div class="tool-group stitch-part-group" id="stitchPlaceGroup">
+                            <label class="stitch-part-label" title="Which part of a stitch to lay down: a full cross, a half stitch, a quarter stitch, or a three-quarter stitch">
+                                Place
+                                <select id="stitchPart">
+                                    <option value="0" selected>Full &#10005;</option>
+                                    <option value="16">Half /</option>
+                                    <option value="32">Half \</option>
+                                    <option value="1">Quarter NW</option>
+                                    <option value="2">Quarter NE</option>
+                                    <option value="4">Quarter SE</option>
+                                    <option value="8">Quarter SW</option>
+                                    <option value="17">Three-quarter NW</option>
+                                    <option value="34">Three-quarter NE</option>
+                                    <option value="20">Three-quarter SE</option>
+                                    <option value="40">Three-quarter SW</option>
+                                </select>
+                            </label>
+                            <span class="hint" id="stitchPartHint">full cross stitches</span>
+                        </div>
+                    </div>
+                    <!-- Trace overlay: a reference photo laid over the chart. It earns
+                         a place here only while the Align tool is in play (or while
+                         there is no photo yet, since this is the only way to load
+                         one and Align stays disabled until a photo exists). -->
+                    <div class="tool-group overlay-group" id="overlayGroup">
+                        <label class="check" title="Show the tracing photo over the chart"><input type="checkbox" id="overlayOn" disabled> Trace</label>
+                        <input type="file" id="overlayInput" accept="image/*" hidden>
+                        <button id="overlayDrop" class="tool overlay-pick" type="button"
+                                title="Choose a photo to trace over the chart" aria-label="Choose a photo to trace over the chart"><svg class="tool-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v9h-11z"/><path d="M2.5 10l3.2-3 2.6 2.4 2.2-2 3 2.7"/><circle cx="6" cy="6" r="1"/></svg>Photo</button>
+                        <input type="range" id="overlayOpacity" class="overlay-opacity" min="0" max="100" value="50"
+                               disabled title="Overlay opacity" aria-label="Overlay opacity">
+                        <output id="overlayOpacityVal" class="overlay-opacity-val">50</output>
+                        <button id="overlayClearBtn" class="tool overlay-clear" type="button"
+                                title="Remove the overlay photo" aria-label="Remove the overlay photo" disabled><svg class="tool-icon solo" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg></button>
+                        <span id="overlayName" class="visually-hidden" role="status"></span>
+                    </div>
                 </div>
-                <!-- Trace overlay: a reference photo laid over the chart. Lives in
-                     the toolbar because it is a view aid, like Grid/Symbols/Codes. -->
-                <div class="tool-group overlay-group" id="overlayGroup">
-                    <label class="check" title="Show the tracing photo over the chart"><input type="checkbox" id="overlayOn" disabled> Trace</label>
-                    <input type="file" id="overlayInput" accept="image/*" hidden>
-                    <button id="overlayDrop" class="tool overlay-pick" type="button"
-                            title="Choose a photo to trace over the chart" aria-label="Choose a photo to trace over the chart">Photo</button>
-                    <input type="range" id="overlayOpacity" class="overlay-opacity" min="0" max="100" value="50"
-                           disabled title="Overlay opacity" aria-label="Overlay opacity">
-                    <output id="overlayOpacityVal" class="overlay-opacity-val">50</output>
-                    <button id="overlayClearBtn" class="tool overlay-clear" type="button"
-                            title="Remove the overlay photo" aria-label="Remove the overlay photo" disabled>✕</button>
-                    <span id="overlayName" class="visually-hidden" role="status"></span>
+
+                <div class="tool-cluster right">
+                    <button id="clearBtn" class="tool danger" type="button" title="Clear canvas"><svg class="tool-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4.5h10"/><path d="M6.5 4.5V3h3v1.5"/><path d="M4.6 4.5l.7 8.2a1 1 0 0 0 1 .9h3.4a1 1 0 0 0 1-.9l.7-8.2"/></svg>Clear</button>
                 </div>
-                <div class="tool-group right">
-                    <button id="clearBtn" class="tool danger" type="button" title="Clear canvas">Clear</button>
-                </div>
+                </div><!-- /tool-right -->
             </div>
 
             <!-- Contextual options for the active tool. Kept beside the tool they
                  belong to instead of in a sidebar, so each tool brings its own
-                 controls and the toolbar keeps its shape for the others. -->
+                 controls and the toolbar keeps its shape for the others.
+                 The bar reserves the height of its TALLEST row, so swapping between
+                 tools with different rows (Align has two lines) cannot resize the
+                 canvas out from under the pointer. -->
+            <div class="options-bar" id="optionsBar" hidden>
             <div class="tool-options" id="selectOptions" hidden>
-                <span class="tool-options-label">Select</span>
+                <span class="tool-options-label" title="Drag to select &middot; arrows nudge &middot; Esc deselects &middot; never included in exports">Select</span>
                 <span class="badge" id="selDims">&mdash;</span>
                 <button id="selAllBtn" class="btn-secondary" type="button" title="Select all (Ctrl+A)">All</button>
                 <button id="selCopyBtn" class="btn-secondary" type="button" title="Copy (Ctrl+C)">Copy</button>
@@ -195,26 +311,65 @@
                 <button id="selFillBtn" class="btn-secondary" type="button" title="Fill with the selected colour">Fill</button>
                 <button id="selDeleteBtn" class="btn-secondary" type="button" title="Delete stitches (Del)">Delete</button>
                 <span class="tool-options-sep" aria-hidden="true"></span>
-                <button id="selMirrorHBtn" class="btn-secondary" type="button" title="Mirror horizontally">Mirror &#8646;</button>
-                <button id="selMirrorVBtn" class="btn-secondary" type="button" title="Mirror vertically">Mirror &#8645;</button>
-                <button id="selRotLBtn" class="btn-secondary" type="button" title="Rotate 90 degrees counter-clockwise">Rotate &#8634;</button>
-                <button id="selRotRBtn" class="btn-secondary" type="button" title="Rotate 90 degrees clockwise">Rotate &#8635;</button>
+                <button id="selMirrorHBtn" class="btn-secondary btn-icon" type="button" title="Mirror horizontally" aria-label="Mirror horizontally"><svg class="tool-icon solo" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.4v11.2" stroke-dasharray="2 2"/><path d="M6 5.2L2.2 8 6 10.8z" fill="currentColor" stroke="none"/><path d="M10 5.2L13.8 8 10 10.8z" fill="currentColor" stroke="none"/></svg></button>
+                <button id="selMirrorVBtn" class="btn-secondary btn-icon" type="button" title="Mirror vertically" aria-label="Mirror vertically"><svg class="tool-icon solo" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.4 8h11.2" stroke-dasharray="2 2"/><path d="M5.2 6L8 2.2 10.8 6z" fill="currentColor" stroke="none"/><path d="M5.2 10L8 13.8 10.8 10z" fill="currentColor" stroke="none"/></svg></button>
+                <button id="selRotLBtn" class="btn-secondary btn-icon" type="button" title="Rotate 90 degrees counter-clockwise" aria-label="Rotate 90 degrees counter-clockwise"><svg class="tool-icon solo" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.2 8a5.2 5.2 0 1 1-1.7-3.8"/><path d="M13.6 2.6v3.2h-3.2"/></svg></button>
+                <button id="selRotRBtn" class="btn-secondary btn-icon" type="button" title="Rotate 90 degrees clockwise" aria-label="Rotate 90 degrees clockwise"><svg class="tool-icon solo" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.8 8a5.2 5.2 0 1 0 1.7-3.8"/><path d="M2.4 2.6v3.2h3.2"/></svg></button>
                 <span class="tool-options-sep" aria-hidden="true"></span>
                 <button id="selCropBtn" class="btn-secondary" type="button" title="Crop the chart to the selection">Crop</button>
                 <button id="selClearBtn" class="btn-secondary" type="button" title="Deselect (Esc)">Deselect</button>
-                <span class="tool-options-hint">Drag to select &middot; arrows nudge &middot; Esc deselects &middot; never included in exports</span>
             </div>
 
+            <!-- ONLY while the Progress tool is active. The LIVE readout (percent,
+                 position, counts) lives in the info line under the canvas instead,
+                 so it never disappears when you switch back to painting and this
+                 row can never stack under another tool's row. -->
             <div class="tool-options" id="progressOptions" hidden>
-                <span class="tool-options-label">Progress</span>
-                <span class="badge" id="progressPercent">0%</span>
+                <span class="tool-options-label" title="Mark stitches off as you finish them &middot; right-click clears a mark">Progress</span>
                 <label class="check"><input type="checkbox" id="progressOn"> Track</label>
                 <span class="tool-options-sep" aria-hidden="true"></span>
                 <button id="progressRow" class="btn-secondary active" type="button" title="Count rows (horizontal)">Rows</button>
                 <button id="progressColumn" class="btn-secondary" type="button" title="Count columns (vertical)">Columns</button>
                 <button id="progressDiagonal" class="btn-secondary" type="button" title="Count diagonals">Diagonal</button>
                 <button id="progressClearBtn" class="btn-secondary" type="button" title="Clear all progress marks">Clear</button>
-                <span class="tool-options-hint" id="progressHint">&mdash;</span>
+            </div>
+
+            <!-- Annotations: reminders drawn OVER the chart. On-screen only, so
+                 they can never print on a chart you hand to someone else. -->
+            <div class="tool-options" id="annotOptions" hidden>
+                <span class="tool-options-label" title="Drawn in the selected colour &middot; right-click a mark to remove it &middot; on screen only, never exported">Annotate</span>
+                <button id="annotArrow" class="btn-secondary active" type="button" title="Drag to draw an arrow">Arrow</button>
+                <button id="annotEllipse" class="btn-secondary" type="button" title="Drag to draw a circle or oval">Circle</button>
+                <button id="annotRect" class="btn-secondary" type="button" title="Drag to draw a box">Box</button>
+                <button id="annotLabel" class="btn-secondary" type="button" title="Click to place the label text">Label</button>
+                <input type="text" id="annotText" class="annot-text" maxlength="200"
+                       placeholder="Label text" disabled aria-label="Annotation label text">
+                <span class="tool-options-sep" aria-hidden="true"></span>
+                <button id="annotClearBtn" class="btn-secondary" type="button" title="Remove every annotation">Clear all</button>
+                <span class="badge" id="annotCount">0 marks</span>
+            </div>
+
+            <!-- Per-cell notes: a private reminder on one stitch. -->
+            <div class="tool-options" id="noteOptions" hidden>
+                <span class="tool-options-label" title="Flagged cells get an amber corner &middot; on screen only, never exported">Note</span>
+                <input type="text" id="noteInput" class="annot-text" maxlength="200"
+                       placeholder="Click a stitch, then type its note" aria-label="Note for the selected stitch">
+                <button id="noteSaveBtn" class="btn-secondary" type="button" title="Save this note (Enter)">Save</button>
+                <button id="noteClearBtn" class="btn-secondary" type="button" title="Remove this note">Clear</button>
+                <span class="badge" id="noteCount">0 cells</span>
+            </div>
+
+            <!-- Locate / Spotlight: dim the chart and ring every stitch of one
+                 colour (or one symbol) so it can be found at a glance. On-screen
+                 only, so it is never part of an export. -->
+            <div class="tool-options" id="locateOptions" hidden>
+                <span class="tool-options-label" title="Dims every stitch except the match &middot; never included in exports">Locate</span>
+                <button id="locateByColour" class="btn-secondary active" type="button" title="Find every stitch of the selected colour">Colour</button>
+                <button id="locateBySymbol" class="btn-secondary" type="button" title="Find every stitch that shares the selected colour's symbol">Symbol</button>
+                <span class="badge" id="locateCount">&mdash;</span>
+                <span class="tool-options-sep" aria-hidden="true"></span>
+                <button id="locateNextBtn" class="btn-secondary" type="button" title="Jump to the next unstitched stitch of this colour">Next unstitched</button>
+                <button id="locateClearBtn" class="btn-secondary" type="button" title="Stop locating">Clear</button>
             </div>
 
             <!-- Photo alignment for the trace overlay, shown while the Align tool
@@ -224,7 +379,7 @@
                  number boxes are the precise entry point; the sliders are for
                  quick coarse work and Alt-drag on a resize point is finer still. -->
             <div class="tool-options" id="overlayOptions" hidden>
-                <span class="tool-options-label">Align photo</span>
+                <span class="tool-options-label" title="Drag a corner or edge point to stretch &middot; Alt = fine steps &middot; arrows nudge &middot; never uploaded or exported">Align photo</span>
                 <button id="ovFitBtn" class="btn-secondary" type="button"
                     title="Show the whole photo, centred, at its own shape">Fit</button>
                 <button id="ovStretchBtn" class="btn-secondary" type="button"
@@ -252,7 +407,7 @@
                     <span class="overlay-span-label">Spans</span>
                     <span id="ovSpanVal">&mdash;</span>
                 </span>
-                <span class="tool-options-hint">Drag a corner or edge point to stretch &middot; <em>Alt</em> = fine steps &middot; arrows nudge &middot; never uploaded or exported</span>
+            </div>
             </div>
 
             <div class="canvas-wrap" id="canvasWrap">
@@ -265,10 +420,19 @@
                 <canvas id="stitchCanvas" hidden></canvas>
             </div>
 
+            <!-- The status line. The progress readout sits here rather than in the
+                 toolbar's option row for two reasons: it stays visible while you
+                 paint (the row only shows for the Progress tool), and a row that
+                 never stacks cannot resize the canvas under the pointer. -->
             <div class="canvas-info" id="canvasInfo">
                 <span id="infoDims">&mdash;</span>
                 <span id="infoStitches"></span>
                 <span id="infoColors"></span>
+                <span class="info-group" id="progressGroup">
+                    <span class="badge" id="progressPercent">0%</span>
+                    <span class="info-text" id="progressHint">&mdash;</span>
+                    <span class="info-text" id="progressStats">&mdash;</span>
+                </span>
                 <span class="paint-hint">Left-click paints • Right-click erases • Drag to fill</span>
             </div>
         </section>
@@ -280,6 +444,7 @@
                     <button class="tab active" data-source-tab="upload" role="tab" type="button">Image</button>
                     <button class="tab" data-source-tab="ai" role="tab" type="button">AI Design</button>
                     <button class="tab" data-source-tab="blank" role="tab" type="button">Blank</button>
+                    <button class="tab" data-source-tab="chart" role="tab" type="button" title="Mark up an existing chart you already own">My chart</button>
                 </div>
 
                 <!-- Upload image -->
@@ -337,6 +502,58 @@
                 <div class="source-panel" id="sourceBlank" hidden>
                     <p class="hint">Start from an empty canvas and paint it by hand with the yarn palette.</p>
                     <button id="newBlankBtn" class="btn-primary full" type="button">New blank canvas</button>
+                </div>
+
+                <!-- Import an existing chart you already own -->
+                <div class="source-panel" id="sourceChart" hidden>
+                    <div class="drop-zone" id="chartDropZone" tabindex="0">
+                        <input type="file" id="chartInput" accept="image/*" multiple hidden>
+                        <div class="drop-inner">
+                            <span class="drop-icon" aria-hidden="true">&#128196;</span>
+                            <p><strong>Drop a chart</strong> or click to browse</p>
+                            <p class="hint">A photo, scan or screenshot of a chart you already own. Select every page of a multi-page chart at once and they are joined on one canvas.</p>
+                        </div>
+                        <img id="chartPreview" alt="Imported chart preview" hidden>
+                    </div>
+                    <p class="hint" id="chartHint">Stitchee reads the chart's own grid, lays the artwork under the canvas, and lets you mark your progress on the original.</p>
+                    <button id="chartImportBtn" class="btn-primary full" type="button" disabled>Import chart</button>
+                    <button id="readChartBtn" class="btn-secondary full" type="button" hidden title="Read the chart's colours from the artwork (best effort)">Read chart colours</button>
+                    <button id="chartConvertBtn" class="btn-secondary full" type="button" hidden title="Turn the imported chart into a paintable Stitchee pattern">Convert to pattern</button>
+                    <label class="check" id="chartShowRow" hidden><input type="checkbox" id="chartShow" checked> Show the imported chart</label>
+                </div>
+            </section>
+
+            <!-- ============ IMPORTED CHART PAGES (chart mode only) ============ -->
+            <!-- A chart printed across several sheets is imported page by page.
+                 Rather than stitch a separate design per sheet, the pages are
+                 placed on ONE seamless canvas, so the legend, the stitch count,
+                 Locate/Spotlight and your progress all see a single chart.
+                 Adding the next page later (a "stitch-along") only ever grows the
+                 canvas at its edge, so every mark already made stays put. -->
+            <section class="panel" id="pagesPanel" hidden>
+                <div class="panel-head">
+                    <h2>Chart pages</h2>
+                </div>
+                <p class="hint">Pages are joined on one canvas. Pick a page to edit its position, rotation or size.</p>
+                <div class="btn-row">
+                    <button id="addPageBtn" class="btn-secondary" type="button" title="Add another page of this chart (the next sheet, or the rest of a stitch-along)">Add page</button>
+                    <input type="file" id="addPageInput" accept="image/*" multiple hidden>
+                    <button id="joinRightBtn" class="btn-secondary" type="button" title="Seat this page immediately to the right of the previous one">Join &#8594;</button>
+                    <button id="joinBelowBtn" class="btn-secondary" type="button" title="Seat this page immediately below the previous one">Join &#8595;</button>
+                </div>
+                <div id="pagesList" class="pages-list"></div>
+                <div id="pageEditor" class="page-editor" hidden>
+                    <div class="page-geom">
+                        <label>Col <input type="number" id="pageCol" step="1"></label>
+                        <label>Row <input type="number" id="pageRow" step="1"></label>
+                        <label>Cols <input type="number" id="pageCols" min="1" step="1"></label>
+                        <label>Rows <input type="number" id="pageRows" min="1" step="1"></label>
+                    </div>
+                    <div class="btn-row">
+                        <button id="pageRotateBtn" class="btn-secondary" type="button" title="Rotate this page 90 degrees clockwise">Rotate 90&deg;</button>
+                        <button id="pageRemoveBtn" class="btn-secondary danger" type="button" title="Remove this page from the joined chart">Remove page</button>
+                    </div>
+                    <p class="hint">With the <em>Align</em> tool active, drag the frame or an arrow key nudges the page a cell at a time.</p>
                 </div>
             </section>
 
@@ -416,6 +633,14 @@
                 </div>
                 <div id="projectList" class="project-list"></div>
             </section>
+
+            <section class="panel">
+                <div class="panel-head">
+                    <h2>Notes</h2>
+                </div>
+                <textarea id="projectNotes" class="project-notes" rows="5" maxlength="4000"
+                    placeholder="Reminders, thread substitutions, colour changes…"></textarea>
+            </section>
         </aside>
     </main>
     </div>
@@ -491,6 +716,20 @@
         </div>
     </div>
 
+    <!-- Shade card modal -->
+    <div id="shadeCardModal" class="app-modal" aria-hidden="true" role="dialog" aria-modal="true">
+        <div class="app-modal-dialog wide">
+            <div class="app-modal-header">
+                <h2>Shade card</h2>
+                <button class="icon-btn" id="shadeCardClose" type="button" title="Close" aria-label="Close shade card">&times;</button>
+            </div>
+            <div class="app-modal-body">
+                <p class="hint">Every colour in the palette with its code and nearest DMC floss. Click one to paint with it.</p>
+                <div id="shadeCardBody" class="shade-card"></div>
+            </div>
+        </div>
+    </div>
+
     <script src="{{ url_for('static', filename='api-manager.js') }}"></script>
     <script src="{{ url_for('static', filename='auth-widget.js') }}"></script>
     <script src="{{ url_for('static', filename='symbols.js') }}"></script>
@@ -498,6 +737,8 @@
     <script src="{{ url_for('static', filename='skein.js') }}"></script>
     <script src="{{ url_for('static', filename='grid-detect.js') }}"></script>
     <script src="{{ url_for('static', filename='canvas-renderer.js') }}"></script>
+    <script src="{{ url_for('static', filename='image-store.js') }}"></script>
     <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <script src="{{ url_for('static', filename='pwa.js') }}"></script>
 </body>
 </html>

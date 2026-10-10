@@ -208,6 +208,13 @@ STATIC_FILES = [
     'og-image.png',
     'stitchee-logo.webp',
     'stitchee-logo-dark.webp',
+    # --- PWA (served from the site root so the service worker scope is '/') ---
+    'manifest.webmanifest',
+    'sw.js',
+    'pwa.js',
+    'icon-192.png',
+    'icon-512.png',
+    'icon-maskable-512.png',
 ]
 for fname in STATIC_FILES:
     src = os.path.join(SRC_STATIC, fname)
@@ -257,7 +264,7 @@ html = re.sub(
 # order, the stale-file cleanup, the <script>-tag rewrite, and (below) the
 # "did the rewrite actually happen?" assertion. Add a new designer script HERE
 # and nowhere else.
-BUNDLE_SCRIPTS = ('symbols.js', 'pdf-writer.js', 'skein.js', 'grid-detect.js', 'static-adapter.js', 'canvas-renderer.js', 'app.js')
+BUNDLE_SCRIPTS = ('symbols.js', 'pdf-writer.js', 'skein.js', 'grid-detect.js', 'static-adapter.js', 'canvas-renderer.js', 'image-store.js', 'app.js')
 
 bundle_parts = []
 for fname in BUNDLE_SCRIPTS:
@@ -339,6 +346,7 @@ def build_version():
 VERSION = build_version()
 html = html.replace('href="style.css"', 'href="style.css?v=' + VERSION + '"')
 html = html.replace('src="app.bundle.js"', 'src="app.bundle.js?v=' + VERSION + '"')
+html = html.replace('src="pwa.js"', 'src="pwa.js?v=' + VERSION + '"')
 print(f'  cache-bust v{VERSION}')
 
 # Rewrite the header app-switcher links for the flat static site layout.

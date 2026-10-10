@@ -9,6 +9,11 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%237c3aed'/%3E%3Cpath d='M8 8l16 16M24 8L8 24' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#0f1117">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Stitchee">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="{{ seo_site_name }}">
     <meta property="og:title" content="{{ seo_title }}">
@@ -80,6 +85,7 @@
                 </span>
                 <span class="ext-tool-name">Font Builder Studio</span>
             </a>
+            <button id="installBtn" class="btn-ghost install-btn" type="button" title="Install Stitchee as an app" hidden>Install app</button>
             <button id="helpBtn" class="btn-ghost" type="button" title="How it works">Help</button>
         </div>
     </header>
@@ -229,5 +235,6 @@
     </div>
 
     <script src="{{ url_for('static', filename='palette.js') }}"></script>
+    <script src="{{ url_for('static', filename='pwa.js') }}"></script>
 </body>
 </html>

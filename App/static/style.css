@@ -18,6 +18,11 @@
   --radius: 10px;
   --radius-sm: 7px;
   --shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  /* Reserved height of the contextual options bar. MEASURED, not guessed: every
+     row (Select / Progress / Annotate / Note / Locate / Align photo) is exactly
+     one line, 49-51px, so 52px holds the tallest. Rows only stay one line because
+     the label inputs are bounded and the verbose reminders live in tooltips. */
+  --options-bar-h: 52px;
   --font:
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
     sans-serif;
@@ -159,6 +164,19 @@ textarea {
 .ext-tool-logo {
   display: inline-flex;
   filter: drop-shadow(0 2px 6px rgba(124, 58, 237, 0.4));
+}
+
+/* ---------- PWA "Install app" button ---------- */
+.install-btn {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+.install-btn:hover {
+  color: #fff;
+}
+/* [hidden] must win over any display rule — the repo's known flex trap. */
+.install-btn[hidden] {
+  display: none;
 }
 
 /* ---------- App switcher (Stitchee / Pixelator / Resizer / Palette / ASCII) ---------- */
@@ -454,6 +472,18 @@ textarea {
   border-color: var(--brand);
   color: #fff;
 }
+/* An icon-only secondary button. Four of them sit in the Select row, and their
+   text was what pushed that row onto a second line - which grew the options bar
+   and shrank the canvas whenever Select was picked. The title and aria-label
+   carry the meaning. */
+.btn-icon {
+  padding: 6px 8px;
+}
+.btn-icon .tool-icon {
+  display: block;
+  width: 15px;
+  height: 15px;
+}
 .btn-ghost {
   background: transparent;
   color: var(--text-dim);
@@ -529,7 +559,11 @@ textarea {
 .drop-zone p {
   font-size: 12px;
 }
-#uploadPreview {
+/* A picked file is previewed inside its drop zone, so it must be BOUNDED: a
+   chart photo is easily 2500px wide and would otherwise render at full size,
+   stretching the whole side panel off the screen. */
+#uploadPreview,
+#chartPreview {
   max-width: 100%;
   max-height: 180px;
   border-radius: 8px;
@@ -537,15 +571,20 @@ textarea {
   width: auto;
   margin: 0 auto;
 }
-/* When a photo is uploaded, show only the preview and hide the "Drop an image" prompt. */
-.drop-zone:has(#uploadPreview:not([hidden])) .drop-inner {
+/* When a photo or chart is picked, show only the preview and hide the prompt. */
+.drop-zone:has(#uploadPreview:not([hidden])) .drop-inner,
+.drop-zone:has(#chartPreview:not([hidden])) .drop-inner {
   display: none;
 }
 
-/* ---------- Trace overlay (lives in the canvas toolbar) ---------- */
+/* ---------- Trace overlay (inside the View cluster) ---------- */
 .overlay-group {
-  padding-left: 8px;
-  border-left: 1px solid var(--border);
+  margin-left: 4px;
+}
+/* The Trace group is only in the row while the Align tool is, so [hidden] must
+   beat the flex display - the repo's recurring trap. */
+.overlay-group[hidden] {
+  display: none;
 }
 .overlay-pick.has-image,
 .overlay-pick.dragover {
@@ -686,19 +725,189 @@ textarea {
   font-size: 11.5px;
 }
 
+/* Toolbar icons are inline SVG on one shared stroke weight. Emoji were the
+   alternative and render as a different picture on every platform, which is why
+   they are gone. `solo` = an icon-only button, so it gets no trailing gap. */
+.tool-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  vertical-align: -2px;
+  margin-right: 4px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tool-icon.solo {
+  margin-right: 0;
+}
+
+/* ---------- View popover ---------- */
+/* One button instead of five always-on checkboxes. The inputs keep their ids, so
+   everything that reads them (locate, symbols, codes) is untouched. The menu is
+   anchored to the tool-group holding the button, hence its position: relative. */
+.view-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 208px;
+  padding: 9px 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+}
+/* The display:flex above would otherwise beat the [hidden] attribute. */
+.view-menu[hidden] {
+  display: none;
+}
+.view-menu .check {
+  font-size: 12px;
+  color: var(--text);
+}
+.view-sep {
+  height: 1px;
+  background: var(--border-2);
+  margin: 1px 0;
+}
+.view-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.view-row-label {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+/* Segmented control: three mutually exclusive draw modes in one pill. */
+.seg {
+  display: inline-flex;
+  gap: 0;
+}
+.seg .tool {
+  border-radius: 0;
+  padding: 4px 7px;
+}
+.seg .tool:first-child {
+  border-radius: 6px 0 0 6px;
+}
+.seg .tool:last-child {
+  border-radius: 0 6px 6px 0;
+}
+.seg .tool + .tool {
+  border-left: 0;
+}
+
 /* ---------- Canvas ---------- */
+/* The toolbar is a row of CLUSTERS, not one undifferentiated row: Draw / Stitch /
+   Mark / Track / Move / View. Each cluster is labelled and separated by a rule so
+   ~30 controls read as a handful of ideas, and so a cluster can be hidden as a
+   unit when none of its controls apply to the active tool.
+   DELIBERATELY NOT BOXED. A bordered/inset cluster costs ~17px of width each,
+   which at a 1465px window pushed the toolbar from 2 wrapped rows to 4 - 67px of
+   canvas height spent on chrome. Measured; the rule + label keeps the grouping
+   for the same height as the unlabelled layout it replaces. */
 .canvas-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 6px;
   flex-wrap: wrap;
   padding: 6px 4px;
   border-bottom: 1px solid var(--border);
+}
+.tool-cluster {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding-right: 9px;
+  border-right: 1px solid var(--border);
+}
+/* No dangling rule or trailing padding at the end of each zone. */
+.tool-cluster:last-child,
+.tool-cluster.right {
+  padding-right: 0;
+  border-right: 0;
+}
+/* ---------- The two toolbar zones ---------- */
+/* STATIC LEFT: the tools and the view button. Nothing here ever appears or
+   disappears, so a button is always where you last found it.
+   CHANGING RIGHT: the settings that come and go with the active tool (brush size,
+   stitch part, Trace), kept hard against the right edge. Keeping them there means
+   their coming and going cannot shift the static buttons - which is exactly what
+   used to happen when the Stitch cluster sat between Draw and Mark and stepped
+   aside for Pick/Annotate/Note.
+   ONE auto margin only: two of them on the same line would split the free space
+   and leave the settings floating mid-row instead of pinned right. So the zones
+   and Clear are wrapped in `tool-right`, which owns the margin. */
+.tool-static,
+.tool-dynamic,
+.tool-right {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tool-right {
+  margin-left: auto;
+}
+.tool-dynamic {
+  padding-left: 10px;
+  border-left: 1px solid var(--border);
+}
+.tool-static[hidden],
+.tool-dynamic[hidden],
+.tool-right[hidden] {
+  display: none;
+}
+/* A rule between the Stitch settings and Trace, but only when both are showing:
+   `:not([hidden])` on the preceding sibling stops an orphan rule appearing when
+   the Stitch cluster steps aside. */
+.tool-dynamic > .tool-cluster:not([hidden]) + .tool-group:not([hidden]) {
+  padding-left: 9px;
+  border-left: 1px solid var(--border);
+}
+/* [hidden] must win over the flex display above (the repo's known trap). */
+.tool-cluster[hidden] {
+  display: none;
+}
+.tool-cluster.right {
+  margin-left: auto;
+}
+/* Inside a cluster the groups are related (Size | Stitch | Pattern), so they get
+   breathing room rather than a divider - a rule per group is the clutter this
+   restructuring exists to remove. */
+.tool-cluster > .tool-group + .tool-group {
+  margin-left: 3px;
+}
+.tool-cluster-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  opacity: 0.75;
+  user-select: none;
 }
 .tool-group {
   display: flex;
   align-items: center;
   gap: 6px;
+  /* Anchors the View popover to the group that holds its button. */
+  position: relative;
+}
+/* [hidden] must win over the flex display above (the repo's known trap). */
+.tool-group[hidden] {
+  display: none;
+}
+.check[hidden] {
+  display: none;
 }
 .tool-group.right {
   margin-left: auto;
@@ -749,7 +958,20 @@ textarea {
 
 /* ---------- Contextual tool options ---------- */
 /* Shown only while their tool is active, so each tool brings its own controls
-   and the main toolbar keeps the same shape for every other tool. */
+   and the main toolbar keeps the same shape for every other tool.
+   The BAR reserves the height of its tallest row (Align photo, which wraps to two
+   lines), so swapping tools cannot change the canvas height. It is hidden only
+   when no tool has a row, which is the case the user chose: a blank band on the
+   common case would be worse than the one jump it saves. */
+.options-bar {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: var(--options-bar-h, 64px);
+}
+.options-bar[hidden] {
+  display: none;
+}
 .tool-options {
   display: flex;
   align-items: center;
@@ -783,22 +1005,26 @@ textarea {
   color: var(--text-faint);
   margin-left: 4px;
 }
-/* Compact labelled slider, for rows that carry several controls at once. */
+/* Compact labelled slider, for rows that carry several controls at once.
+   Widths are bounded so FOUR of these plus the Fit/Stretch/Centre buttons still
+   fit one line: the Align row is the tallest row in the options bar, so if it
+   wraps the reserved height has to grow for every tool. The number box remains
+   the precise entry point, so the slider is only the coarse control. */
 .mini-slider {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   font-size: 11.5px;
   color: var(--text-dim);
   white-space: nowrap;
 }
 .mini-slider input[type="range"] {
-  width: 72px;
+  width: 56px;
   accent-color: var(--brand);
 }
 /* The readout doubles as the precise entry point, hence a field not an output. */
 .mini-num {
-  width: 58px;
+  width: 50px;
   padding: 1px 3px;
   background: var(--bg-3);
   color: var(--text);
@@ -894,6 +1120,25 @@ textarea {
   margin-left: auto;
   color: var(--text-faint);
 }
+/* The live progress readout, which lives here rather than in the toolbar's
+   option row so it stays visible while painting. Grouped with a rule so it reads
+   as its own thing on the status line, and nowrap so it can never wrap in two
+   (a taller info line would steal height from the canvas above it). */
+.info-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 14px;
+  border-left: 1px solid var(--border);
+}
+.info-group[hidden] {
+  display: none;
+}
+.canvas-info .info-text {
+  color: var(--text-faint);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
 
 /* ---------- Legend ---------- */
 .legend-list {
@@ -951,6 +1196,13 @@ textarea {
   font-size: 10px;
   color: var(--text-faint);
 }
+/* Backstitch length for this floss. A colour used ONLY as an outline has no
+   stitch count, so this is the line that tells you to buy it at all. */
+.legend-row .count .bkn {
+  display: block;
+  font-size: 10px;
+  color: var(--text-dim);
+}
 .skein-summary {
   margin-top: 8px;
   padding: 7px 9px;
@@ -990,6 +1242,166 @@ textarea {
   margin-top: 10px;
   max-height: 220px;
   overflow-y: auto;
+}
+.project-notes {
+  margin-top: 6px;
+  resize: vertical;
+  min-height: 72px;
+}
+
+/* ---------- Annotation / note toolbars ---------- */
+/* Both markup layers are on-screen only, which is why the reminder is stated in
+   the row's tooltip. The width MUST be bounded: the global
+   `input[type="text"] { width: 100% }` otherwise makes this input take the whole
+   line, pushing Clear/count/hint onto two more lines and tripling the row height. */
+.annot-text {
+  background: var(--bg-3);
+  color: var(--text);
+  border: 1px solid var(--border-2);
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 12px;
+  width: 220px;
+  flex: 0 1 220px;
+  min-width: 150px;
+}
+.annot-text:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------- Stitch type (toolbar) ---------- */
+/* Which PART of a stitch the paint tools lay down. Kept with the tools rather
+   than in a sidebar because it changes what a drag does, like the brush size. */
+.stitch-part-group {
+  align-items: center;
+  gap: 6px;
+}
+.stitch-part-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-faint);
+}
+.stitch-part-label select {
+  background: var(--bg-3);
+  color: var(--text);
+  border: 1px solid var(--border-2);
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.stitch-part-group .hint {
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+/* ---------- Imported-chart page list ---------- *//* One row per sheet of a multi-page chart. The active row is the page the
+   Align tool edits, so it has to read as selected at a glance. */
+.blend-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0 2px;
+}
+
+.blend-row .check {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+}
+
+.blend-row select {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.78rem;
+}
+
+.blend-row .hint {
+    font-size: 0.72rem;
+    opacity: 0.7;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* A blended row's swatch is split by its inline gradient, so it needs no
+   stylesheet rule of its own - only the shared .swatch sizing. */
+.pages-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.pages-list:empty {
+  display: none;
+}
+.page-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  cursor: pointer;
+}
+.page-item:hover {
+  border-color: var(--border-2);
+}
+.page-item.active {
+  border-color: #a855f7;
+  box-shadow: inset 2px 0 0 #a855f7;
+}
+.page-item .page-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.page-item .page-meta {
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.page-order-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.page-order-btn:hover {
+  color: #fff;
+  background: var(--bg-3);
+}
+.page-editor .page-geom {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.page-editor .page-geom label {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.page-editor .page-geom input[type="number"] {
+  width: 100%;
+  padding: 4px 6px;
+  margin-top: 3px;
+  font-size: 12px;
 }
 .project-row {
   display: flex;
@@ -1156,6 +1568,70 @@ textarea {
 }
 .app-modal-body {
   padding: 18px;
+}
+
+/* ---------- Shade card modal ---------- */
+.app-modal-dialog.wide {
+  max-width: 760px;
+}
+.shade-card-btn {
+  padding: 4px 9px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.shade-card {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.shade-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+.shade-item:hover {
+  border-color: var(--brand);
+}
+.shade-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  flex-shrink: 0;
+}
+.shade-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.shade-code {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.shade-name {
+  font-size: 12.5px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.shade-dmc {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.shade-card-empty {
+  color: var(--text-faint);
+  font-size: 12px;
 }
 .help-steps {
   margin: 0 0 12px;
@@ -1704,6 +2180,11 @@ body.modal-open {
   .app-shell {
     height: auto;
     flex: 0 0 auto;
+  }
+  /* One column, natural height: nothing is competing for a fixed canvas height
+     any more, so the options bar stops reserving space and just fits its row. */
+  .options-bar {
+    min-height: 0;
   }
   .app-header {
     grid-template-columns: auto 1fr auto;

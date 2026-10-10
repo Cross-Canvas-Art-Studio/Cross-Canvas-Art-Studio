@@ -8,6 +8,9 @@ Usage:
 Outputs (written to App/static/ and mirrored into _site/):
     stitchee-logo.webp       - white wordmark, transparent bg (use on dark UI)
     stitchee-logo-dark.webp  - dark wordmark, transparent bg (use on light UI)
+    icon-192.png             - PWA app icon, 192x192
+    icon-512.png             - PWA app icon, 512x512
+    icon-maskable-512.png    - PWA maskable icon (full-bleed, safe-zone padded)
 """
 
 from __future__ import annotations
@@ -125,9 +128,44 @@ def build(text_color, out_name: str) -> str:
     return out_path
 
 
+def build_icon(size: int, out_name: str, maskable: bool = False) -> str:
+    """Square PWA icon: gradient tile + white cross-stitch X, saved as PNG.
+
+    A normal icon uses a rounded tile; a *maskable* icon is full-bleed with the
+    X kept inside the 80% safe zone, so platform masks (circle, squircle...)
+    never clip the mark.
+    """
+    ss = 4
+    S = size * ss
+    tile = diagonal_gradient(S, BRAND_1, BRAND_2).convert("RGBA")
+    if not maskable:
+        tile.putalpha(rounded_mask(S, radius=S * 0.225))
+
+    icon = Image.alpha_composite(Image.new("RGBA", (S, S), (0, 0, 0, 0)), tile)
+    draw = ImageDraw.Draw(icon)
+    inset = S * (0.34 if maskable else 0.265)
+    draw_cross(draw, (inset, inset, S - inset, S - inset), WHITE, width=S * 0.108)
+
+    final = icon.resize((size, size), Image.LANCZOS)
+    out_path = os.path.join(OUT_DIR, out_name)
+    os.makedirs(OUT_DIR, exist_ok=True)
+    final.save(out_path, format="PNG", optimize=True)
+    if os.path.isdir(MIRROR_DIR):
+        shutil.copy(out_path, os.path.join(MIRROR_DIR, out_name))
+    return out_path
+
+
 if __name__ == "__main__":
     for color, name in ((WHITE, "stitchee-logo.webp"), (DARK, "stitchee-logo-dark.webp")):
         path = build(color, name)
         with Image.open(path) as im:
             print(f"{os.path.basename(path)}  {im.size[0]}x{im.size[1]}  {im.mode}  "
                   f"{os.path.getsize(path) / 1024:.1f} KB")
+    for size, name, maskable in (
+        (192, "icon-192.png", False),
+        (512, "icon-512.png", False),
+        (512, "icon-maskable-512.png", True),
+    ):
+        path = build_icon(size, name, maskable)
+        print(f"{os.path.basename(path)}  {size}x{size}  "
+              f"{os.path.getsize(path) / 1024:.1f} KB")

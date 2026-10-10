@@ -21,7 +21,7 @@ import ipaddress
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, send_from_directory
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -102,6 +102,8 @@ CONTENT_SECURITY_POLICY = os.environ.get(
     "img-src 'self' data: blob:; "
     "connect-src 'self'; "
     "font-src 'self' data:; "
+    "worker-src 'self'; "
+    "manifest-src 'self'; "
     "object-src 'none'; "
     "base-uri 'self'; "
     "frame-ancestors 'self'",
@@ -359,6 +361,36 @@ def handle_too_large(_error):
 @app.route('/health')
 def health_check():
     return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat() + 'Z'})
+
+
+# --- PWA assets ------------------------------------------------------------
+# The service worker must be served from the site ROOT, otherwise its scope is
+# limited to /static/ and it cannot control the pages. The static (GitHub Pages)
+# build mirrors these files at the root, so both builds share one layout.
+_PWA_ASSETS = {
+    'sw.js': 'application/javascript',
+    'manifest.webmanifest': 'application/manifest+json',
+    'icon-192.png': 'image/png',
+    'icon-512.png': 'image/png',
+    'icon-maskable-512.png': 'image/png',
+}
+
+
+def _serve_pwa_asset(filename):
+    resp = send_from_directory(app.static_folder, filename, mimetype=_PWA_ASSETS[filename])
+    resp.headers['Service-Worker-Allowed'] = '/'
+    resp.headers.setdefault('Cache-Control', 'no-cache')
+    return resp
+
+
+# Register one rule per asset. A single dynamic rule would shadow the app's own
+# top-level routes (e.g. '/pixelator'), so add an explicit rule for each file.
+for _pwa_name in _PWA_ASSETS:
+    app.add_url_rule(
+        '/' + _pwa_name,
+        endpoint='pwa_' + _pwa_name.replace('.', '_'),
+        view_func=(lambda _n=_pwa_name: _serve_pwa_asset(_n)),
+    )
 
 
 @app.route('/')
@@ -878,7 +910,14 @@ def create_project():
     try:
         meta = project_manager.create_project(
             data.get('title'), data.get('grid'), owner=owner,
-            description=data.get('description', ''))
+            description=data.get('description', ''),
+            notes=data.get('notes', ''),
+            kind=data.get('kind', 'pattern'),
+            source=data.get('source'), fit=data.get('fit'),
+            pages=data.get('pages'),
+            frac=data.get('frac'), back=data.get('back'),
+            blend=data.get('blend'),
+            annots=data.get('annots'), cell_notes=data.get('cellNotes'))
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
     return jsonify({'success': True, 'project': meta}), 201
@@ -907,7 +946,13 @@ def update_project(project_id):
     try:
         meta = project_manager.update_project(
             project_id, data.get('title'), data.get('grid'),
-            owner=owner, is_admin=is_admin, description=data.get('description'))
+            owner=owner, is_admin=is_admin, description=data.get('description'),
+            notes=data.get('notes'), kind=data.get('kind'),
+            source=data.get('source'), fit=data.get('fit'),
+            pages=data.get('pages'),
+            frac=data.get('frac'), back=data.get('back'),
+            blend=data.get('blend'),
+            annots=data.get('annots'), cell_notes=data.get('cellNotes'))
     except PermissionError as exc:
         return jsonify({'error': str(exc)}), 403
     except ValueError as exc:
