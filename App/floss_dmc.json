@@ -1,95 +1,3158 @@
 {
-  "_comment": "Curated DMC floss seed table. Codes and names are real DMC references; the hex values are approximate sRGB renderings and MUST be reviewed against a colour card before being treated as authoritative. Set \"verified\" to true once a human has checked every row. Entries the palette cannot map are simply left out -- matching degrades gracefully.",
-  "_preferred_comment": "Semantic overrides: palette code -> floss code. Matching is nearest-colour in CIELAB, which occasionally lands somewhere surprising (pure Black matches Dark Grey better than it does Black Brown). Use this map to pin a palette entry to the floss a stitcher would actually buy.",
   "brand": "DMC",
-  "version": 1,
+  "version": 2,
   "verified": false,
   "strands_per_skein": 6,
   "skein_metres": 8,
   "preferred": {
     "BLK": "310"
   },
+  "_preferred_comment": "Semantic overrides: palette code -> floss code. Matching is nearest-colour in CIELAB, which occasionally lands somewhere surprising (pure Black matches Dark Grey better than it does Black Brown). Use this map to pin a palette entry to the floss a stitcher would actually buy.",
+  "_comment": "Full DMC reference table. Codes and names are real DMC references; the hex values are on-screen sRGB approximations and MUST be reviewed against a colour card before being treated as authoritative. Set \"verified\" to true once a human has checked every row.",
+  "_source": "compiled from a local DMC colour chart (not committed)",
   "colours": [
-    { "code": "B5200", "name": "Snow White", "hex": "#FFFFFF" },
-    { "code": "3865", "name": "Winter White", "hex": "#F9F4E8" },
-    { "code": "712", "name": "Cream", "hex": "#FFFBEA" },
-    { "code": "739", "name": "Ultra Very Light Tan", "hex": "#F7E6C4" },
-    { "code": "738", "name": "Very Light Tan", "hex": "#ECCC9E" },
-    { "code": "437", "name": "Light Tan", "hex": "#E4C49A" },
-    { "code": "612", "name": "Light Drab Brown", "hex": "#B5A050" },
-    { "code": "762", "name": "Very Light Pearl Grey", "hex": "#ECECEC" },
-    { "code": "415", "name": "Pearl Grey", "hex": "#D3D4D6" },
-    { "code": "318", "name": "Light Steel Grey", "hex": "#ABABAB" },
-    { "code": "414", "name": "Dark Steel Grey", "hex": "#7C7C7C" },
-    { "code": "317", "name": "Pewter Grey", "hex": "#6B6B6B" },
-    { "code": "413", "name": "Dark Pewter Grey", "hex": "#565656" },
-    { "code": "3799", "name": "Very Dark Pewter Grey", "hex": "#33322E" },
-    { "code": "310", "name": "Black", "hex": "#000000" },
-    { "code": "3371", "name": "Black Brown", "hex": "#1E1611" },
-
-    { "code": "963", "name": "Ultra Very Light Dusty Rose", "hex": "#FFD8DC" },
-    { "code": "3716", "name": "Very Light Dusty Rose", "hex": "#FFBFC5" },
-    { "code": "3326", "name": "Light Rose", "hex": "#FBBFC6" },
-    { "code": "899", "name": "Medium Rose", "hex": "#F2A0A8" },
-    { "code": "604", "name": "Light Cranberry", "hex": "#F76C87" },
-    { "code": "601", "name": "Dark Cranberry", "hex": "#C2256B" },
-    { "code": "718", "name": "Plum", "hex": "#A82F6E" },
-    { "code": "917", "name": "Medium Plum", "hex": "#9C3663" },
-    { "code": "666", "name": "Bright Red", "hex": "#E31D42" },
-    { "code": "321", "name": "Red", "hex": "#C72B3B" },
-    { "code": "498", "name": "Dark Red", "hex": "#A7132B" },
-    { "code": "815", "name": "Garnet Medium", "hex": "#8F1F2C" },
-    { "code": "814", "name": "Dark Garnet", "hex": "#7B1E28" },
-
-    { "code": "970", "name": "Light Pumpkin", "hex": "#F7891E" },
-    { "code": "946", "name": "Medium Burnt Orange", "hex": "#F0621C" },
-    { "code": "351", "name": "Coral", "hex": "#F2685F" },
-    { "code": "740", "name": "Tangerine", "hex": "#FF8B00" },
-    { "code": "726", "name": "Light Topaz", "hex": "#FCD25D" },
-    { "code": "307", "name": "Lemon", "hex": "#FCEF1C" },
-    { "code": "973", "name": "Bright Canary", "hex": "#FFE300" },
-    { "code": "745", "name": "Light Yellow Pale", "hex": "#FFE79E" },
-    { "code": "3823", "name": "Ultra Pale Yellow", "hex": "#FFF7CD" },
-    { "code": "436", "name": "Tan", "hex": "#C79A5B" },
-    { "code": "433", "name": "Medium Brown", "hex": "#7B4A2C" },
-    { "code": "3781", "name": "Dark Mocha Brown", "hex": "#6A3B2A" },
-    { "code": "898", "name": "Very Dark Coffee Brown", "hex": "#4C2A17" },
-    { "code": "801", "name": "Dark Coffee Brown", "hex": "#65381F" },
-    { "code": "938", "name": "Ultra Dark Coffee Brown", "hex": "#361A0F" },
-
-    { "code": "704", "name": "Bright Chartreuse", "hex": "#B0D932" },
-    { "code": "703", "name": "Chartreuse", "hex": "#7CBF3F" },
-    { "code": "702", "name": "Kelly Green", "hex": "#3E9F45" },
-    { "code": "701", "name": "Light Green", "hex": "#5CBF60" },
-    { "code": "700", "name": "Bright Green", "hex": "#2E8B2E" },
-    { "code": "699", "name": "Green", "hex": "#217B32" },
-    { "code": "890", "name": "Ultra Dark Pistachio Green", "hex": "#1B4A2B" },
-    { "code": "500", "name": "Very Dark Blue Green", "hex": "#1A4A38" },
-    { "code": "503", "name": "Medium Blue Green", "hex": "#7FAF9A" },
-    { "code": "504", "name": "Very Light Blue Green", "hex": "#B8D8C8" },
-    { "code": "3348", "name": "Light Yellow Green", "hex": "#C7DCA0" },
-    { "code": "471", "name": "Very Light Avocado Green", "hex": "#A8B85A" },
-    { "code": "469", "name": "Avocado Green", "hex": "#7E8B36" },
-
-    { "code": "3325", "name": "Light Baby Blue", "hex": "#B3D4E8" },
-    { "code": "519", "name": "Sky Blue", "hex": "#94C7E0" },
-    { "code": "3766", "name": "Light Peacock Blue", "hex": "#4E9BA8" },
-    { "code": "807", "name": "Peacock Blue", "hex": "#3F8E9E" },
-    { "code": "3843", "name": "Electric Blue", "hex": "#1D6FB8" },
-    { "code": "798", "name": "Dark Delft Blue", "hex": "#3A5A9B" },
-    { "code": "796", "name": "Dark Cornflower Blue", "hex": "#2C4B9C" },
-    { "code": "797", "name": "Royal Blue", "hex": "#1F3C87" },
-    { "code": "336", "name": "Navy Blue", "hex": "#22305A" },
-    { "code": "939", "name": "Very Dark Navy Blue", "hex": "#10123F" },
-    { "code": "930", "name": "Antique Blue Dark", "hex": "#3C5473" },
-    { "code": "932", "name": "Light Antique Blue", "hex": "#A2B4CC" },
-
-    { "code": "211", "name": "Lavender", "hex": "#E3CBE8" },
-    { "code": "210", "name": "Medium Lavender", "hex": "#C9A0D4" },
-    { "code": "208", "name": "Very Dark Lavender", "hex": "#83538F" },
-    { "code": "552", "name": "Medium Violet", "hex": "#A05BA0" },
-    { "code": "553", "name": "Violet", "hex": "#8B2F8B" },
-    { "code": "550", "name": "Very Dark Violet", "hex": "#63185F" },
-    { "code": "3746", "name": "Dark Blue Violet", "hex": "#5B3A8C" }
-  ]
+    {
+      "code": "B5200",
+      "name": "Snow White",
+      "hex": "#FFFFFF",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "White",
+      "name": "White",
+      "hex": "#FCFBF8",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "Ecru",
+      "name": "Ecru",
+      "hex": "#F0EADA",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "01",
+      "name": "White Tin",
+      "hex": "#E2DFD7",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "02",
+      "name": "Tin",
+      "hex": "#C3C0B5",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "03",
+      "name": "Medium Tin",
+      "hex": "#ABA899",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "04",
+      "name": "Dark Tin",
+      "hex": "#8F8C82",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "05",
+      "name": "Light Driftwood",
+      "hex": "#E4D7CA",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "06",
+      "name": "Medium Light Driftwood",
+      "hex": "#CCBBAA",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "07",
+      "name": "Driftwood",
+      "hex": "#B19E89",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "08",
+      "name": "Dark Driftwood",
+      "hex": "#916E4F",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "09",
+      "name": "Very Dark Cocoa",
+      "hex": "#5C3826",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "10",
+      "name": "Very Light Tender Green",
+      "hex": "#DDE8CB",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "11",
+      "name": "Light Tender Green",
+      "hex": "#BFD4A0",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "12",
+      "name": "Tender Green",
+      "hex": "#9ABF6F",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "13",
+      "name": "Medium Light Nile Green",
+      "hex": "#B5D8CC",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "14",
+      "name": "Light Apple Green",
+      "hex": "#C1E89A",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "15",
+      "name": "Apple Green",
+      "hex": "#7CB857",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "16",
+      "name": "Light Chartreuse",
+      "hex": "#B3D36C",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "17",
+      "name": "Light Yellow Plum",
+      "hex": "#F0E68C",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "18",
+      "name": "Yellow Plum",
+      "hex": "#E8CD52",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "19",
+      "name": "Medium Light Autumn Gold",
+      "hex": "#E5C571",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "20",
+      "name": "Shrimp",
+      "hex": "#F8B497",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "21",
+      "name": "Light Alizarin",
+      "hex": "#F07276",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "22",
+      "name": "Alizarin",
+      "hex": "#D73F54",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "23",
+      "name": "Apple Blossom",
+      "hex": "#F1B8C6",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "24",
+      "name": "Light Plum",
+      "hex": "#B98DB2",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "25",
+      "name": "Ultra Light Lavender",
+      "hex": "#E3D7ED",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "26",
+      "name": "Light Lavender",
+      "hex": "#C3AAD2",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "27",
+      "name": "Light Violet",
+      "hex": "#A47FAE",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "28",
+      "name": "Medium Light Eggplant",
+      "hex": "#6B365E",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "29",
+      "name": "Eggplant",
+      "hex": "#512C50",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "30",
+      "name": "Medium Light Blueberry",
+      "hex": "#6982B5",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "31",
+      "name": "Blueberry",
+      "hex": "#4174A2",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "32",
+      "name": "Dark Blueberry",
+      "hex": "#2E5585",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "33",
+      "name": "Light Delft Blue",
+      "hex": "#7BA3C6",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "34",
+      "name": "Dark Delft Blue",
+      "hex": "#3F5E86",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "35",
+      "name": "Very Dark Delft Blue",
+      "hex": "#304A70",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "310",
+      "name": "Black",
+      "hex": "#000000",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "150",
+      "name": "Ultra Very Dark Dusty Rose",
+      "hex": "#AB0249",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "151",
+      "name": "Very Light Dusty Rose",
+      "hex": "#F0CED4",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "152",
+      "name": "Medium Light Shell Pink",
+      "hex": "#E2A099",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "153",
+      "name": "Very Light Violet",
+      "hex": "#E6CCD9",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "154",
+      "name": "Very Dark Grape",
+      "hex": "#572433",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "155",
+      "name": "Medium Dark Blue Violet",
+      "hex": "#9891B6",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "156",
+      "name": "Medium Light Blue Violet",
+      "hex": "#A3AED1",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "157",
+      "name": "Very Light Cornflower Blue",
+      "hex": "#BBC3D9",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "158",
+      "name": "Medium Very Dark Cornflower Blue",
+      "hex": "#4C526E",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "159",
+      "name": "Light Gray Blue",
+      "hex": "#C7CAD7",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "160",
+      "name": "Medium Gray Blue",
+      "hex": "#999FB7",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "161",
+      "name": "Gray Blue",
+      "hex": "#7880A4",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "162",
+      "name": "Ultra Very Light Blue",
+      "hex": "#DBECF5",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "163",
+      "name": "Medium Celadon Green",
+      "hex": "#4D8361",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "164",
+      "name": "Light Forest Green",
+      "hex": "#C8D8B8",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "165",
+      "name": "Very Light Moss Green",
+      "hex": "#EFF4A4",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "166",
+      "name": "Medium Light Moss Green",
+      "hex": "#C0C840",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "167",
+      "name": "Very Dark Yellow Beige",
+      "hex": "#A77C49",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "168",
+      "name": "Very Light Pewter",
+      "hex": "#D1D1D1",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "169",
+      "name": "Light Pewter",
+      "hex": "#848484",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "208",
+      "name": "Very Dark Lavender",
+      "hex": "#835B93",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "209",
+      "name": "Dark Lavender",
+      "hex": "#A37DB8",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "210",
+      "name": "Medium Lavender",
+      "hex": "#C4A2D1",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "211",
+      "name": "Light Lavender",
+      "hex": "#DBC5E1",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "221",
+      "name": "Very Dark Shell Pink",
+      "hex": "#883635",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "223",
+      "name": "Light Shell Pink",
+      "hex": "#CC8B8B",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "224",
+      "name": "Very Light Shell Pink",
+      "hex": "#EBBBBB",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "225",
+      "name": "Ultra Very Light Shell Pink",
+      "hex": "#FFE0DA",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "300",
+      "name": "Very Dark Mahogany",
+      "hex": "#6B2412",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "301",
+      "name": "Medium Mahogany",
+      "hex": "#B35D38",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "304",
+      "name": "Medium Red",
+      "hex": "#B71F33",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "307",
+      "name": "Lemon",
+      "hex": "#FDED54",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "309",
+      "name": "Dark Rose",
+      "hex": "#564A4A",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "311",
+      "name": "Medium Navy Blue",
+      "hex": "#1C5066",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "312",
+      "name": "Very Dark Baby Blue",
+      "hex": "#35668B",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "315",
+      "name": "Medium Dark Antique Mauve",
+      "hex": "#814952",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "316",
+      "name": "Medium Antique Mauve",
+      "hex": "#B7737F",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "317",
+      "name": "Pewter Gray",
+      "hex": "#6C6C6C",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "318",
+      "name": "Light Steel Gray",
+      "hex": "#ABABAB",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "319",
+      "name": "Very Dark Pistachio Green",
+      "hex": "#205F2E",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "320",
+      "name": "Medium Pistachio Green",
+      "hex": "#69885A",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "321",
+      "name": "Red",
+      "hex": "#C72B3B",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "322",
+      "name": "Very Dark Baby Blue",
+      "hex": "#5A8FB8",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "326",
+      "name": "Very Dark Rose",
+      "hex": "#B33B4B",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "327",
+      "name": "Dark Violet",
+      "hex": "#63364F",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "333",
+      "name": "Very Dark Blue Violet",
+      "hex": "#5C5478",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "334",
+      "name": "Medium Baby Blue",
+      "hex": "#739FC1",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "335",
+      "name": "Rose",
+      "hex": "#EE546E",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "336",
+      "name": "Navy Blue",
+      "hex": "#244967",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "340",
+      "name": "Medium Blue Violet",
+      "hex": "#ADA7C7",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "341",
+      "name": "Light Blue Violet",
+      "hex": "#B7BFDD",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "347",
+      "name": "Very Dark Salmon",
+      "hex": "#BF2D2D",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "349",
+      "name": "Dark Coral",
+      "hex": "#D24545",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "350",
+      "name": "Medium Coral",
+      "hex": "#E05F55",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "351",
+      "name": "Coral",
+      "hex": "#E97E67",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "352",
+      "name": "Light Coral",
+      "hex": "#FD9C83",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "353",
+      "name": "Peach",
+      "hex": "#FEB8AE",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "355",
+      "name": "Dark Terra Cotta",
+      "hex": "#984436",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "356",
+      "name": "Medium Terra Cotta",
+      "hex": "#C56A5B",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "367",
+      "name": "Dark Pistachio Green",
+      "hex": "#617A52",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "368",
+      "name": "Light Pistachio Green",
+      "hex": "#A6C298",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "369",
+      "name": "Very Light Pistachio Green",
+      "hex": "#D7EDCC",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "370",
+      "name": "Medium Mustard",
+      "hex": "#B89D64",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "371",
+      "name": "Mustard",
+      "hex": "#BFA671",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "372",
+      "name": "Light Mustard",
+      "hex": "#CCB784",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "400",
+      "name": "Dark Mahogany",
+      "hex": "#8F430F",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "402",
+      "name": "Very Light Mahogany",
+      "hex": "#F7A777",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "407",
+      "name": "Dark Desert Sand",
+      "hex": "#BB8161",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "413",
+      "name": "Dark Pewter Gray",
+      "hex": "#565656",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "414",
+      "name": "Dark Steel Gray",
+      "hex": "#8C8C8C",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "415",
+      "name": "Pearl Gray",
+      "hex": "#D3D3D6",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "420",
+      "name": "Dark Hazelnut Brown",
+      "hex": "#A07042",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "422",
+      "name": "Light Hazelnut Brown",
+      "hex": "#C69F7B",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "433",
+      "name": "Medium Brown",
+      "hex": "#7A451F",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "434",
+      "name": "Light Brown",
+      "hex": "#985E33",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "435",
+      "name": "Very Light Brown",
+      "hex": "#B87748",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "436",
+      "name": "Tan",
+      "hex": "#CB9051",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "437",
+      "name": "Light Tan",
+      "hex": "#E4BB8E",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "444",
+      "name": "Dark Lemon",
+      "hex": "#FFD600",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "445",
+      "name": "Light Lemon",
+      "hex": "#FFFB8B",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "451",
+      "name": "Dark Shell Gray",
+      "hex": "#917B73",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "452",
+      "name": "Medium Shell Gray",
+      "hex": "#C0A99B",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "453",
+      "name": "Light Shell Gray",
+      "hex": "#D7CECB",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "469",
+      "name": "Avocado Green",
+      "hex": "#72843C",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "470",
+      "name": "Light Avocado Green",
+      "hex": "#94AB4F",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "471",
+      "name": "Very Light Avocado Green",
+      "hex": "#AEBF79",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "472",
+      "name": "Ultra Light Avocado Green",
+      "hex": "#D8E498",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "498",
+      "name": "Dark Red",
+      "hex": "#A7132B",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "500",
+      "name": "Very Dark Blue Green",
+      "hex": "#044D33",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "501",
+      "name": "Dark Blue Green",
+      "hex": "#396F52",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "502",
+      "name": "Blue Green",
+      "hex": "#5B9071",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "503",
+      "name": "Medium Blue Green",
+      "hex": "#7BAC94",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "504",
+      "name": "Very Light Blue Green",
+      "hex": "#C4DECC",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "505",
+      "name": "Jade Green",
+      "hex": "#338362",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "517",
+      "name": "Dark Wedgwood",
+      "hex": "#3B768F",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "518",
+      "name": "Light Wedgwood",
+      "hex": "#4F93A7",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "519",
+      "name": "Sky Blue",
+      "hex": "#7EB1C8",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "520",
+      "name": "Dark Fern Green",
+      "hex": "#666D4F",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "522",
+      "name": "Fern Green",
+      "hex": "#969E7E",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "523",
+      "name": "Light Fern Green",
+      "hex": "#ABB197",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "524",
+      "name": "Very Light Fern Green",
+      "hex": "#C4CDAC",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "535",
+      "name": "Very Light Ash Gray",
+      "hex": "#636458",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "543",
+      "name": "Ultra Very Light Beige Brown",
+      "hex": "#F2E3CE",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "550",
+      "name": "Very Dark Violet",
+      "hex": "#5C184E",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "552",
+      "name": "Medium Violet",
+      "hex": "#803A6B",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "553",
+      "name": "Violet",
+      "hex": "#A3638B",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "554",
+      "name": "Light Violet",
+      "hex": "#DBB3CB",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "561",
+      "name": "Very Dark Jade",
+      "hex": "#2C6A45",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "562",
+      "name": "Medium Jade",
+      "hex": "#53976A",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "563",
+      "name": "Light Jade",
+      "hex": "#8FC098",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "564",
+      "name": "Very Light Jade",
+      "hex": "#A7CDAF",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "580",
+      "name": "Dark Moss Green",
+      "hex": "#888D33",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "581",
+      "name": "Moss Green",
+      "hex": "#A7AE38",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "597",
+      "name": "Turquoise",
+      "hex": "#5BA3AE",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "598",
+      "name": "Light Turquoise",
+      "hex": "#90C3CC",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "600",
+      "name": "Very Dark Cranberry",
+      "hex": "#CD2F63",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "601",
+      "name": "Dark Cranberry",
+      "hex": "#D1286A",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "602",
+      "name": "Medium Cranberry",
+      "hex": "#E24874",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "603",
+      "name": "Cranberry",
+      "hex": "#FF738C",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "604",
+      "name": "Light Cranberry",
+      "hex": "#FFB0BE",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "605",
+      "name": "Very Light Cranberry",
+      "hex": "#FFC0CD",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "606",
+      "name": "Bright Orange Red",
+      "hex": "#FA3203",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "608",
+      "name": "Bright Orange",
+      "hex": "#FD5D35",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "610",
+      "name": "Dark Drab Brown",
+      "hex": "#796047",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "611",
+      "name": "Drab Brown",
+      "hex": "#967656",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "612",
+      "name": "Light Drab Brown",
+      "hex": "#BC9A78",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "613",
+      "name": "Very Light Drab Brown",
+      "hex": "#DCC4AA",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "632",
+      "name": "Ultra Very Dark Desert Sand",
+      "hex": "#875539",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "640",
+      "name": "Very Dark Beige Gray",
+      "hex": "#857B61",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "642",
+      "name": "Dark Beige Gray",
+      "hex": "#A49878",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "644",
+      "name": "Medium Beige Gray",
+      "hex": "#DDD8CB",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "645",
+      "name": "Very Dark Beaver Gray",
+      "hex": "#6E655C",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "646",
+      "name": "Dark Beaver Gray",
+      "hex": "#877D73",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "647",
+      "name": "Medium Beaver Gray",
+      "hex": "#B0A69C",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "648",
+      "name": "Light Beaver Gray",
+      "hex": "#BCB4AC",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "666",
+      "name": "Bright Red",
+      "hex": "#E31D42",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "676",
+      "name": "Light Old Gold",
+      "hex": "#E5CE97",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "677",
+      "name": "Very Light Old Gold",
+      "hex": "#F5ECCB",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "680",
+      "name": "Dark Old Gold",
+      "hex": "#BC8D0E",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "699",
+      "name": "Green",
+      "hex": "#056517",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "700",
+      "name": "Bright Green",
+      "hex": "#07731B",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "701",
+      "name": "Light Green",
+      "hex": "#3F8F08",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "702",
+      "name": "Kelly Green",
+      "hex": "#47A72F",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "703",
+      "name": "Chartreuse",
+      "hex": "#7BB547",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "704",
+      "name": "Bright Chartreuse",
+      "hex": "#9ECF34",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "712",
+      "name": "Cream",
+      "hex": "#FFFBEF",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "718",
+      "name": "Plum",
+      "hex": "#9C2462",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "720",
+      "name": "Dark Orange Spice",
+      "hex": "#E55C1F",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "721",
+      "name": "Medium Orange Spice",
+      "hex": "#F27842",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "722",
+      "name": "Light Orange Spice",
+      "hex": "#F7976F",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "725",
+      "name": "Medium Light Topaz",
+      "hex": "#FFC840",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "726",
+      "name": "Light Topaz",
+      "hex": "#FDD755",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "727",
+      "name": "Very Light Topaz",
+      "hex": "#FFF1AF",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "728",
+      "name": "Topaz",
+      "hex": "#E4B468",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "729",
+      "name": "Medium Old Gold",
+      "hex": "#D0A53E",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "730",
+      "name": "Very Dark Olive Green",
+      "hex": "#827B30",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "731",
+      "name": "Dark Olive Green",
+      "hex": "#938B37",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "732",
+      "name": "Olive Green",
+      "hex": "#948C36",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "733",
+      "name": "Medium Olive Green",
+      "hex": "#BCB34C",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "734",
+      "name": "Light Olive Green",
+      "hex": "#C7C077",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "738",
+      "name": "Very Light Tan",
+      "hex": "#ECCC9E",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "739",
+      "name": "Ultra Very Light Tan",
+      "hex": "#F8E4C8",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "740",
+      "name": "Tangerine",
+      "hex": "#FF8313",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "741",
+      "name": "Medium Tangerine",
+      "hex": "#FFA32B",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "742",
+      "name": "Light Tangerine",
+      "hex": "#FFBF57",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "743",
+      "name": "Medium Yellow",
+      "hex": "#FFD66B",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "744",
+      "name": "Pale Yellow",
+      "hex": "#FFE793",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "745",
+      "name": "Light Pale Yellow",
+      "hex": "#FFF0C5",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "746",
+      "name": "Off White",
+      "hex": "#FCFCEE",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "747",
+      "name": "Very Light Sky Blue",
+      "hex": "#E5FCFD",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "754",
+      "name": "Light Peach",
+      "hex": "#F7CBBF",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "758",
+      "name": "Very Light Terra Cotta",
+      "hex": "#EEAA9B",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "760",
+      "name": "Salmon",
+      "hex": "#F5ADAD",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "761",
+      "name": "Light Salmon",
+      "hex": "#FFC9C9",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "762",
+      "name": "Very Light Pearl Gray",
+      "hex": "#ECECEC",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "772",
+      "name": "Very Light Yellow Green",
+      "hex": "#E4ECD4",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "775",
+      "name": "Very Light Baby Blue",
+      "hex": "#D9EBF1",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "776",
+      "name": "Medium Pink",
+      "hex": "#FCB0B9",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "778",
+      "name": "Very Light Antique Mauve",
+      "hex": "#DFB3BB",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "779",
+      "name": "Dark Cocoa",
+      "hex": "#624B45",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "780",
+      "name": "Ultra Very Dark Topaz",
+      "hex": "#94631A",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "781",
+      "name": "Very Dark Topaz",
+      "hex": "#A26D20",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "782",
+      "name": "Dark Topaz",
+      "hex": "#AE7720",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "783",
+      "name": "Medium Topaz",
+      "hex": "#CE9124",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "791",
+      "name": "Very Dark Cornflower Blue",
+      "hex": "#464563",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "792",
+      "name": "Dark Cornflower Blue",
+      "hex": "#555B7B",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "793",
+      "name": "Medium Cornflower Blue",
+      "hex": "#707DA2",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "794",
+      "name": "Light Cornflower Blue",
+      "hex": "#8F9CC1",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "796",
+      "name": "Dark Royal Blue",
+      "hex": "#11416D",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "797",
+      "name": "Royal Blue",
+      "hex": "#13477D",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "798",
+      "name": "Dark Delft Blue",
+      "hex": "#466A8E",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "799",
+      "name": "Medium Delft Blue",
+      "hex": "#748EB6",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "800",
+      "name": "Pale Delft Blue",
+      "hex": "#C0CCDE",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "801",
+      "name": "Dark Coffee Brown",
+      "hex": "#653919",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "803",
+      "name": "Ultra Very Dark Baby Blue",
+      "hex": "#2C597C",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "806",
+      "name": "Dark Peacock Blue",
+      "hex": "#3D95A5",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "807",
+      "name": "Peacock Blue",
+      "hex": "#64ABBA",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "809",
+      "name": "Delft Blue",
+      "hex": "#94A8C6",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "813",
+      "name": "Light Blue",
+      "hex": "#A1C2D7",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "814",
+      "name": "Dark Garnet",
+      "hex": "#7B001B",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "815",
+      "name": "Medium Garnet",
+      "hex": "#87071F",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "816",
+      "name": "Garnet",
+      "hex": "#970B23",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "817",
+      "name": "Very Dark Coral Red",
+      "hex": "#BB051F",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "818",
+      "name": "Baby Pink",
+      "hex": "#FFDFD9",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "819",
+      "name": "Light Baby Pink",
+      "hex": "#FFE9E7",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "820",
+      "name": "Very Dark Royal Blue",
+      "hex": "#0E365C",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "822",
+      "name": "Light Beige Gray",
+      "hex": "#E7E2D3",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "823",
+      "name": "Dark Navy Blue",
+      "hex": "#213063",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "824",
+      "name": "Very Dark Blue",
+      "hex": "#396987",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "825",
+      "name": "Dark Blue",
+      "hex": "#4781A5",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "826",
+      "name": "Medium Blue",
+      "hex": "#6B9EBF",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "827",
+      "name": "Very Light Blue",
+      "hex": "#BDDDED",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "828",
+      "name": "Ultra Very Light Blue",
+      "hex": "#C5E8ED",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "829",
+      "name": "Very Dark Golden Olive",
+      "hex": "#7E6B42",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "830",
+      "name": "Dark Golden Olive",
+      "hex": "#8D784B",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "831",
+      "name": "Medium Golden Olive",
+      "hex": "#AA8F56",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "832",
+      "name": "Golden Olive",
+      "hex": "#BD9B51",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "833",
+      "name": "Light Golden Olive",
+      "hex": "#C8AB6C",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "834",
+      "name": "Very Light Golden Olive",
+      "hex": "#DBBE7F",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "838",
+      "name": "Very Dark Beige Brown",
+      "hex": "#594937",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "839",
+      "name": "Dark Beige Brown",
+      "hex": "#675541",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "840",
+      "name": "Medium Beige Brown",
+      "hex": "#9A7C5C",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "841",
+      "name": "Light Beige Brown",
+      "hex": "#B69B7E",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "842",
+      "name": "Very Light Beige Brown",
+      "hex": "#D1BAA1",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "844",
+      "name": "Ultra Dark Beaver Gray",
+      "hex": "#484848",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "869",
+      "name": "Very Dark Hazelnut Brown",
+      "hex": "#835E39",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "890",
+      "name": "Ultra Dark Pistachio Green",
+      "hex": "#174923",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "891",
+      "name": "Dark Carnation",
+      "hex": "#FF5773",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "892",
+      "name": "Medium Carnation",
+      "hex": "#FF798C",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "893",
+      "name": "Light Carnation",
+      "hex": "#FC90A2",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "894",
+      "name": "Very Light Carnation",
+      "hex": "#FFB2BB",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "895",
+      "name": "Very Dark Hunter Green",
+      "hex": "#1B5300",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "898",
+      "name": "Very Dark Coffee Brown",
+      "hex": "#492A13",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "899",
+      "name": "Medium Rose",
+      "hex": "#F27688",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "900",
+      "name": "Dark Burnt Orange",
+      "hex": "#D15807",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "902",
+      "name": "Very Dark Garnet",
+      "hex": "#822637",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "904",
+      "name": "Very Dark Parrot Green",
+      "hex": "#557822",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "905",
+      "name": "Dark Parrot Green",
+      "hex": "#628A28",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "906",
+      "name": "Medium Parrot Green",
+      "hex": "#7FB335",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "907",
+      "name": "Light Parrot Green",
+      "hex": "#C7E666",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "909",
+      "name": "Very Dark Emerald Green",
+      "hex": "#156F49",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "910",
+      "name": "Dark Emerald Green",
+      "hex": "#187E56",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "911",
+      "name": "Medium Emerald Green",
+      "hex": "#189065",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "912",
+      "name": "Light Emerald Green",
+      "hex": "#1B9D6B",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "913",
+      "name": "Medium Nile Green",
+      "hex": "#6DAB77",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "915",
+      "name": "Dark Plum",
+      "hex": "#820043",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "917",
+      "name": "Medium Plum",
+      "hex": "#9B1359",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "918",
+      "name": "Dark Red Copper",
+      "hex": "#82340A",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "919",
+      "name": "Red Copper",
+      "hex": "#A64510",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "920",
+      "name": "Medium Copper",
+      "hex": "#AC5414",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "921",
+      "name": "Copper",
+      "hex": "#C66218",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "922",
+      "name": "Light Copper",
+      "hex": "#E27323",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "924",
+      "name": "Very Dark Gray Green",
+      "hex": "#566A6A",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "926",
+      "name": "Medium Gray Green",
+      "hex": "#98AEAE",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "927",
+      "name": "Light Gray Green",
+      "hex": "#BDCBCB",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "928",
+      "name": "Very Light Gray Green",
+      "hex": "#DDE3E3",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "930",
+      "name": "Dark Antique Blue",
+      "hex": "#455C71",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "931",
+      "name": "Medium Antique Blue",
+      "hex": "#6A859E",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "932",
+      "name": "Light Antique Blue",
+      "hex": "#A2B5C6",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "934",
+      "name": "Black Avocado Green",
+      "hex": "#333500",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "935",
+      "name": "Dark Avocado Green",
+      "hex": "#424621",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "936",
+      "name": "Very Dark Avocado Green",
+      "hex": "#4C5826",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "937",
+      "name": "Medium Avocado Green",
+      "hex": "#627133",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "938",
+      "name": "Ultra Dark Coffee Brown",
+      "hex": "#361F0E",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "939",
+      "name": "Very Dark Navy Blue",
+      "hex": "#1B2853",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "943",
+      "name": "Medium Aquamarine",
+      "hex": "#3D9384",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "945",
+      "name": "Tawny",
+      "hex": "#FBD5BB",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "946",
+      "name": "Medium Burnt Orange",
+      "hex": "#EB6307",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "947",
+      "name": "Burnt Orange",
+      "hex": "#FF7B4D",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "948",
+      "name": "Very Light Peach",
+      "hex": "#FEE7E8",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "950",
+      "name": "Light Desert Sand",
+      "hex": "#EED3C4",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "951",
+      "name": "Light Tawny",
+      "hex": "#FFE2CF",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "954",
+      "name": "Nile Green",
+      "hex": "#88BA91",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "955",
+      "name": "Light Nile Green",
+      "hex": "#A2D6AD",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "956",
+      "name": "Geranium",
+      "hex": "#FF9191",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "957",
+      "name": "Pale Geranium",
+      "hex": "#FDB5B5",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "958",
+      "name": "Dark Seagreen",
+      "hex": "#3EB6A1",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "959",
+      "name": "Medium Seagreen",
+      "hex": "#59C7B4",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "961",
+      "name": "Dark Dusty Rose",
+      "hex": "#CF7373",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "962",
+      "name": "Medium Dusty Rose",
+      "hex": "#E68A8A",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "963",
+      "name": "Ultra Very Light Dusty Rose",
+      "hex": "#FFD7D7",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "964",
+      "name": "Light Seagreen",
+      "hex": "#A9E2D8",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "966",
+      "name": "Medium Baby Green",
+      "hex": "#B9D7C0",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "970",
+      "name": "Light Pumpkin",
+      "hex": "#F78B13",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "971",
+      "name": "Pumpkin",
+      "hex": "#F67F00",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "972",
+      "name": "Deep Canary",
+      "hex": "#FFB515",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "973",
+      "name": "Bright Canary",
+      "hex": "#FFE300",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "975",
+      "name": "Dark Golden Brown",
+      "hex": "#914F12",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "976",
+      "name": "Medium Golden Brown",
+      "hex": "#C2812C",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "977",
+      "name": "Light Golden Brown",
+      "hex": "#DC9C56",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "986",
+      "name": "Very Dark Forest Green",
+      "hex": "#405230",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "987",
+      "name": "Dark Forest Green",
+      "hex": "#587141",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "988",
+      "name": "Medium Forest Green",
+      "hex": "#738B5B",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "989",
+      "name": "Forest Green",
+      "hex": "#8DA675",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "991",
+      "name": "Dark Aquamarine",
+      "hex": "#477B6E",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "992",
+      "name": "Light Aquamarine",
+      "hex": "#6FAE9F",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "993",
+      "name": "Very Light Aquamarine",
+      "hex": "#90C0B4",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "995",
+      "name": "Dark Electric Blue",
+      "hex": "#2696B6",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "996",
+      "name": "Medium Electric Blue",
+      "hex": "#30C2EC",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3011",
+      "name": "Dark Khaki Green",
+      "hex": "#89784F",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3012",
+      "name": "Medium Khaki Green",
+      "hex": "#A69567",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3013",
+      "name": "Light Khaki Green",
+      "hex": "#B9AB80",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3021",
+      "name": "Very Dark Brown Gray",
+      "hex": "#4F4B41",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3022",
+      "name": "Medium Brown Gray",
+      "hex": "#8E9078",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3023",
+      "name": "Light Brown Gray",
+      "hex": "#B1AA97",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3024",
+      "name": "Very Light Brown Gray",
+      "hex": "#EBEAE7",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3031",
+      "name": "Very Dark Mocha Brown",
+      "hex": "#4B3C2A",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3032",
+      "name": "Medium Mocha Brown",
+      "hex": "#B39F8B",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3033",
+      "name": "Very Light Mocha Brown",
+      "hex": "#E3D8CC",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3041",
+      "name": "Medium Antique Violet",
+      "hex": "#956F7C",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3042",
+      "name": "Light Antique Violet",
+      "hex": "#B79DA7",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3045",
+      "name": "Dark Yellow Beige",
+      "hex": "#BC966A",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3046",
+      "name": "Medium Yellow Beige",
+      "hex": "#D8BC9A",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3047",
+      "name": "Light Yellow Beige",
+      "hex": "#E7D6C1",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3051",
+      "name": "Dark Green Gray",
+      "hex": "#5F6648",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3052",
+      "name": "Medium Green Gray",
+      "hex": "#889268",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3053",
+      "name": "Light Green Gray",
+      "hex": "#9CA482",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3064",
+      "name": "Desert Sand",
+      "hex": "#C48E70",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3072",
+      "name": "Very Light Beaver Gray",
+      "hex": "#E6E2DB",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3078",
+      "name": "Very Light Golden Yellow",
+      "hex": "#FDF9CD",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3325",
+      "name": "Light Baby Blue",
+      "hex": "#B8D2E6",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3326",
+      "name": "Light Rose",
+      "hex": "#FBADB4",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3328",
+      "name": "Dark Salmon",
+      "hex": "#E36D6D",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3340",
+      "name": "Medium Apricot",
+      "hex": "#FF836F",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3341",
+      "name": "Apricot",
+      "hex": "#FCAB98",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3345",
+      "name": "Dark Hunter Green",
+      "hex": "#1B5915",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3346",
+      "name": "Hunter Green",
+      "hex": "#406A3A",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3347",
+      "name": "Medium Hunter Green",
+      "hex": "#597E4F",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3348",
+      "name": "Light Yellow Green",
+      "hex": "#CCD9B1",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3350",
+      "name": "Ultra Dark Dusty Rose",
+      "hex": "#BC4365",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3354",
+      "name": "Light Dusty Rose",
+      "hex": "#E4A6AC",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3362",
+      "name": "Dark Pine Green",
+      "hex": "#5E6B47",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3363",
+      "name": "Medium Pine Green",
+      "hex": "#728256",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3364",
+      "name": "Pine Green",
+      "hex": "#83975F",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3371",
+      "name": "Black Brown",
+      "hex": "#1E1108",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3607",
+      "name": "Light Plum",
+      "hex": "#C54989",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3608",
+      "name": "Very Light Plum",
+      "hex": "#EA9CC4",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3609",
+      "name": "Ultra Light Plum",
+      "hex": "#F4AED5",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3685",
+      "name": "Very Dark Mauve",
+      "hex": "#881531",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3687",
+      "name": "Mauve",
+      "hex": "#C96B70",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3688",
+      "name": "Medium Mauve",
+      "hex": "#E7A9AC",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3689",
+      "name": "Light Mauve",
+      "hex": "#FBBFC2",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3705",
+      "name": "Dark Melon",
+      "hex": "#FF7992",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3706",
+      "name": "Medium Melon",
+      "hex": "#FFADBC",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3708",
+      "name": "Light Melon",
+      "hex": "#FFCBD5",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3712",
+      "name": "Medium Salmon",
+      "hex": "#F18787",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3713",
+      "name": "Very Light Salmon",
+      "hex": "#FFE2E2",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3716",
+      "name": "Very Light Dusty Rose",
+      "hex": "#FFBDBD",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3721",
+      "name": "Dark Shell Pink",
+      "hex": "#A14B51",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3722",
+      "name": "Medium Shell Pink",
+      "hex": "#BC6C64",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3726",
+      "name": "Dark Antique Mauve",
+      "hex": "#9B5B66",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3727",
+      "name": "Light Antique Mauve",
+      "hex": "#DBA9B2",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3731",
+      "name": "Very Dark Dusty Rose",
+      "hex": "#DA6783",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3733",
+      "name": "Dusty Rose",
+      "hex": "#E8879B",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3740",
+      "name": "Dark Antique Violet",
+      "hex": "#785762",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3743",
+      "name": "Very Light Antique Violet",
+      "hex": "#D7CBD3",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3746",
+      "name": "Dark Blue Violet",
+      "hex": "#776B98",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3747",
+      "name": "Very Light Blue Violet",
+      "hex": "#D3D7ED",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3750",
+      "name": "Very Dark Antique Blue",
+      "hex": "#384C5E",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3752",
+      "name": "Very Light Antique Blue",
+      "hex": "#C7D1DB",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3753",
+      "name": "Ultra Very Light Antique Blue",
+      "hex": "#DBE2E9",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3755",
+      "name": "Baby Blue",
+      "hex": "#93B4CE",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3756",
+      "name": "Ultra Very Light Baby Blue",
+      "hex": "#EEFCFC",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3760",
+      "name": "Medium Wedgwood",
+      "hex": "#3E85A2",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3761",
+      "name": "Light Sky Blue",
+      "hex": "#ACD8E2",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3765",
+      "name": "Very Dark Peacock Blue",
+      "hex": "#347F8C",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3766",
+      "name": "Light Peacock Blue",
+      "hex": "#99CFD9",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3768",
+      "name": "Dark Gray Green",
+      "hex": "#657F7F",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3770",
+      "name": "Very Light Tawny",
+      "hex": "#FFEEE3",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3771",
+      "name": "Ultra Very Light Terra Cotta",
+      "hex": "#F4BBA9",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3772",
+      "name": "Very Dark Desert Sand",
+      "hex": "#A06C50",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3773",
+      "name": "Medium Desert Sand",
+      "hex": "#B67552",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3774",
+      "name": "Very Light Desert Sand",
+      "hex": "#F3E1D7",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3776",
+      "name": "Light Mahogany",
+      "hex": "#CF7939",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3777",
+      "name": "Very Dark Terra Cotta",
+      "hex": "#863022",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3778",
+      "name": "Light Terra Cotta",
+      "hex": "#D98978",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3779",
+      "name": "Ultra Very Light Terra Cotta",
+      "hex": "#F8CAC8",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3781",
+      "name": "Dark Mocha Brown",
+      "hex": "#6B5743",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3782",
+      "name": "Light Mocha Brown",
+      "hex": "#D2BCA6",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3787",
+      "name": "Dark Brown Gray",
+      "hex": "#625D50",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3790",
+      "name": "Ultra Dark Beige Gray",
+      "hex": "#7F6A55",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3799",
+      "name": "Very Dark Pewter Gray",
+      "hex": "#424242",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3801",
+      "name": "Very Dark Melon",
+      "hex": "#E74967",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3802",
+      "name": "Very Dark Antique Mauve",
+      "hex": "#714149",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3803",
+      "name": "Dark Mauve",
+      "hex": "#AB3357",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3804",
+      "name": "Dark Cyclamen Pink",
+      "hex": "#E02876",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3805",
+      "name": "Cyclamen Pink",
+      "hex": "#F3478B",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3806",
+      "name": "Light Cyclamen Pink",
+      "hex": "#FF8CAE",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3807",
+      "name": "Cornflower Blue",
+      "hex": "#60678C",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3808",
+      "name": "Ultra Very Dark Turquoise",
+      "hex": "#366970",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3809",
+      "name": "Very Dark Turquoise",
+      "hex": "#3F8F9A",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3810",
+      "name": "Dark Turquoise",
+      "hex": "#48AFBB",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3811",
+      "name": "Very Light Turquoise",
+      "hex": "#BCE3E6",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3812",
+      "name": "Very Dark Seagreen",
+      "hex": "#2F8C84",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3813",
+      "name": "Light Blue Green",
+      "hex": "#B2D4BD",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3814",
+      "name": "Aquamarine",
+      "hex": "#508B7D",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3815",
+      "name": "Dark Celadon Green",
+      "hex": "#477759",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3816",
+      "name": "Celadon Green",
+      "hex": "#65A57D",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3817",
+      "name": "Light Celadon Green",
+      "hex": "#99C3AA",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3818",
+      "name": "Ultra Very Dark Emerald Green",
+      "hex": "#115A3B",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3819",
+      "name": "Light Moss Green",
+      "hex": "#E0E868",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3820",
+      "name": "Dark Straw",
+      "hex": "#DFB65F",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3821",
+      "name": "Straw",
+      "hex": "#F3CE75",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3822",
+      "name": "Light Straw",
+      "hex": "#F6DC98",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3823",
+      "name": "Ultra Pale Yellow",
+      "hex": "#FFFDE3",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3824",
+      "name": "Light Apricot",
+      "hex": "#FECDC2",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3825",
+      "name": "Pale Pumpkin",
+      "hex": "#FDBD96",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3826",
+      "name": "Golden Brown",
+      "hex": "#AD7239",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3827",
+      "name": "Pale Golden Brown",
+      "hex": "#F7BB77",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3828",
+      "name": "Hazelnut Brown",
+      "hex": "#B78B61",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3829",
+      "name": "Very Dark Old Gold",
+      "hex": "#A98204",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3830",
+      "name": "Terra Cotta",
+      "hex": "#B95544",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3831",
+      "name": "Dark Raspberry",
+      "hex": "#B32F48",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3832",
+      "name": "Medium Raspberry",
+      "hex": "#DB556E",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3833",
+      "name": "Light Raspberry",
+      "hex": "#EA8699",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3834",
+      "name": "Dark Grape",
+      "hex": "#72375D",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3835",
+      "name": "Medium Grape",
+      "hex": "#946083",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3836",
+      "name": "Light Grape",
+      "hex": "#BA91AA",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3837",
+      "name": "Ultra Dark Lavender",
+      "hex": "#6C3A6E",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3838",
+      "name": "Dark Lavender Blue",
+      "hex": "#5C7294",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3839",
+      "name": "Medium Lavender Blue",
+      "hex": "#7B8EAB",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3840",
+      "name": "Light Lavender Blue",
+      "hex": "#B0C0DA",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3841",
+      "name": "Pale Baby Blue",
+      "hex": "#CDDFED",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3842",
+      "name": "Dark Wedgwood",
+      "hex": "#32667C",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3843",
+      "name": "Electric Blue",
+      "hex": "#14AAD0",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3844",
+      "name": "Dark Bright Turquoise",
+      "hex": "#12AEBA",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3845",
+      "name": "Medium Bright Turquoise",
+      "hex": "#04C4CA",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3846",
+      "name": "Light Bright Turquoise",
+      "hex": "#06E3E6",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3847",
+      "name": "Dark Teal Green",
+      "hex": "#347D75",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3848",
+      "name": "Medium Teal Green",
+      "hex": "#559C8F",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3849",
+      "name": "Light Teal Green",
+      "hex": "#52B3A4",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3850",
+      "name": "Dark Bright Green",
+      "hex": "#378477",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3851",
+      "name": "Light Bright Green",
+      "hex": "#49B3A1",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3852",
+      "name": "Very Dark Straw",
+      "hex": "#CD9D37",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3853",
+      "name": "Dark Autumn Gold",
+      "hex": "#F29746",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3854",
+      "name": "Medium Autumn Gold",
+      "hex": "#F2AF68",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3855",
+      "name": "Light Autumn Gold",
+      "hex": "#FAD396",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3856",
+      "name": "Ultra Very Light Mahogany",
+      "hex": "#FFD3B5",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3857",
+      "name": "Dark Rosewood",
+      "hex": "#68251A",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3858",
+      "name": "Medium Rosewood",
+      "hex": "#964A3F",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3859",
+      "name": "Light Rosewood",
+      "hex": "#BA8B7C",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3860",
+      "name": "Cocoa",
+      "hex": "#7D5D57",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3861",
+      "name": "Light Cocoa",
+      "hex": "#A68881",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3862",
+      "name": "Dark Mocha Beige",
+      "hex": "#8A6E4E",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3863",
+      "name": "Medium Mocha Beige",
+      "hex": "#A4835C",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3864",
+      "name": "Light Mocha Beige",
+      "hex": "#CBB69C",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3865",
+      "name": "Winter White",
+      "hex": "#F9F7F1",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "3866",
+      "name": "Ultra Very Light Mocha Brown",
+      "hex": "#FAF6F0",
+      "family": "Stranded Cotton"
+    },
+    {
+      "code": "E130",
+      "name": "Gemstones",
+      "hex": "#FFFF00",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E135",
+      "name": "Light Effects Neon Orange",
+      "hex": "#FF6600",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E168",
+      "name": "Light Effects Precious Metal Silver",
+      "hex": "#C0C0C0",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E211",
+      "name": "Light Effects Precious Metal Lilac",
+      "hex": "#C8A2C8",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E301",
+      "name": "Light Effects Copper",
+      "hex": "#B87333",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E310",
+      "name": "Light Effects Ebony",
+      "hex": "#1A1A1A",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E316",
+      "name": "Light Effects Pink Amethyst",
+      "hex": "#CC6699",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E317",
+      "name": "Titanium",
+      "hex": "#6699CC",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E321",
+      "name": "Light Effects Ruby",
+      "hex": "#CC0033",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E334",
+      "name": "Blue Topaz",
+      "hex": "#3366CC",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E436",
+      "name": "Golden Oak",
+      "hex": "#996633",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E677",
+      "name": "White Gold",
+      "hex": "#FFD700",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E690",
+      "name": "Light Effects Neon Green",
+      "hex": "#00FF00",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E699",
+      "name": "Light Effects Neon Green Dark",
+      "hex": "#009900",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E703",
+      "name": "Light Effects Emerald",
+      "hex": "#009966",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E718",
+      "name": "Light Effects Neon Pink",
+      "hex": "#FF3399",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E746",
+      "name": "Light Effects Ivory",
+      "hex": "#FFFFF0",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E747",
+      "name": "Light Effects Baby Blue",
+      "hex": "#99CCFF",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E815",
+      "name": "Dark Red Ruby",
+      "hex": "#990033",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E818",
+      "name": "Light Effects Soft Pink",
+      "hex": "#FFB3CC",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E825",
+      "name": "Blue Sapphire",
+      "hex": "#009999",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E898",
+      "name": "Dark Oak",
+      "hex": "#663300",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E940",
+      "name": "Glow in the Dark",
+      "hex": "#CC0066",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E966",
+      "name": "Lime",
+      "hex": "#33CC33",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E980",
+      "name": "Neon Yellow",
+      "hex": "#3333FF",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E3821",
+      "name": "Light Effects Precious Metal Gold",
+      "hex": "#DAA520",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E3837",
+      "name": "Light Effects Precious Metal Dark Gold",
+      "hex": "#B8860B",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E3843",
+      "name": "Light Effects Precious Metal Turquoise",
+      "hex": "#40E0D0",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E3849",
+      "name": "Light Effects Precious Metal Teal",
+      "hex": "#008080",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E3852",
+      "name": "Light Effects Precious Metal Bronze",
+      "hex": "#CD7F32",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E5200",
+      "name": "Light Effects Precious Metal White Gold",
+      "hex": "#F5F5DC",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E168P",
+      "name": "Light Effects Pearlescent Silver",
+      "hex": "#D8D8D8",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E211P",
+      "name": "Light Effects Pearlescent Lilac",
+      "hex": "#D8B4D8",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E316P",
+      "name": "Light Effects Pearlescent Pink",
+      "hex": "#E8A2C0",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E677P",
+      "name": "Light Effects Pearlescent Gold",
+      "hex": "#FFE44D",
+      "family": "Light Effects"
+    },
+    {
+      "code": "E747P",
+      "name": "Light Effects Pearlescent Blue",
+      "hex": "#ADD8FF",
+      "family": "Light Effects"
+    }
+  ],
+  "counts": {
+    "stranded": 487,
+    "light_effects": 36,
+    "total": 523
+  }
 }

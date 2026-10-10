@@ -197,13 +197,18 @@ class TestPwaAndNotes(unittest.TestCase):
         self.assertIn('skipWaiting', sw)
 
     def test_every_page_links_the_manifest_and_install_button(self):
-        for tpl in ('index.html', 'pixelator.html', 'resizer.html',
-                    'palette.html', 'ascii.html'):
-            html = self._read('templates', tpl)
-            self.assertIn('rel="manifest"', html, tpl)
-            self.assertIn('theme-color', html, tpl)
-            self.assertIn('id="installBtn"', html, tpl)
-            self.assertIn("filename='pwa.js'", html, tpl)
+        # The shared base carries manifest / theme-color / installBtn, and every
+        # page pulls in pwa.js. Render the pages the way the app does rather than
+        # reading the raw templates, which now hold only their own content.
+        from App.app import app
+        app.config['TESTING'] = True
+        client = app.test_client()
+        for path in ('/', '/pixelator', '/resizer', '/palette', '/ascii'):
+            html = client.get(path).get_data(as_text=True)
+            self.assertIn('rel="manifest"', html, path)
+            self.assertIn('theme-color', html, path)
+            self.assertIn('id="installBtn"', html, path)
+            self.assertIn('pwa.js', html, path)
 
     def test_static_build_publishes_pwa_files(self):
         build = self._read('.github', 'scripts', 'build_site.py')
@@ -243,6 +248,88 @@ class TestPwaAndNotes(unittest.TestCase):
             self.assertEqual(project_manager.get_project(meta['id'])['notes'], 'updated')
         finally:
             project_manager.delete_project(meta['id'])
+
+
+class TestCrawlerFiles(unittest.TestCase):
+    """robots.txt / sitemap.xml. GitHub Pages serves no robots.txt of its own,
+    and a CDN in front of it (Cloudflare's managed Content Signals file) was
+    answering /robots.txt with a comments-only default - so the site had to
+    publish both files itself, from one generator both builds share."""
+
+    def _read(self, *parts):
+        root = os.path.dirname(os.path.abspath(__file__))
+        path = os.path.join(root, *parts)
+        if not os.path.exists(path):
+            path = os.path.join(os.path.dirname(root), *parts)
+        with open(path, encoding='utf-8') as fh:
+            return fh.read()
+
+    def _config(self):
+        import json
+        return json.loads(self._read('config.json'))
+
+    def test_robots_allows_everything_including_google_extended(self):
+        from App import seo_files
+        text = seo_files.robots_txt(self._config())
+        self.assertIn('User-agent: *', text)
+        self.assertIn('Allow: /', text)
+        # Google-Extended is a token, not a crawler - it must be named to read
+        # as an explicit opt-in for Gemini / Vertex AI training.
+        self.assertIn('User-agent: Google-Extended', text)
+        self.assertIn('User-agent: GPTBot', text)
+        self.assertIn('Sitemap: ', text)
+        self.assertNotIn('Disallow:', text,
+                         'the crawler files must not block anything')
+
+    def test_sitemap_lists_the_designer_and_every_tool(self):
+        import xml.etree.ElementTree as ET
+        from App import seo_files
+        config = self._config()
+        xml = seo_files.sitemap_xml(config, lastmod='2026-01-01')
+        # Well-formed, and every page appears exactly once.
+        locs = [e.text for e in ET.fromstring(xml).iter(
+            '{http://www.sitemaps.org/schemas/sitemap/0.9}loc')]
+        self.assertEqual(len(locs), len(set(locs)))
+        self.assertEqual(len(locs), len(seo_files.TOOL_PATHS) + 1)
+        for _path, url in seo_files.page_urls(config):
+            self.assertIn(url, locs)
+        self.assertIn('https://stitchee.ca/', locs)
+
+    def test_tool_registry_is_the_single_source_of_truth(self):
+        # The four tool pages are declared once, in page_context.TOOLS, and the
+        # routes, the static build and the sitemap all derive from it, so a tool
+        # added to one build cannot be forgotten in another.
+        from App import seo_files, page_context
+        self.assertEqual(seo_files.TOOL_PATHS, page_context.TOOL_KEYS)
+        self.assertEqual(page_context.TOOL_KEYS,
+                         tuple(t[2] for t in page_context.TOOLS))
+        app_src = self._read('app.py')
+        build = self._read('.github', 'scripts', 'build_site.py')
+        self.assertIn('page_context.TOOLS', app_src)
+        self.assertIn('from page_context import TOOLS', build)
+
+    def test_static_build_writes_both_crawler_files(self):
+        build = self._read('.github', 'scripts', 'build_site.py')
+        # The build must go through the shared generator (which app.py also
+        # serves) rather than hand-writing its own copy of either file.
+        self.assertIn('from seo_files import crawler_files', build)
+        self.assertIn('crawler_files(', build)
+        from App import seo_files
+        files = seo_files.crawler_files(self._config())
+        self.assertEqual(sorted(files), sorted(seo_files.CRAWLER_FILES))
+        self.assertEqual(sorted(files), ['robots.txt', 'sitemap.xml'])
+
+    def test_app_serves_the_crawler_files_from_the_root(self):
+        from App.app import app
+        app.config['TESTING'] = True
+        client = app.test_client()
+        robots = client.get('/robots.txt')
+        self.assertEqual(robots.status_code, 200)
+        self.assertIn('text/plain', robots.headers['Content-Type'])
+        self.assertIn(b'User-agent: *', robots.data)
+        sitemap = client.get('/sitemap.xml')
+        self.assertEqual(sitemap.status_code, 200)
+        self.assertIn(b'<urlset', sitemap.data)
 
 
 class TestChartImport(unittest.TestCase):
@@ -817,6 +904,189 @@ class TestAnnotationsAndNotes(unittest.TestCase):
         self.assertIn('notes:', snapshot)
 
 
+class TestPalettes(unittest.TestCase):
+    """Two palettes, two index spaces, one catalog -- and no drift between them.
+
+    The DMC palette is its own index space (a 500-colour library cannot honour
+    the yarn palette's distinct-glyph-per-colour guarantee), so these tests pin
+    down that the two never get confused for one another.
+    """
+
+    def setUp(self):
+        palette_manager.load_floss_table()
+
+    def tearDown(self):
+        palette_manager.load_floss_table()
+
+    def test_catalog_lists_yarn_as_default_and_dmc_as_an_option(self):
+        catalog = palette_manager.palette_catalog()
+        ids = [c['id'] for c in catalog]
+        self.assertEqual(ids[0], 'yarn')
+        self.assertIn('dmc', ids)
+        by_id = {c['id']: c for c in catalog}
+        self.assertTrue(by_id['yarn']['default'])
+        self.assertFalse(by_id['dmc']['default'])
+        self.assertEqual(by_id['yarn']['size'], palette_manager.palette_size('yarn'))
+        self.assertEqual(by_id['dmc']['size'], palette_manager.palette_size('dmc'))
+        self.assertEqual(by_id['dmc']['size'], palette_manager.floss_size())
+
+    def test_dmc_palette_mirrors_the_floss_table(self):
+        dmc = palette_manager.get_palette('dmc')
+        floss = palette_manager.get_floss()
+        self.assertEqual(len(dmc), len(floss))
+        for entry, real in zip(dmc, floss):
+            self.assertEqual(entry['code'], real['code'])
+            self.assertEqual(entry['hex'], real['hex'])
+            self.assertEqual(entry['index'], real['index'])
+            # A DMC entry's nearest floss is itself, at zero distance.
+            self.assertEqual(entry['dmc']['code'], real['code'])
+            self.assertEqual(entry['dmc']['lab_distance'], 0.0)
+
+    def test_dmc_symbols_stay_in_range(self):
+        for entry in palette_manager.get_palette('dmc'):
+            self.assertTrue(0 <= entry['symbol'] < palette_manager.SYMBOL_COUNT)
+
+    def test_yarn_symbol_guarantee_is_untouched(self):
+        # The distinct-glyph guarantee is scoped to the yarn palette; adding the
+        # DMC palette must not weaken it.
+        symbols = [e['symbol'] for e in palette_manager.get_palette('yarn')]
+        self.assertEqual(len(symbols), len(set(symbols)))
+        self.assertGreaterEqual(palette_manager.SYMBOL_COUNT,
+                                palette_manager.palette_size('yarn'))
+
+    def test_dmc_matching_lands_on_real_codes(self):
+        codes = palette_manager.code_to_index('dmc')
+        self.assertEqual(palette_manager.nearest_index_for_hex('#000000', 'dmc'),
+                         codes['310'])
+        self.assertEqual(palette_manager.nearest_index_for_hex('#FFFFFF', 'dmc'),
+                         codes['B5200'])
+        rgb = np.array([[0, 0, 0], [255, 255, 255]], dtype=np.float64)
+        idx = palette_manager.nearest_indices(rgb, palette_id='dmc')
+        self.assertTrue((idx >= 0).all())
+        self.assertTrue((idx < palette_manager.palette_size('dmc')).all())
+
+    def test_unknown_palette_id_is_rejected(self):
+        self.assertFalse(palette_manager.is_palette_id('nope'))
+        self.assertTrue(palette_manager.is_palette_id('yarn'))
+        self.assertTrue(palette_manager.is_palette_id('dmc'))
+
+    def test_build_legend_resolves_a_dmc_index(self):
+        codes = palette_manager.code_to_index('dmc')
+        legend = palette_manager.build_legend({codes['310']: 7}, 'dmc')
+        self.assertEqual(len(legend), 1)
+        self.assertEqual(legend[0]['code'], '310')
+        self.assertEqual(legend[0]['count'], 7)
+        # An index past the yarn palette's size has no yarn colour at all, which
+        # is exactly why the palette id has to travel with the document.
+        high = palette_manager.palette_size('yarn') + 5
+        self.assertLess(high, palette_manager.palette_size('dmc'))
+        self.assertEqual(palette_manager.build_legend({high: 3}, 'yarn'), [])
+        self.assertEqual(len(palette_manager.build_legend({high: 3}, 'dmc')), 1)
+
+    def test_palette_js_source_publishes_every_palette(self):
+        import json as _json
+        src = palette_manager.palette_js_source()
+        self.assertIn('window.StitchPalettes', src)
+        self.assertIn('window.StitchPaletteCatalog', src)
+        blob = re.search(r'window\.StitchPalettes = (.*?);\n', src)
+        self.assertIsNotNone(blob, 'palette_js_source must emit window.StitchPalettes')
+        palettes = _json.loads(blob.group(1))
+        self.assertEqual(palettes['yarn'], palette_manager.get_palette('yarn'))
+        self.assertEqual(palettes['dmc'], palette_manager.get_palette('dmc'))
+
+    def test_analysis_into_the_dmc_palette_stays_in_range(self):
+        from PIL import Image
+        import io
+        buf = io.BytesIO()
+        Image.new('RGB', (4, 4), (200, 20, 20)).save(buf, format='PNG')
+        result = image_manager.analyze(buf.getvalue(), 3, 3, max_colors=4,
+                                       palette_id='dmc')
+        size = palette_manager.palette_size('dmc')
+        for row in result['grid']:
+            for value in row:
+                self.assertTrue(value == -1 or 0 <= value < size)
+        known = {e['code'] for e in palette_manager.get_floss()}
+        for row in result['legend']:
+            self.assertIn(row['code'], known)
+
+    def test_unknown_palette_id_falls_back_to_yarn(self):
+        from PIL import Image
+        import io
+        buf = io.BytesIO()
+        Image.new('RGB', (4, 4), (10, 200, 10)).save(buf, format='PNG')
+        result = image_manager.analyze(buf.getvalue(), 3, 3, max_colors=4,
+                                       palette_id='does-not-exist')
+        yarn = palette_manager.palette_size('yarn')
+        for row in result['grid']:
+            for value in row:
+                self.assertTrue(value == -1 or 0 <= value < yarn)
+
+    def test_pantone_palette_is_optional(self):
+        # The colour database is non-committed, so a fresh clone has no Pantone
+        # palette. That must be a clean absence, never an error.
+        saved_path = palette_manager.COLOR_DB_PATH
+        saved_cache = (palette_manager._pantone_palette, palette_manager._pantone_loaded)
+        try:
+            palette_manager.COLOR_DB_PATH = os.path.join('does', 'not', 'exist.ndjson')
+            palette_manager._pantone_palette = None
+            palette_manager._pantone_loaded = False
+            self.assertEqual(palette_manager.palette_size('pantone'), 0)
+            self.assertEqual(palette_manager.get_palette('pantone'), [])
+            self.assertNotIn('pantone',
+                             [c['id'] for c in palette_manager.palette_catalog()])
+            self.assertFalse(palette_manager.is_palette_id('pantone'))
+        finally:
+            palette_manager.COLOR_DB_PATH = saved_path
+            (palette_manager._pantone_palette,
+             palette_manager._pantone_loaded) = saved_cache
+
+    def test_pantone_palette_integrates_when_compiled(self):
+        if not os.path.exists(palette_manager.COLOR_DB_PATH):
+            self.skipTest('colour database not compiled (data/color_conversions.ndjson)')
+        size = palette_manager.palette_size('pantone')
+        self.assertGreater(size, 0)
+        self.assertIn('pantone', [c['id'] for c in palette_manager.palette_catalog()])
+        entries = palette_manager.get_palette('pantone')
+        self.assertEqual(len(entries), size)
+        for entry in entries:
+            self.assertRegex(entry['hex'], r'^#[0-9A-Fa-f]{6}$')
+            self.assertEqual(entry['palette'], 'pantone')
+            self.assertTrue(0 <= entry['symbol'] < palette_manager.SYMBOL_COUNT)
+            if 'dmc' in entry:
+                self.assertIn('lab_distance', entry['dmc'])
+        # Most Pantone colours carry a DMC cross-reference; the rest are blank
+        # because no DMC floss is close enough (the "no equal" case).
+        with_dmc = sum(1 for e in entries if e.get('dmc'))
+        self.assertGreater(with_dmc, size // 2)
+        self.assertLess(with_dmc, size)
+        # Matching into the Pantone index space stays in range.
+        rgb = np.array([[200, 16, 46], [255, 255, 255]], dtype=np.float64)
+        idx = palette_manager.nearest_indices(rgb, palette_id='pantone')
+        self.assertTrue((idx >= 0).all() and (idx < size).all())
+
+    def test_project_documents_remember_their_palette(self):
+        from App import project_manager
+        grid = [[200, 201, -1], [-1, 202, 203]]  # indices far above the yarn size
+        meta = project_manager.create_project('DMC design', grid, palette='dmc')
+        try:
+            self.assertEqual(meta['palette'], 'dmc')
+            stored = project_manager.get_project(meta['id'])
+            self.assertEqual(stored['palette'], 'dmc')
+            # The stored grid kept the DMC indices rather than nulling them to -1.
+            self.assertEqual(stored['grid'][0][0], 200)
+        finally:
+            project_manager.delete_project(meta['id'])
+
+    def test_unknown_palette_id_defaults_to_yarn_on_save(self):
+        from App import project_manager
+        meta = project_manager.create_project('Yarn design', [[0, 1], [2, 3]],
+                                              palette='bogus')
+        try:
+            self.assertEqual(meta['palette'], 'yarn')
+        finally:
+            project_manager.delete_project(meta['id'])
+
+
 class TestFlossMapping(unittest.TestCase):
     """DMC floss mapping and the palette/JS parity that keeps both builds honest."""
 
@@ -1052,7 +1322,12 @@ class TestToolbarStructure(unittest.TestCase):
 
     def test_every_cached_element_id_exists_in_the_template(self):
         js = self._read('static', 'app.js')
-        html = self._read('templates', 'index.html')
+        # Shared ids (toast, helpBtn, helpModal, helpClose, brandSubtitle) live in
+        # the base template, and the drop-zone ids live in the shared partial —
+        # so check base + partial + page together.
+        html = (self._read('templates', 'base.html')
+                + self._read('templates', '_dropzone.html')
+                + self._read('templates', 'index.html'))
         ids = self._cached_ids(js)
         # Sanity: the list really was parsed, or the guard would pass vacuously.
         self.assertGreater(len(ids), 150, 'parsed only %d ids' % len(ids))

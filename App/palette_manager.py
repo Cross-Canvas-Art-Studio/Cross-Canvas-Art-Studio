@@ -12,6 +12,7 @@ brand-neutral.
 import json
 import logging
 import os
+import re
 
 import numpy as np
 
@@ -85,6 +86,42 @@ DEFAULT_PALETTE = [
 
 _PALETTE = DEFAULT_PALETTE
 
+# ============================================================ palettes =======
+# There are TWO palettes, and a colour's index is only meaningful *within* one of
+# them, so every palette index is paired with the palette id that owns it:
+#
+#   'yarn'  the curated craft-yarn palette (DEFAULT_PALETTE, indices 0..n-1)
+#   'dmc'   the full real DMC floss library (built from the floss table)
+#
+# They are kept separate (rather than merged into one array) for one concrete
+# reason: the yarn palette guarantees a DISTINCT print glyph per colour
+# (`SYMBOL_COUNT >= palette_size()`), which is what keeps any two colours
+# tellable apart on a greyscale chart. A 500-colour library cannot honour that
+# with 65 glyphs, so the DMC palette is its own space and repeats glyphs instead
+# of silently weakening the yarn guarantee.
+PALETTE_YARN = 'yarn'
+PALETTE_DMC = 'dmc'
+PALETTE_PANTONE = 'pantone'
+DEFAULT_PALETTE_ID = PALETTE_YARN
+
+# The Pantone palette comes from the local, NON-COMMITTED colour database at
+# data/color_conversions.ndjson. Pantone values are proprietary reference data,
+# so the file stays a local working copy and is never shipped with the repo.
+# Absent is normal: the palette simply is not offered (never an error).
+COLOR_DB_PATH = os.path.normpath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, 'data',
+    'color_conversions.ndjson'))
+
+# Pantone collection slugs -> human family labels for the palette panel.
+_PANTONE_FAMILIES = {
+    'coated': 'Pantone Coated',
+    'uncoated': 'Pantone Uncoated',
+    'metallic': 'Pantone Metallic',
+    'pastels-neons': 'Pantone Pastels & Neons',
+    'skin': 'Pantone Skin',
+    'color-of-year': 'Pantone Color of the Year',
+}
+
 # Symbol glyph assignment. The glyph GEOMETRY lives in App/static/symbols.js
 # (it has to be drawable by the canvas, SVG and PDF backends), while this module
 # owns only the palette-entry -> glyph-index mapping. Every entry gets its own
@@ -95,9 +132,20 @@ SYMBOL_COUNT = 65  # keep in sync with the SYMBOLS table in App/static/symbols.j
 for _i, _entry in enumerate(DEFAULT_PALETTE):
     # Modulo keeps this safe if the palette ever outgrows the glyph table.
     _entry['symbol'] = _i % SYMBOL_COUNT
+    _entry['palette'] = PALETTE_YARN
 
 _palette_rgb = None   # (P, 3) float
 _palette_lab = None   # (P, 3) float
+
+# The DMC palette is derived from the floss table, so it is built lazily and
+# invalidated whenever that table reloads.
+_dmc_palette = None   # list of palette-entry dicts
+_dmc_lab = None       # (N, 3) float
+
+# The Pantone palette is derived from the local colour database, loaded lazily.
+_pantone_palette = None   # list of palette-entry dicts
+_pantone_lab = None       # (N, 3) float
+_pantone_loaded = False
 
 # Floss tables are loaded lazily so a missing/corrupt file never breaks startup.
 _floss_entries = None  # list of {'code','name','hex','index'}
@@ -116,6 +164,15 @@ def hex_to_rgb(value):
     if len(value) != 6:
         raise ValueError(f'Invalid hex colour: {value!r}')
     return tuple(int(value[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def _family_for_code(code):
+    """Coarse family for a floss code when the table does not name one.
+
+    Light Effects codes are "E" + digits; everything else is stranded cotton.
+    The digit is required because the stranded code "Ecru" also starts with E.
+    """
+    return 'Light Effects' if re.match(r'^E\d', code or '', re.IGNORECASE) else 'Stranded Cotton'
 
 
 def _srgb_to_linear(channel):
@@ -189,7 +246,7 @@ def load_floss_table(path=None):
     runs without DMC annotations, exactly as it did before this existed.
     """
     global _floss_entries, _floss_lab, _floss_meta, _palette_floss
-    global _floss_by_code, _preferred
+    global _floss_by_code, _preferred, _dmc_palette, _dmc_lab
     target = path or FLOSS_TABLE_PATH
     entries = []
     meta = {}
@@ -215,6 +272,7 @@ def load_floss_table(path=None):
                 'code': code,
                 'name': str(row.get('name') or code).strip(),
                 'hex': hex_value,
+                'family': str(row.get('family') or _family_for_code(code)).strip(),
                 'index': len(entries),
             })
         meta = {k: data.get(k) for k in
@@ -232,6 +290,8 @@ def load_floss_table(path=None):
     _floss_lab = (rgb_to_lab(np.array([hex_to_rgb(e['hex']) for e in entries], dtype=np.float64))
                   if entries else np.zeros((0, 3)))
     _palette_floss = None  # invalidate the derived palette mapping
+    _dmc_palette = None    # invalidate the derived DMC palette
+    _dmc_lab = None
     return len(entries)
 
 
@@ -300,9 +360,175 @@ def nearest_floss_for_hex(value):
     }
 
 
-def get_palette():
-    """Return the palette as a list of dicts, each with 'index' and, when a
-    floss table is loaded, a 'dmc' block naming the nearest real-world floss."""
+def _ensure_dmc_palette():
+    """Build (and cache) the DMC palette from the floss table.
+
+    Each floss row becomes a paintable palette entry whose ``dmc`` block is the
+    floss itself, so a DMC-painted chart's legend and shopping list are exact
+    rather than 'nearest'. An empty floss table yields an empty palette, never
+    an exception -- a corrupt file must not take the app down.
+    """
+    global _dmc_palette, _dmc_lab
+    if _dmc_palette is not None:
+        return _dmc_palette
+    _ensure_floss_cache()
+    entries = []
+    for i, floss in enumerate(_floss_entries):
+        entry = {
+            'code': floss['code'],
+            'name': floss['name'],
+            'hex': floss['hex'],
+            'family': floss.get('family') or _family_for_code(floss['code']),
+            'index': i,
+            'palette': PALETTE_DMC,
+            # Glyphs necessarily repeat across a 500-colour library; the yarn
+            # palette is where the distinct-glyph guarantee lives (see above).
+            'symbol': i % SYMBOL_COUNT,
+            'dmc': {
+                'code': floss['code'],
+                'name': floss['name'],
+                'hex': floss['hex'],
+                'lab_distance': 0.0,
+            },
+        }
+        entries.append(entry)
+    if entries:
+        _dmc_lab = rgb_to_lab(
+            np.array([hex_to_rgb(e['hex']) for e in entries], dtype=np.float64))
+    else:
+        _dmc_lab = np.zeros((0, 3))
+    _dmc_palette = entries
+    return _dmc_palette
+
+
+def _load_color_db_rows():
+    """Read the local colour database (NDJSON), or [] when it is absent."""
+    rows = []
+    try:
+        with open(COLOR_DB_PATH, 'r', encoding='utf-8') as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rows.append(json.loads(line))
+                except ValueError:
+                    continue
+    except OSError:
+        return []
+    return rows
+
+
+def _ensure_pantone_palette():
+    """Build (and cache) the Pantone palette from the local colour database.
+
+    Each Pantone row becomes a paintable entry whose ``dmc`` block carries the
+    pre-computed nearest DMC floss, so painting with "Pantone 186 C" still puts a
+    buyable DMC code on the legend. An absent or corrupt database yields an empty
+    palette, never an exception -- the app simply has no Pantone option.
+    """
+    global _pantone_palette, _pantone_lab, _pantone_loaded
+    if _pantone_loaded:
+        return _pantone_palette
+    _pantone_loaded = True
+    entries = []
+    for row in _load_color_db_rows():
+        if row.get('system') != 'pantone':
+            continue
+        code = str(row.get('code') or '').strip()
+        hex_value = str(row.get('hex') or '').strip()
+        if not code or not hex_value:
+            continue
+        try:
+            hex_to_rgb(hex_value)
+        except ValueError:
+            continue
+        collection = str(row.get('collection') or '').strip()
+        entry = {
+            'code': code,
+            'name': str(row.get('name') or code).strip(),
+            'hex': hex_value,
+            'family': _PANTONE_FAMILIES.get(
+                collection, 'Pantone ' + (collection or 'Other').title()),
+            'index': len(entries),
+            'palette': PALETTE_PANTONE,
+            'symbol': len(entries) % SYMBOL_COUNT,
+        }
+        dmc_code = row.get('dmc')
+        if dmc_code:
+            entry['dmc'] = {
+                'code': str(dmc_code),
+                'name': str(row.get('dmc_name') or dmc_code),
+                'hex': str(row.get('dmc_hex') or ''),
+                'lab_distance': float(row.get('delta_e') or 0.0),
+            }
+        entries.append(entry)
+    _pantone_lab = (rgb_to_lab(
+        np.array([hex_to_rgb(e['hex']) for e in entries], dtype=np.float64))
+        if entries else np.zeros((0, 3)))
+    _pantone_palette = entries
+    return _pantone_palette
+
+
+def palette_catalog():
+    """The available palettes as [{id,label,size,default,max_colors}].
+
+    One declarative list both the API and the static bundle publish, so the UI
+    and the matcher can never disagree about which palettes exist.
+    """
+    _ensure_floss_cache()
+    catalog = [{
+        'id': PALETTE_YARN,
+        'label': 'Yarn',
+        'size': len(_PALETTE),
+        'default': True,
+        # The yarn palette is small on purpose; a photo rarely needs more.
+        'max_colors': 52,
+    }]
+    dmc = _ensure_dmc_palette()
+    if dmc:
+        catalog.append({
+            'id': PALETTE_DMC,
+            'label': 'DMC floss',
+            'size': len(dmc),
+            'default': False,
+            # A real chart can legitimately use many more shades than yarn.
+            'max_colors': 128,
+        })
+    pantone = _ensure_pantone_palette()
+    if pantone:
+        catalog.append({
+            'id': PALETTE_PANTONE,
+            'label': 'Pantone',
+            'size': len(pantone),
+            'default': False,
+            'max_colors': 128,
+        })
+    return catalog
+
+
+def palette_label(palette_id):
+    for item in palette_catalog():
+        if item['id'] == palette_id:
+            return item['label']
+    return palette_id
+
+
+def is_palette_id(palette_id):
+    return any(item['id'] == palette_id for item in palette_catalog())
+
+
+def get_palette(palette_id=DEFAULT_PALETTE_ID):
+    """Return a palette as a list of dicts, each with 'index'.
+
+    ``palette_id='yarn'`` (default) is the curated yarn palette, each entry
+    carrying a 'dmc' block naming its nearest real-world floss. ``'dmc'`` is the
+    full floss library, where each entry's 'dmc' block is the floss itself.
+    """
+    if palette_id == PALETTE_DMC:
+        return [dict(e) for e in _ensure_dmc_palette()]
+    if palette_id == PALETTE_PANTONE:
+        return [dict(e) for e in _ensure_pantone_palette()]
     _ensure_floss_map()
     palette = []
     for i, entry in enumerate(_PALETTE):
@@ -314,30 +540,37 @@ def get_palette():
     return palette
 
 
-def palette_size():
+def palette_size(palette_id=DEFAULT_PALETTE_ID):
+    if palette_id == PALETTE_DMC:
+        return len(_ensure_dmc_palette())
+    if palette_id == PALETTE_PANTONE:
+        return len(_ensure_pantone_palette())
     return len(_PALETTE)
 
 
-def get_entry(index):
-    if 0 <= index < len(_PALETTE):
-        return _PALETTE[index]
+def get_entry(index, palette_id=DEFAULT_PALETTE_ID):
+    entries = get_palette(palette_id)
+    if 0 <= index < len(entries):
+        return entries[index]
     return None
 
 
-def code_to_index():
-    return {entry['code']: i for i, entry in enumerate(_PALETTE)}
+def code_to_index(palette_id=DEFAULT_PALETTE_ID):
+    return {entry['code']: entry['index'] for entry in get_palette(palette_id)}
 
 
-def nearest_index_for_hex(value):
+def nearest_index_for_hex(value, palette_id=DEFAULT_PALETTE_ID):
     """Return the palette index closest to a single hex colour."""
     rgb = np.array([hex_to_rgb(value)], dtype=np.float64)
-    return int(nearest_indices(rgb)[0])
+    return int(nearest_indices(rgb, palette_id=palette_id)[0])
 
 
-def nearest_indices(rgb, allowed=None):
+def nearest_indices(rgb, allowed=None, palette_id=DEFAULT_PALETTE_ID):
     """Map an (N, 3) array of RGB colours to nearest palette indices in LAB space.
 
     allowed: optional iterable of palette indices to restrict the match to.
+    palette_id: which palette's index space the result is expressed in.
+
     Uses a memory-light loop over the (small) palette rather than a big
     broadcast, so it stays cheap even for a 200x200 grid.
     """
@@ -349,8 +582,16 @@ def nearest_indices(rgb, allowed=None):
     unique_rgb, inverse_indices = np.unique(rgb_arr, axis=0, return_inverse=True)
 
     lab = rgb_to_lab(unique_rgb)
+    if palette_id == PALETTE_DMC:
+        _ensure_dmc_palette()
+        ref_lab = _dmc_lab
+    elif palette_id == PALETTE_PANTONE:
+        _ensure_pantone_palette()
+        ref_lab = _pantone_lab
+    else:
+        ref_lab = _palette_lab
     candidates = list(allowed) if allowed is not None else None
-    best_idx, _ = _nearest_in(lab, _palette_lab, candidates)
+    best_idx, _ = _nearest_in(lab, ref_lab, candidates)
     return best_idx[inverse_indices]
 
 
@@ -362,7 +603,7 @@ def palette_js_source():
     module before this function existed. build_site.py injects the result into
     app.bundle.js, making Python the single source of truth for both builds.
     """
-    palette = get_palette()
+    palette = get_palette(PALETTE_YARN)
     meta = floss_meta() or {}
     floss = {
         'enabled': any('dmc' in entry for entry in palette),
@@ -370,33 +611,46 @@ def palette_js_source():
         'verified': bool(meta.get('verified')),
         'size': floss_size(),
     }
+    palettes = {PALETTE_YARN: palette}
+    if palette_size(PALETTE_DMC):
+        palettes[PALETTE_DMC] = get_palette(PALETTE_DMC)
+    if palette_size(PALETTE_PANTONE):
+        palettes[PALETTE_PANTONE] = get_palette(PALETTE_PANTONE)
+    catalog = palette_catalog()
     dump = lambda obj: json.dumps(obj, ensure_ascii=False, separators=(',', ':'))
     return (
         '/* Generated from App/palette_manager.py by build_site.py. Do not edit. */\n'
+        # StitchPalette stays the yarn palette so existing readers keep working;
+        # StitchPalettes is the full id -> entries map the palette switch needs.
         'window.StitchPalette = ' + dump(palette) + ';\n'
+        'window.StitchPalettes = ' + dump(palettes) + ';\n'
+        'window.StitchPaletteCatalog = ' + dump(catalog) + ';\n'
         'window.StitchFloss = ' + dump(floss) + ';\n'
     )
 
 
-def build_legend(index_counts):
+def build_legend(index_counts, palette_id=DEFAULT_PALETTE_ID):
     """Given {palette_index: count}, return a sorted legend list (most used first)."""
-    _ensure_floss_map()
+    entries = get_palette(palette_id)
     legend = []
     for idx, count in index_counts.items():
-        if idx < 0 or idx >= len(_PALETTE) or count <= 0:
+        try:
+            idx = int(idx)
+        except (TypeError, ValueError):
             continue
-        entry = _PALETTE[idx]
+        if idx < 0 or idx >= len(entries) or count <= 0:
+            continue
+        entry = entries[idx]
         row = {
             'index': idx,
             'code': entry['code'],
             'name': entry['name'],
             'hex': entry['hex'],
-            'family': entry['family'],
+            'family': entry.get('family', ''),
             'count': int(count),
         }
-        dmc = _palette_floss.get(idx)
-        if dmc:
-            row['dmc'] = dict(dmc)
+        if 'dmc' in entry:
+            row['dmc'] = dict(entry['dmc'])
         legend.append(row)
     legend.sort(key=lambda e: e['count'], reverse=True)
     return legend
