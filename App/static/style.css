@@ -1111,6 +1111,7 @@ textarea {
   image-rendering: pixelated;
   display: block;
   margin: auto;
+  touch-action: none;
 }
 /* Middle-click drag: show that the chart is being panned, not painted. */
 #stitchCanvas.panning {

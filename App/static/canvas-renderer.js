@@ -1251,6 +1251,10 @@
       this._panning = false;
       this._panStart = null;
       this._panOrigin = null;
+      // Two fingers on a touch screen pan instead of the browser scrolling
+      // (the canvas sets `touch-action: none`). See the touch layer in
+      // _bindEvents.
+      this._touchPanning = false;
       this._bindEvents();
     }
 
@@ -4503,6 +4507,71 @@
         self._lastCell = -1;
         self._lastBackKey = -1;
       });
+      // ---- touch ----
+      // A touch screen sends a TAP as compatibility mouse events, but a DRAG as
+      // touchmove only, so a finger drag never reached the marquee and a
+      // selection could only ever be one cell. Each touch is re-dispatched as
+      // the mouse event the handlers above already understand, which keeps ONE
+      // interaction path rather than a second, parallel one. Cancelling the
+      // touch also suppresses the browser's own compatibility mouse events, so
+      // nothing is handled twice.
+      var synth = function (type, touch) {
+        return new MouseEvent(type, {
+          clientX: touch ? touch.clientX : 0,
+          clientY: touch ? touch.clientY : 0,
+          button: 0,
+          buttons: 1,
+          bubbles: true,
+          cancelable: true,
+        });
+      };
+      var midpoint = function (touches) {
+        var x = 0;
+        var y = 0;
+        for (var i = 0; i < touches.length; i++) {
+          x += touches[i].clientX;
+          y += touches[i].clientY;
+        }
+        return { clientX: x / touches.length, clientY: y / touches.length };
+      };
+      this.canvas.addEventListener("touchstart", function (e) {
+        if (!self.width) return; // no chart yet: let the page scroll normally
+        e.preventDefault();
+        if (e.touches.length === 2) {
+          // Two fingers pan, matching the middle-click drag on a mouse. The
+          // canvas no longer hands a finger drag to the browser for scrolling,
+          // so it has to offer its own way to move around a large chart.
+          window.dispatchEvent(synth("mouseup", null));
+          self._beginPan(midpoint(e.touches));
+          self._touchPanning = true;
+          return;
+        }
+        if (e.touches.length !== 1) return;
+        self.canvas.dispatchEvent(synth("mousedown", e.touches[0]));
+      }, { passive: false });
+      this.canvas.addEventListener("touchmove", function (e) {
+        if (!e.touches.length) return;
+        e.preventDefault();
+        if (self._touchPanning && e.touches.length >= 2) {
+          self._panTo(midpoint(e.touches));
+          return;
+        }
+        window.dispatchEvent(synth("mousemove", e.touches[0]));
+      }, { passive: false });
+      var endTouch = function (e) {
+        if (self._touchPanning) {
+          if (e.touches.length < 2) {
+            self._touchPanning = false;
+            self._endPan();
+          }
+          return;
+        }
+        if (e.touches.length) return; // a finger is still down
+        var t = e.changedTouches && e.changedTouches[0];
+        window.dispatchEvent(synth("mouseup", t || null));
+      };
+      this.canvas.addEventListener("touchend", endTouch);
+      this.canvas.addEventListener("touchcancel", endTouch);
       // A drag can end outside the window (alt-tab, release over another app),
       // so the pan must not be left stuck on.
       window.addEventListener("blur", function () {
