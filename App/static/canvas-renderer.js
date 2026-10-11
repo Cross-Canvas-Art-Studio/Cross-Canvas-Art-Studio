@@ -1263,6 +1263,92 @@
       );
     }
 
+    /**
+     * Switch to a different palette, remapping every colour already on the
+     * canvas to its nearest equivalent in the NEW palette (nearest in RGB).
+     *
+     * Palette indices are only meaningful inside the palette that owns them, so
+     * a switch that kept the raw indices would silently recolour the chart
+     * (index 7 means a different colour in each palette). Remapping by colour
+     * keeps the picture the same and only changes which threads it names.
+     *
+     * Returns the number of cells whose colour actually changed.
+     */
+    remapPalette(newArray) {
+      var oldByIndex = this.paletteByIndex || {};
+      var rgb = [];
+      var order = [];
+      (newArray || []).forEach(function (e) {
+        var h = (e.hex || "#000000").replace("#", "");
+        rgb.push([
+          parseInt(h.slice(0, 2), 16),
+          parseInt(h.slice(2, 4), 16),
+          parseInt(h.slice(4, 6), 16),
+        ]);
+        order.push(e.index);
+      });
+      var cache = {};
+      function mapIndex(oldIdx) {
+        if (oldIdx < 0) return -1;
+        if (oldIdx in cache) return cache[oldIdx];
+        var e = oldByIndex[oldIdx];
+        if (!e || !rgb.length) {
+          cache[oldIdx] = -1;
+          return -1;
+        }
+        var h = (e.hex || "#000000").replace("#", "");
+        var r = parseInt(h.slice(0, 2), 16);
+        var g = parseInt(h.slice(2, 4), 16);
+        var b = parseInt(h.slice(4, 6), 16);
+        var best = 0;
+        var bestD = Infinity;
+        for (var i = 0; i < rgb.length; i++) {
+          var dr = r - rgb[i][0];
+          var dg = g - rgb[i][1];
+          var db = b - rgb[i][2];
+          var d = dr * dr + dg * dg + db * db;
+          if (d < bestD) {
+            bestD = d;
+            best = i;
+          }
+        }
+        cache[oldIdx] = order[best];
+        return order[best];
+      }
+
+      var changed = 0;
+      for (var i = 0; i < this.cells.length; i++) {
+        var v = this.cells[i];
+        if (v < 0) continue;
+        var nv = mapIndex(v);
+        if (nv !== v) {
+          this.cells[i] = nv;
+          changed++;
+        }
+      }
+      if (this.back) {
+        for (var j = 0; j < this.back.length; j++) {
+          var bv = this.back[j];
+          if (!bv) continue;
+          var nb = mapIndex(bv - 1);
+          this.back[j] = nb >= 0 ? nb + 1 : 0;
+        }
+      }
+      if (this.blend) {
+        for (var k = 0; k < this.blend.length; k++) {
+          var bl = this.blend[k];
+          if (!bl) continue;
+          var nbl = mapIndex(bl - 1);
+          // A partner equal to the cell's own (new) colour is not a blend.
+          this.blend[k] = nbl >= 0 && nbl !== this.cells[k] ? nbl + 1 : 0;
+        }
+      }
+      this.setPalette(newArray);
+      this._recount();
+      this.render();
+      return changed;
+    }
+
     hexFor(index) {
       var e = this.paletteByIndex[index];
       return e ? e.hex : "#888888";

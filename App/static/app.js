@@ -14,6 +14,16 @@
     config: null,
     palette: [],
     paletteByIndex: {},
+    // PALETTE SWITCHING. Indices only mean something inside one palette, so the
+    // id travels with every saved document; `paletteCache` memoises loaded
+    // palettes by id.
+    paletteId: "yarn",
+    palettes: [],
+    paletteCache: {},
+    // Palette display order: 'number' | 'grouped'. View preference.
+    paletteSort: "number",
+    // Colour family the panel shows (null = the first one). View preference.
+    paletteFamily: null,
     providers: {},
     canvas: null,
     selectedIndex: -1,
@@ -53,6 +63,14 @@
     codeFormat: "code", // 'code' | 'name' | 'rgb' | 'num' | 'sim' | 'hex' | 'dmc'
     dirty: false, // unsaved changes since last save/load/new
   };
+
+  // View preferences, kept in local storage instead of a document. The keys are
+  // declared above their use: a `var` assigned further down would still be
+  // undefined here, and `getItem(undefined)` always misses.
+  var PALETTE_SORT_KEY = "stitchee_palette_sort";
+  var CODE_FORMAT_ALL_KEY = "stitchee_code_format_all";
+  state.paletteSort = loadPaletteSort();
+  state.codeFormatAll = loadCodeFormatAll();
 
   function $(id) {
     return document.getElementById(id);
@@ -118,9 +136,14 @@
       "pageRotateBtn",
       "pageRemoveBtn",
       "paletteSearch",
+      "paletteSource",
+      "paletteSort",
+      "paletteFamilies",
       "selectedSwatch",
       "selectedName",
       "codeFormats",
+      "codeFormatSelect",
+      "codeFormatAll",
       "paletteGroups",
       "toolPaint",
       "toolErase",
@@ -246,6 +269,8 @@
       "shadeCardModal",
       "shadeCardClose",
       "shadeCardBody",
+      "shadeCardSearch",
+      "shadeCardCount",
       "brandSubtitle",
     ].forEach(function (id) {
       els[id] = $(id);
@@ -551,6 +576,7 @@
           title: els.projectTitle.value.trim(),
           notes: state.notes,
           kind: state.docKind,
+          palette: state.paletteId,
           source: state.docKind === "chart" ? state.source : null,
           // The joined page list (geometry + IndexedDB ids). `source` above is
           // kept as the single-page mirror an older reader understands.
@@ -834,23 +860,32 @@
       for (var c = 0; c < doc.width; c++) row.push(cells[r * doc.width + c]);
       grid.push(row);
     }
-    var dl = docLayers(doc, doc.width, doc.height);
-    state.canvas.loadGrid(
-      doc.width, doc.height, grid, dl.frac, dl.back, dl.blend,
-    );
-    applyOverlays(doc);
-    syncGridInputs(doc.width, doc.height);
-    state.currentProjectId = doc.projectId || null;
-    els.projectTitle.value = doc.title || "";
-    setNotes(doc.notes || "");
-    restoreProjectKind(doc, false);
-    loadProgress();
-    showCanvas(true);
-    updateZoomLabel();
-    onDesignChange();
-    // Still unsaved, so it stays dirty and keeps autosaving.
-    markDirty();
-    toast("Unsaved draft restored", "ok");
+    var finish = function () {
+      var dl = docLayers(doc, doc.width, doc.height);
+      state.canvas.loadGrid(
+        doc.width, doc.height, grid, dl.frac, dl.back, dl.blend,
+      );
+      applyOverlays(doc);
+      syncGridInputs(doc.width, doc.height);
+      state.currentProjectId = doc.projectId || null;
+      els.projectTitle.value = doc.title || "";
+      setNotes(doc.notes || "");
+      restoreProjectKind(doc, false);
+      loadProgress();
+      showCanvas(true);
+      updateZoomLabel();
+      onDesignChange();
+      // Still unsaved, so it stays dirty and keeps autosaving.
+      markDirty();
+      toast("Unsaved draft restored", "ok");
+    };
+    // The grid's indices only mean something against the palette that wrote
+    // them, so restore the palette BEFORE the grid is coloured in.
+    if (doc.palette && doc.palette !== state.paletteId) {
+      switchPalette(doc.palette, { persist: false, remap: false }).then(finish);
+    } else {
+      finish();
+    }
   }
 
   // ---------- palette code-format helpers ----------
@@ -898,11 +933,8 @@
     return e.code; // default: 3-letter code
   }
 
-  function buildFormatPanel(e) {
-    var container = els.codeFormats;
-    if (!container) return;
-    container.innerHTML = "";
-    if (!e) return;
+  /** Every label format on offer, each carrying THIS colour's value. */
+  function formatOptions(e) {
     var formats = [
       { key: "code", label: "Code", value: formatEntry(e, "code") },
       { key: "name", label: "Name", value: formatEntry(e, "name") },
@@ -914,6 +946,53 @@
     if (flossEnabled()) {
       formats.push({ key: "dmc", label: "DMC", value: formatEntry(e, "dmc") });
     }
+    return formats;
+  }
+
+  /** Switch the label painted onto the stitches. */
+  function setCodeFormat(key) {
+    state.codeFormat = key;
+    state.canvas.setCodeFormatter(function (entry) {
+      return formatEntry(entry, state.codeFormat);
+    });
+    buildFormatPanel(state.paletteByIndex[state.selectedIndex]);
+    onDesignChange();
+  }
+
+  /**
+   * Rebuild the label-format controls for the selected colour: the dropdown
+   * (which doubles as a readout) and, when "All" is ticked, the button list.
+   */
+  function buildFormatPanel(e) {
+    var formats = e ? formatOptions(e) : [];
+
+    var select = els.codeFormatSelect;
+    if (select) {
+      select.innerHTML = "";
+      select.disabled = !e;
+      formats.forEach(function (f) {
+        var opt = document.createElement("option");
+        opt.value = f.key;
+        opt.textContent = f.label + " \u2014 " + f.value;
+        select.appendChild(opt);
+      });
+      if (e) {
+        select.value = state.codeFormat;
+        if (!select.value) {
+          // Not on offer for this palette (e.g. DMC with floss switched off).
+          state.codeFormat = "code";
+          select.value = "code";
+        }
+      }
+    }
+
+    var showAll = !!state.codeFormatAll;
+    if (els.codeFormatAll) els.codeFormatAll.checked = showAll;
+    var container = els.codeFormats;
+    if (!container) return;
+    container.hidden = !showAll;
+    container.innerHTML = "";
+    if (!e || !showAll) return;
     formats.forEach(function (f) {
       var btn = document.createElement("button");
       btn.type = "button";
@@ -928,12 +1007,7 @@
         escapeHtml(f.value) +
         "</span>";
       btn.addEventListener("click", function () {
-        state.codeFormat = f.key;
-        state.canvas.setCodeFormatter(function (entry) {
-          return formatEntry(entry, state.codeFormat);
-        });
-        buildFormatPanel(state.paletteByIndex[state.selectedIndex]);
-        onDesignChange();
+        setCodeFormat(f.key);
       });
       container.appendChild(btn);
     });
@@ -1034,7 +1108,13 @@
       })
       .then(function (cfg) {
         state.config = cfg;
+        state.palettes = cfg.palettes || [];
+        state.paletteId =
+          (state.palettes.filter(function (c) {
+            return c.default;
+          })[0] || {}).id || "yarn";
         state.palette = cfg.palette || [];
+        state.paletteCache[state.paletteId] = state.palette;
         state.palette.forEach(function (e) {
           state.paletteByIndex[e.index] = e;
         });
@@ -1065,6 +1145,7 @@
 
         state.canvas.setPalette(state.palette);
         buildPalette();
+        buildPaletteSource();
         buildBlendOptions();
         buildProviders();
         if (state.palette.length) {
@@ -1078,42 +1159,468 @@
       });
   }
 
+  // ---------- palette source ----------
+  // Two palettes ship: the curated yarn palette (default) and the full DMC
+  // floss library. Only one is active at a time, and the grid's indices are only
+  // meaningful inside it, so the active id travels with every saved document.
+  function paletteMeta(id) {
+    var list = state.palettes || [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].id === id) return list[i];
+    }
+    return null;
+  }
+
+  function paletteMaxColors(id) {
+    var meta = paletteMeta(id);
+    if (meta && meta.max_colors) return meta.max_colors;
+    var g = state.config && state.config.grid;
+    return (g && g.max_colors) || 52;
+  }
+
+  function buildPaletteSource() {
+    var sel = els.paletteSource;
+    if (!sel) return;
+    sel.innerHTML = "";
+    (state.palettes || []).forEach(function (c) {
+      var o = document.createElement("option");
+      o.value = c.id;
+      o.textContent = c.label + " (" + c.size + ")";
+      sel.appendChild(o);
+    });
+    sel.value = state.paletteId;
+    if (els.paletteSort) els.paletteSort.value = state.paletteSort;
+  }
+
+  /** Fetch (or reuse) the entries for one palette id. */
+  function loadPaletteEntries(id) {
+    if (state.paletteCache[id]) {
+      return Promise.resolve(state.paletteCache[id]);
+    }
+    // The static build injects every palette, so no network is needed there.
+    if (window.StitchPalettes && window.StitchPalettes[id]) {
+      state.paletteCache[id] = window.StitchPalettes[id];
+      return Promise.resolve(state.paletteCache[id]);
+    }
+    if (id === "yarn" && state.config && state.config.palette) {
+      state.paletteCache[id] = state.config.palette;
+      return Promise.resolve(state.paletteCache[id]);
+    }
+    return fetch("/api/palette/" + encodeURIComponent(id))
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (d) {
+        var entries = (d && d.palette) || [];
+        state.paletteCache[id] = entries;
+        return entries;
+      });
+  }
+
+  /** Make `id` the active palette (state + slider cap + source dropdown). */
+  function applyPaletteEntries(id, entries) {
+    state.paletteId = id;
+    state.palette = entries;
+    state.paletteByIndex = {};
+    entries.forEach(function (e) {
+      state.paletteByIndex[e.index] = e;
+    });
+    // Start on the family the colour in hand belongs to, so a switch lands
+    // near the colour already in use.
+    var current = state.paletteByIndex[state.selectedIndex];
+    state.paletteFamily = current ? colourFamilyKey(current.hex) : null;
+    if (els.paletteSource) els.paletteSource.value = id;
+    if (els.imgMaxColors) {
+      var cap = paletteMaxColors(id);
+      els.imgMaxColors.max = cap;
+      if (parseInt(els.imgMaxColors.value, 10) > cap) {
+        els.imgMaxColors.value = cap;
+        if (els.imgMaxColorsVal) els.imgMaxColorsVal.textContent = String(cap);
+      }
+    }
+  }
+
+  /**
+   * Switch the painting palette. Returns a Promise so a load / draft restore can
+   * wait for the entries before colouring the grid in. With `remap` on (the
+   * default) existing stitches are recoloured to their nearest equivalents.
+   */
+  function switchPalette(id, opts) {
+    opts = opts || {};
+    if (!id) return Promise.resolve(0);
+    if (id === state.paletteId && state.palette.length && !opts.force) {
+      return Promise.resolve(0);
+    }
+    return loadPaletteEntries(id)
+      .then(function (entries) {
+        if (!entries || !entries.length) {
+          toast("That palette could not be loaded", "error");
+          return 0;
+        }
+        var changed = 0;
+        var hasContent = state.canvas && !state.canvas.isEmpty();
+        if (state.canvas) {
+          if (hasContent && opts.remap !== false) {
+            changed = state.canvas.remapPalette(entries); // sets the palette too
+          } else {
+            state.canvas.setPalette(entries);
+          }
+        }
+        applyPaletteEntries(id, entries);
+        buildPalette();
+        buildBlendOptions();
+        var keep = state.paletteByIndex[state.selectedIndex]
+          ? state.selectedIndex
+          : (state.palette.length ? state.palette[0].index : -1);
+        selectColor(keep, true);
+        if (opts.persist !== false) {
+          markDirty();
+          scheduleDraftSave();
+        }
+        return changed;
+      })
+      .catch(function () {
+        toast("That palette could not be loaded", "error");
+        return 0;
+      });
+  }
+
+  // ---------- palette ordering ----------
+  // "Grouped" sorts by the colour a hex DESCRIBES (hue, then lightness), not the
+  // raw hex integer, which would order by red channel.
+  function loadPaletteSort() {
+    try {
+      return localStorage.getItem(PALETTE_SORT_KEY) === "grouped"
+        ? "grouped"
+        : "number";
+    } catch (e) {
+      return "number";
+    }
+  }
+
+  function savePaletteSort() {
+    try {
+      localStorage.setItem(PALETTE_SORT_KEY, state.paletteSort);
+    } catch (e) {
+      /* storage unavailable: the choice simply will not persist */
+    }
+  }
+
+  // Whether the full label-format button list is shown. View preference.
+  function loadCodeFormatAll() {
+    try {
+      return localStorage.getItem(CODE_FORMAT_ALL_KEY) === "1";
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function saveCodeFormatAll() {
+    try {
+      localStorage.setItem(
+        CODE_FORMAT_ALL_KEY,
+        state.codeFormatAll ? "1" : "0",
+      );
+    } catch (e) {
+      /* storage unavailable: the choice simply will not persist */
+    }
+  }
+
+  /** '#RRGGBB' (or '#RGB') -> {h: 0-360, s: 0-1, l: 0-1}. */
+  function hexToHsl(hex) {
+    var h = (hex || "#000000").replace("#", "");
+    if (h.length === 3) {
+      h =
+        h.charAt(0) + h.charAt(0) + h.charAt(1) + h.charAt(1) +
+        h.charAt(2) + h.charAt(2);
+    }
+    var r = parseInt(h.slice(0, 2), 16) / 255;
+    var g = parseInt(h.slice(2, 4), 16) / 255;
+    var b = parseInt(h.slice(4, 6), 16) / 255;
+    var max = Math.max(r, g, b);
+    var min = Math.min(r, g, b);
+    var d = max - min;
+    var l = (max + min) / 2;
+    var s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+    var hue = 0;
+    if (d !== 0) {
+      if (max === r) hue = ((g - b) / d + 6) % 6;
+      else if (max === g) hue = (b - r) / d + 2;
+      else hue = (r - g) / d + 4;
+      hue *= 60;
+    }
+    return { h: hue, s: s, l: l };
+  }
+
+  // Colour families. A palette can run to thousands of entries, so the panel
+  // offers these buckets and renders one at a time. Buckets come from the hex,
+  // so they work for any palette and never touch a palette index.
+  var COLOUR_FAMILIES = [
+    { key: "red", label: "Red", chip: "#C62828" },
+    { key: "orange", label: "Orange", chip: "#E8721C" },
+    { key: "brown", label: "Brown", chip: "#79502C" },
+    { key: "yellow", label: "Yellow", chip: "#D9BC15" },
+    { key: "green", label: "Green", chip: "#3E9E4B" },
+    { key: "teal", label: "Teal", chip: "#1B8E96" },
+    { key: "blue", label: "Blue", chip: "#2E6FDA" },
+    { key: "purple", label: "Purple", chip: "#7A3EA1" },
+    { key: "pink", label: "Pink", chip: "#DE5A93" },
+    { key: "neutral", label: "Neutral", chip: "#8A9099" },
+  ];
+
+  /** Which colour family a hex belongs to (a display bucket only). */
+  function colourFamilyKey(hex) {
+    var c = hexToHsl(hex);
+    if (c.s < 0.12) return "neutral";
+    if (c.h >= 15 && c.h < 50 && c.l < 0.45) return "brown";
+    if (c.h >= 345 || c.h < 15) return "red";
+    if (c.h < 45) return "orange";
+    if (c.h < 70) return "yellow";
+    if (c.h < 160) return "green";
+    if (c.h < 200) return "teal";
+    if (c.h < 250) return "blue";
+    if (c.h < 290) return "purple";
+    return "pink";
+  }
+
+  function colourFamilyLabel(key) {
+    for (var i = 0; i < COLOUR_FAMILIES.length; i++) {
+      if (COLOUR_FAMILIES[i].key === key) return COLOUR_FAMILIES[i].label;
+    }
+    return "";
+  }
+
+  /** The families the ACTIVE palette actually has, with counts, in fixed order. */
+  function paletteFamilies() {
+    var counts = {};
+    state.palette.forEach(function (e) {
+      var k = colourFamilyKey(e.hex);
+      counts[k] = (counts[k] || 0) + 1;
+    });
+    var out = [];
+    COLOUR_FAMILIES.forEach(function (f) {
+      if (counts[f.key]) {
+        out.push({ key: f.key, label: f.label, chip: f.chip, count: counts[f.key] });
+      }
+    });
+    return out;
+  }
+
+  /** The family in view: the chosen one, else the palette's first family. */
+  function activePaletteFamily() {
+    var families = paletteFamilies();
+    if (!families.length) return null;
+    var want = state.paletteFamily;
+    if (
+      want &&
+      families.some(function (f) {
+        return f.key === want;
+      })
+    ) {
+      return want;
+    }
+    return families[0].key;
+  }
+
+  /** Entries in the family in view (the whole palette if it has no families). */
+  function paletteFamilyEntries() {
+    var fam = activePaletteFamily();
+    if (!fam) return state.palette.slice();
+    return state.palette.filter(function (e) {
+      return colourFamilyKey(e.hex) === fam;
+    });
+  }
+
+  /** Sort rank for a hex colour: [neutral, hue, lightness, saturation]. */
+  function colourRank(hex) {
+    var c = hexToHsl(hex);
+    // Greys carry no useful hue: sort them after the chromatic colours.
+    return [c.s < 0.12 ? 1 : 0, c.h, c.l, c.s];
+  }
+
+  function compareColourRank(a, b) {
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return a[i] - b[i];
+    }
+    return 0;
+  }
+
+  /** Order entries for display: code order (default) or by shade. */
+  function orderedEntries(entries) {
+    if (state.paletteSort !== "grouped") return entries.slice();
+    return entries
+      .map(function (e) {
+        return { entry: e, rank: colourRank(e.hex) };
+      })
+      .sort(function (a, b) {
+        return compareColourRank(a.rank, b.rank);
+      })
+      .map(function (x) {
+        return x.entry;
+      });
+  }
+
+  /**
+   * Everything the search may match: code, name, hex, RGB, nearest DMC floss.
+   * Cached on the entry -- the blob is scanned on every keystroke.
+   */
+  function entrySearchBlob(e) {
+    if (!e._search) {
+      var hex = (e.hex || "").toLowerCase();
+      var bare = hex.replace("#", "");
+      var parts = [e.code, e.name, e.family, e.palette, hex, bare];
+      if (e.dmc) parts.push(e.dmc.code, e.dmc.name, "dmc");
+      if (bare.length === 6) {
+        var r = parseInt(bare.slice(0, 2), 16);
+        var g = parseInt(bare.slice(2, 4), 16);
+        var b = parseInt(bare.slice(4, 6), 16);
+        parts.push(r + "," + g + "," + b, r + " " + g + " " + b);
+      }
+      e._search = parts.filter(Boolean).join(" ").toLowerCase();
+    }
+    return e._search;
+  }
+
+  /** Split a query into lowercase tokens ("dmc 3865" -> ["dmc", "3865"]). */
+  function searchTokens(query) {
+    return (query || "")
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean);
+  }
+
+  /** True when a search blob contains every token. */
+  function blobMatches(blob, tokens) {
+    for (var i = 0; i < tokens.length; i++) {
+      if (blob.indexOf(tokens[i]) === -1) return false;
+    }
+    return true;
+  }
+
+  // Every token must appear, in any order, so "dmc 3865" finds the colour.
+  function matchesSearch(e, tokens) {
+    return !tokens.length || blobMatches(entrySearchBlob(e), tokens);
+  }
+
+  function setPaletteSort(mode) {
+    state.paletteSort = mode === "grouped" ? "grouped" : "number";
+    if (els.paletteSort) els.paletteSort.value = state.paletteSort;
+    savePaletteSort();
+    buildPalette();
+    // Keep an open shade card in step with the panel.
+    if (els.shadeCardModal && els.shadeCardModal.classList.contains("active")) {
+      buildShadeCard();
+    }
+  }
+
   // ---------- palette ----------
+  /**
+   * Render the family chips, then only the swatches they select. A search term
+   * overrides the family and looks across the WHOLE palette instead.
+   */
   function buildPalette() {
+    renderPaletteFamilies();
     var container = els.paletteGroups;
     container.innerHTML = "";
-    var families = {};
-    state.palette.forEach(function (e) {
-      (families[e.family] = families[e.family] || []).push(e);
+    if (!state.palette.length) {
+      container.innerHTML =
+        '<p class="legend-empty">Palette not loaded yet.</p>';
+      return;
+    }
+
+    var tokens = searchTokens(
+      els.paletteSearch ? els.paletteSearch.value : "",
+    );
+    if (tokens.length) {
+      var hits = orderedEntries(
+        state.palette.filter(function (e) {
+          return matchesSearch(e, tokens);
+        }),
+      );
+      container.appendChild(
+        swatchGroup(
+          hits.length + (hits.length === 1 ? " match" : " matches"),
+          hits,
+        ),
+      );
+      return;
+    }
+
+    var fam = activePaletteFamily();
+    var entries = orderedEntries(paletteFamilyEntries());
+    container.appendChild(
+      swatchGroup(colourFamilyLabel(fam) + " (" + entries.length + ")", entries),
+    );
+  }
+
+  /** The colour-family chips above the swatch grid. */
+  function renderPaletteFamilies() {
+    var host = els.paletteFamilies;
+    if (!host) return;
+    var families = paletteFamilies();
+    host.innerHTML = "";
+    // A palette with one family has nothing to choose between.
+    if (families.length < 2) {
+      host.hidden = true;
+      return;
+    }
+    host.hidden = false;
+    var active = activePaletteFamily();
+    families.forEach(function (f) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "palette-chip" + (f.key === active ? " active" : "");
+      btn.setAttribute("data-family", f.key);
+      btn.title = f.label + " \u2014 " + f.count + " colours";
+      btn.setAttribute("aria-label", f.label + ", " + f.count + " colours");
+      btn.innerHTML =
+        '<span class="palette-chip-dot" style="background:' +
+        f.chip +
+        '"></span>' +
+        '<span class="palette-chip-label">' +
+        escapeHtml(f.label) +
+        "</span>" +
+        '<span class="palette-chip-count">' +
+        f.count +
+        "</span>";
+      host.appendChild(btn);
     });
-    Object.keys(families).forEach(function (fam) {
-      var famEl = document.createElement("div");
-      var head = document.createElement("div");
-      head.className = "palette-family";
-      head.textContent = fam;
-      famEl.appendChild(head);
-      var grid = document.createElement("div");
-      grid.className = "swatch-grid";
-      families[fam].forEach(function (e) {
-        var btn = document.createElement("button");
-        btn.className = "swatch-btn";
-        btn.type = "button";
-        btn.style.background = e.hex;
-        btn.title = e.code + " — " + e.name;
-        btn.setAttribute(
-          "aria-label",
-          "Paint with " + e.name + " (" + e.code + ")",
-        );
-        btn.setAttribute("data-index", e.index);
-        btn.setAttribute("data-name", (e.name + " " + e.code).toLowerCase());
-        btn.addEventListener("click", function () {
-          selectColor(e.index);
-        });
-        grid.appendChild(btn);
-      });
-      famEl.appendChild(grid);
-      container.appendChild(famEl);
+  }
+
+  function setPaletteFamily(key) {
+    state.paletteFamily = key;
+    // Picking a family leaves search mode; the two are alternative views.
+    if (els.paletteSearch && els.paletteSearch.value) {
+      els.paletteSearch.value = "";
+    }
+    buildPalette();
+  }
+
+  /** One titled swatch grid, as the palette panel renders it. */
+  function swatchGroup(label, entries) {
+    var famEl = document.createElement("div");
+    var head = document.createElement("div");
+    head.className = "palette-family";
+    head.textContent = label;
+    famEl.appendChild(head);
+    var grid = document.createElement("div");
+    grid.className = "swatch-grid";
+    entries.forEach(function (e) {
+      var btn = document.createElement("button");
+      btn.className = "swatch-btn";
+      btn.type = "button";
+      btn.style.background = e.hex;
+      btn.title = e.code + " — " + e.name;
+      btn.setAttribute(
+        "aria-label",
+        "Paint with " + e.name + " (" + e.code + ")",
+      );
+      btn.setAttribute("data-index", e.index);
+      btn.setAttribute("data-name", (e.name + " " + e.code).toLowerCase());
+      grid.appendChild(btn);
     });
+    famEl.appendChild(grid);
+    return famEl;
   }
 
   function selectColor(index, keepTool) {
@@ -1121,6 +1628,12 @@
     state.canvas.setSelected(index);
     var e = state.paletteByIndex[index];
     if (e) {
+      // Cold start: open on the family the colour in use belongs to, unless the
+      // user has already picked one.
+      if (!state.paletteFamily) {
+        state.paletteFamily = colourFamilyKey(e.hex);
+        buildPalette();
+      }
       els.selectedSwatch.style.background = e.hex;
       els.selectedName.textContent = e.name;
       buildFormatPanel(e);
@@ -1151,15 +1664,14 @@
     if (els.toggleLocate && els.toggleLocate.checked) applySpotlight();
   }
 
+  // The search box re-renders the grid with only the matches, so it looks
+  // across the whole palette -- debounced so a fast typist does not rebuild a
+  // 3,600-entry list on every keystroke.
+  var paletteSearchTimer = null;
+
   function filterPalette() {
-    var q = els.paletteSearch.value.trim().toLowerCase();
-    Array.prototype.forEach.call(
-      els.paletteGroups.querySelectorAll(".swatch-btn"),
-      function (b) {
-        var match = !q || b.getAttribute("data-name").indexOf(q) !== -1;
-        b.style.display = match ? "" : "none";
-      },
-    );
+    clearTimeout(paletteSearchTimer);
+    paletteSearchTimer = setTimeout(buildPalette, 120);
   }
 
   // ---------- providers / AI ----------
@@ -1462,6 +1974,8 @@
     fd.append("height", gs.h);
     fd.append("max_colors", els.imgMaxColors.value);
     fd.append("resample", els.resampleMode.value);
+    // Which palette to convert into: yarn (default) or the DMC floss library.
+    fd.append("palette", state.paletteId);
     els.analyzeBtn.disabled = true;
     els.analyzeBtn.textContent = "Rendering…";
     fetch("/api/analyze-image", { method: "POST", body: fd })
@@ -2450,7 +2964,6 @@
     return s && s.enabled !== false ? s : null;
   }
 
-  /** Attach the floss match and the estimated skein count to legend rows. */
   /**
    * Thread equivalents: how much of a full stitch's thread one backstitch
    * segment uses. A cross is two legs plus the return journey; a backstitch
@@ -2766,8 +3279,8 @@
   }
 
   // ---------- shade card ----------
-  // Every palette colour with its code and nearest DMC floss, so the whole
-  // stash can be surveyed at once (the legend lists only the colours in use).
+  // Every palette colour with its code and nearest DMC floss (the legend lists
+  // only the colours actually in use).
   function buildShadeCard() {
     var host = els.shadeCardBody;
     if (!host) return;
@@ -2776,11 +3289,15 @@
       host.innerHTML = '<p class="shade-card-empty">Palette not loaded yet.</p>';
       return;
     }
-    state.palette.forEach(function (e) {
+    var entries = orderedEntries(state.palette);
+    entries.forEach(function (e) {
       var item = document.createElement("button");
       item.type = "button";
       item.className = "shade-item";
       item.title = "Paint with " + e.name;
+      item.setAttribute("data-index", e.index);
+      // Searchable blob for this card: code, name, hex, RGB or DMC number.
+      item.setAttribute("data-search", entrySearchBlob(e));
       var dmcHtml =
         flossEnabled() && e.dmc
           ? '<span class="shade-dmc">' +
@@ -2800,12 +3317,30 @@
         "</span>" +
         dmcHtml +
         "</span>";
-      item.addEventListener("click", function () {
-        selectColor(e.index);
-        closeShadeCard();
-      });
       host.appendChild(item);
     });
+    if (els.shadeCardSearch) els.shadeCardSearch.value = "";
+    filterShadeCard();
+  }
+
+  /** Show/hide cards by search term. Toggling `display` keeps it instant. */
+  function filterShadeCard() {
+    if (!els.shadeCardBody) return;
+    var tokens = searchTokens(
+      els.shadeCardSearch ? els.shadeCardSearch.value : "",
+    );
+    var items = els.shadeCardBody.querySelectorAll(".shade-item");
+    var shown = 0;
+    Array.prototype.forEach.call(items, function (el) {
+      var hit = blobMatches(el.getAttribute("data-search") || "", tokens);
+      el.style.display = hit ? "" : "none";
+      if (hit) shown++;
+    });
+    if (els.shadeCardCount) {
+      els.shadeCardCount.textContent = tokens.length
+        ? shown + " of " + items.length + " colours match"
+        : items.length + (items.length === 1 ? " colour" : " colours");
+    }
   }
 
   function openShadeCard() {
@@ -2813,7 +3348,8 @@
     buildShadeCard();
     els.shadeCardModal.classList.add("active");
     els.shadeCardModal.setAttribute("aria-hidden", "false");
-    if (els.shadeCardClose) els.shadeCardClose.focus();
+    if (els.shadeCardSearch) els.shadeCardSearch.focus();
+    else if (els.shadeCardClose) els.shadeCardClose.focus();
   }
 
   function closeShadeCard() {
@@ -3136,7 +3672,11 @@
         head.insertBefore(btn, head.firstChild);
         panel.classList.add("toggleable");
         panel.setAttribute("data-panel", title);
-        var collapsed = !!saved[title];
+        // Default-collapsed panels opt in with `data-collapsed` in the markup;
+        // a stored preference (the user has toggled the panel) always wins.
+        var collapsed = typeof saved[title] === "boolean"
+          ? saved[title]
+          : panel.hasAttribute("data-collapsed");
         panel.classList.toggle("collapsed", collapsed);
         btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
         btn.title = collapsed ? "Expand " + title : "Collapse " + title;
@@ -3288,6 +3828,7 @@
         grid: design.grid,
         notes: state.notes,
         kind: state.docKind,
+        palette: state.paletteId,
         source: state.docKind === "chart" ? state.source : null,
         pages: state.docKind === "chart" ? pageDescriptors() : null,
         // STITCH TYPES: the mark each cell carries, and the outlines on the cell
@@ -3402,22 +3943,30 @@
           return;
         }
         var p = res.d.project;
-        var pl = docLayers(p, p.width, p.height);
-        state.canvas.loadGrid(
-          p.width, p.height, p.grid, pl.frac, pl.back, pl.blend,
-        );
-        applyOverlays(p);
-        syncGridInputs(p.width, p.height);
-        state.currentProjectId = p.id;
-        els.projectTitle.value = p.title;
-        setNotes(p.notes || "");
-        restoreProjectKind(p, true);
-        loadProgress();
-        showCanvas(true);
-        updateZoomLabel();
-        onDesignChange();
-        markClean();
-        toast('Loaded "' + p.title + '"', "ok");
+        var finish = function () {
+          var pl = docLayers(p, p.width, p.height);
+          state.canvas.loadGrid(
+            p.width, p.height, p.grid, pl.frac, pl.back, pl.blend,
+          );
+          applyOverlays(p);
+          syncGridInputs(p.width, p.height);
+          state.currentProjectId = p.id;
+          els.projectTitle.value = p.title;
+          setNotes(p.notes || "");
+          restoreProjectKind(p, true);
+          loadProgress();
+          showCanvas(true);
+          updateZoomLabel();
+          onDesignChange();
+          markClean();
+          toast('Loaded "' + p.title + '"', "ok");
+        };
+        // Restore the document's palette before the grid is drawn.
+        if (p.palette && p.palette !== state.paletteId) {
+          switchPalette(p.palette, { persist: false, remap: false }).then(finish);
+        } else {
+          finish();
+        }
       })
       .catch(function () {
         toast("Load failed", "error");
@@ -3764,6 +4313,7 @@
       title: els.projectTitle.value.trim() || "Untitled Design",
       notes: state.notes,
       kind: state.docKind,
+      palette: state.paletteId,
       // The image BYTES are never exported (IndexedDB only): a chart export
       // carries the page geometry + names so it can be re-linked locally.
       source: state.docKind === "chart" ? state.source : null,
@@ -3792,21 +4342,30 @@
       try {
         var doc = JSON.parse(e.target.result);
         if (!doc.grid || !doc.width || !doc.height) throw new Error("bad");
-        var jl = docLayers(doc, doc.width, doc.height);
-        state.canvas.loadGrid(
-          doc.width, doc.height, doc.grid, jl.frac, jl.back, jl.blend,
-        );
-        applyOverlays(doc);
-        syncGridInputs(doc.width, doc.height);
-        state.currentProjectId = null;
-        if (doc.title) els.projectTitle.value = doc.title;
-        setNotes(doc.notes || "");
-        restoreProjectKind(doc, true);
-        showCanvas(true);
-        updateZoomLabel();
-        onDesignChange();
-        markClean();
-        toast("Design imported", "ok");
+        var finish = function () {
+          var jl = docLayers(doc, doc.width, doc.height);
+          state.canvas.loadGrid(
+            doc.width, doc.height, doc.grid, jl.frac, jl.back, jl.blend,
+          );
+          applyOverlays(doc);
+          syncGridInputs(doc.width, doc.height);
+          state.currentProjectId = null;
+          if (doc.title) els.projectTitle.value = doc.title;
+          setNotes(doc.notes || "");
+          restoreProjectKind(doc, true);
+          showCanvas(true);
+          updateZoomLabel();
+          onDesignChange();
+          markClean();
+          toast("Design imported", "ok");
+        };
+        // The palette must be in place before the grid is drawn (the indices
+        // mean nothing without it). An export with no palette is all-yarn.
+        if (doc.palette && doc.palette !== state.paletteId) {
+          switchPalette(doc.palette, { persist: false, remap: false }).then(finish);
+        } else {
+          finish();
+        }
       } catch (err) {
         toast("Invalid design file", "error");
       }
@@ -4053,8 +4612,63 @@
       setActivePage(parseInt(item.getAttribute("data-index"), 10));
     });
 
+    // The format dropdown doubles as a readout, so it follows the colour too.
+    if (els.codeFormatSelect) {
+      els.codeFormatSelect.addEventListener("change", function () {
+        if (this.value) setCodeFormat(this.value);
+      });
+    }
+    if (els.codeFormatAll) {
+      els.codeFormatAll.addEventListener("change", function () {
+        state.codeFormatAll = this.checked;
+        saveCodeFormatAll();
+        buildFormatPanel(state.paletteByIndex[state.selectedIndex]);
+      });
+    }
     // palette search
     els.paletteSearch.addEventListener("input", filterPalette);
+    if (els.paletteSource) {
+      els.paletteSource.addEventListener("change", function () {
+        switchPalette(this.value);
+      });
+    }
+    if (els.paletteSort) {
+      els.paletteSort.addEventListener("change", function () {
+        setPaletteSort(this.value);
+      });
+    }
+    // One delegated listener per bulk list: a 3,600-entry deck must not cost
+    // 3,600 listeners.
+    if (els.paletteFamilies) {
+      els.paletteFamilies.addEventListener("click", function (ev) {
+        var chip = ev.target.closest ? ev.target.closest(".palette-chip") : null;
+        if (!chip) return;
+        setPaletteFamily(chip.getAttribute("data-family"));
+      });
+    }
+    if (els.shadeCardSearch) {
+      els.shadeCardSearch.addEventListener("input", filterShadeCard);
+    }
+    // One delegated listener for the whole palette: a 3,600-entry Pantone
+    // library must not cost 3,600 listeners.
+    if (els.paletteGroups) {
+      els.paletteGroups.addEventListener("click", function (ev) {
+        var btn = ev.target.closest ? ev.target.closest(".swatch-btn") : null;
+        if (!btn) return;
+        var idx = parseInt(btn.getAttribute("data-index"), 10);
+        if (!isNaN(idx)) selectColor(idx);
+      });
+    }
+    if (els.shadeCardBody) {
+      els.shadeCardBody.addEventListener("click", function (ev) {
+        var item = ev.target.closest ? ev.target.closest(".shade-item") : null;
+        if (!item) return;
+        var idx = parseInt(item.getAttribute("data-index"), 10);
+        if (isNaN(idx)) return;
+        selectColor(idx);
+        closeShadeCard();
+      });
+    }
 
     // tools
     els.toolPaint.addEventListener("click", function () {

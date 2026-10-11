@@ -7,8 +7,8 @@
   "preferred": {
     "BLK": "310"
   },
-  "_preferred_comment": "Semantic overrides: palette code -> floss code. Matching is nearest-colour in CIELAB, which occasionally lands somewhere surprising (pure Black matches Dark Grey better than it does Black Brown). Use this map to pin a palette entry to the floss a stitcher would actually buy.",
-  "_comment": "Full DMC reference table. Codes and names are real DMC references; the hex values are on-screen sRGB approximations and MUST be reviewed against a colour card before being treated as authoritative. Set \"verified\" to true once a human has checked every row.",
+  "_preferred_comment": "Semantic overrides: palette code -> floss code, for when nearest-colour matching picks a floss a stitcher would not buy.",
+  "_comment": "Full DMC reference table. Codes and names are real DMC references; the hex values are on-screen sRGB approximations, not colour-card matches. Set \"verified\" to true once a human has checked every row.",
   "_source": "compiled from a local DMC colour chart (not committed)",
   "colours": [
     {

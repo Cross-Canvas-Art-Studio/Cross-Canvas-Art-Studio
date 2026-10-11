@@ -87,27 +87,23 @@ DEFAULT_PALETTE = [
 _PALETTE = DEFAULT_PALETTE
 
 # ============================================================ palettes =======
-# There are TWO palettes, and a colour's index is only meaningful *within* one of
-# them, so every palette index is paired with the palette id that owns it:
+# A palette index is only meaningful within its own palette, so every document
+# pairs its indices with the palette id that owns them:
 #
-#   'yarn'  the curated craft-yarn palette (DEFAULT_PALETTE, indices 0..n-1)
-#   'dmc'   the full real DMC floss library (built from the floss table)
+#   'yarn'  curated craft-yarn palette (DEFAULT_PALETTE, indices 0..n-1)
+#   'dmc'   full real DMC floss library (built from the floss table)
 #
-# They are kept separate (rather than merged into one array) for one concrete
-# reason: the yarn palette guarantees a DISTINCT print glyph per colour
-# (`SYMBOL_COUNT >= palette_size()`), which is what keeps any two colours
-# tellable apart on a greyscale chart. A 500-colour library cannot honour that
-# with 65 glyphs, so the DMC palette is its own space and repeats glyphs instead
-# of silently weakening the yarn guarantee.
+# Kept as separate index spaces rather than one merged array: the yarn palette
+# guarantees a distinct print glyph per colour (`SYMBOL_COUNT >= palette_size()`),
+# which 65 glyphs cannot do for 500+ colours -- so DMC repeats glyphs instead.
 PALETTE_YARN = 'yarn'
 PALETTE_DMC = 'dmc'
 PALETTE_PANTONE = 'pantone'
 DEFAULT_PALETTE_ID = PALETTE_YARN
 
 # The Pantone palette comes from the local, NON-COMMITTED colour database at
-# data/color_conversions.ndjson. Pantone values are proprietary reference data,
-# so the file stays a local working copy and is never shipped with the repo.
-# Absent is normal: the palette simply is not offered (never an error).
+# data/color_conversions.ndjson (proprietary reference data, so it is never
+# shipped). Absent is normal: the palette is then simply not offered.
 COLOR_DB_PATH = os.path.normpath(os.path.join(
     os.path.dirname(os.path.abspath(__file__)), os.pardir, 'data',
     'color_conversions.ndjson'))
@@ -470,39 +466,75 @@ def _ensure_pantone_palette():
     return _pantone_palette
 
 
+def _yarn_entries():
+    """The curated yarn palette, each entry carrying its nearest DMC floss."""
+    _ensure_floss_map()
+    out = []
+    for i, entry in enumerate(_PALETTE):
+        item = dict(entry, index=i)
+        dmc = _palette_floss.get(i)
+        if dmc:
+            item['dmc'] = dict(dmc)
+        out.append(item)
+    return out
+
+
+def _yarn_lab():
+    _ensure_cache()
+    return _palette_lab
+
+
+def _dmc_lab_ref():
+    _ensure_dmc_palette()
+    return _dmc_lab
+
+
+def _pantone_lab_ref():
+    _ensure_pantone_palette()
+    return _pantone_lab
+
+
+# ====================================================== palette sources ======
+# Every palette the app can offer, in one table: the id the client stores, the
+# label the UI shows, the colour-count ceiling for a generated pattern, and
+# loaders for its entries and LAB reference table. Everything else reads this
+# instead of branching on the id, so adding a brand is a loader plus one row.
+_PALETTE_SOURCES = (
+    {'id': PALETTE_YARN, 'label': 'Yarn', 'max_colors': 52,
+     'entries': _yarn_entries, 'lab': _yarn_lab},
+    {'id': PALETTE_DMC, 'label': 'DMC floss', 'max_colors': 128,
+     'entries': _ensure_dmc_palette, 'lab': _dmc_lab_ref},
+    {'id': PALETTE_PANTONE, 'label': 'Pantone', 'max_colors': 128,
+     'entries': _ensure_pantone_palette, 'lab': _pantone_lab_ref},
+)
+
+
+def _source(palette_id):
+    """The registry row for an id, falling back to the default palette."""
+    for row in _PALETTE_SOURCES:
+        if row['id'] == palette_id:
+            return row
+    return _PALETTE_SOURCES[0]
+
+
 def palette_catalog():
     """The available palettes as [{id,label,size,default,max_colors}].
 
-    One declarative list both the API and the static bundle publish, so the UI
-    and the matcher can never disagree about which palettes exist.
+    Derived from the one registry above, so the UI and the matcher can never
+    disagree about which palettes exist. A source with no data (no floss table,
+    no local Pantone database) is simply not offered.
     """
-    _ensure_floss_cache()
-    catalog = [{
-        'id': PALETTE_YARN,
-        'label': 'Yarn',
-        'size': len(_PALETTE),
-        'default': True,
-        # The yarn palette is small on purpose; a photo rarely needs more.
-        'max_colors': 52,
-    }]
-    dmc = _ensure_dmc_palette()
-    if dmc:
+    catalog = []
+    for row in _PALETTE_SOURCES:
+        entries = row['entries']()
+        if not entries:
+            continue
         catalog.append({
-            'id': PALETTE_DMC,
-            'label': 'DMC floss',
-            'size': len(dmc),
-            'default': False,
-            # A real chart can legitimately use many more shades than yarn.
-            'max_colors': 128,
-        })
-    pantone = _ensure_pantone_palette()
-    if pantone:
-        catalog.append({
-            'id': PALETTE_PANTONE,
-            'label': 'Pantone',
-            'size': len(pantone),
-            'default': False,
-            'max_colors': 128,
+            'id': row['id'],
+            'label': row['label'],
+            'size': len(entries),
+            'default': row['id'] == DEFAULT_PALETTE_ID,
+            'max_colors': row['max_colors'],
         })
     return catalog
 
@@ -523,29 +555,15 @@ def get_palette(palette_id=DEFAULT_PALETTE_ID):
 
     ``palette_id='yarn'`` (default) is the curated yarn palette, each entry
     carrying a 'dmc' block naming its nearest real-world floss. ``'dmc'`` is the
-    full floss library, where each entry's 'dmc' block is the floss itself.
+    full floss library and ``'pantone'`` the local Pantone deck, where each
+    entry's 'dmc' block is the closest buyable floss. An unknown id falls back
+    to the default palette.
     """
-    if palette_id == PALETTE_DMC:
-        return [dict(e) for e in _ensure_dmc_palette()]
-    if palette_id == PALETTE_PANTONE:
-        return [dict(e) for e in _ensure_pantone_palette()]
-    _ensure_floss_map()
-    palette = []
-    for i, entry in enumerate(_PALETTE):
-        item = dict(entry, index=i)
-        dmc = _palette_floss.get(i)
-        if dmc:
-            item['dmc'] = dict(dmc)
-        palette.append(item)
-    return palette
+    return [dict(e) for e in _source(palette_id)['entries']()]
 
 
 def palette_size(palette_id=DEFAULT_PALETTE_ID):
-    if palette_id == PALETTE_DMC:
-        return len(_ensure_dmc_palette())
-    if palette_id == PALETTE_PANTONE:
-        return len(_ensure_pantone_palette())
-    return len(_PALETTE)
+    return len(_source(palette_id)['entries']())
 
 
 def get_entry(index, palette_id=DEFAULT_PALETTE_ID):
@@ -582,14 +600,7 @@ def nearest_indices(rgb, allowed=None, palette_id=DEFAULT_PALETTE_ID):
     unique_rgb, inverse_indices = np.unique(rgb_arr, axis=0, return_inverse=True)
 
     lab = rgb_to_lab(unique_rgb)
-    if palette_id == PALETTE_DMC:
-        _ensure_dmc_palette()
-        ref_lab = _dmc_lab
-    elif palette_id == PALETTE_PANTONE:
-        _ensure_pantone_palette()
-        ref_lab = _pantone_lab
-    else:
-        ref_lab = _palette_lab
+    ref_lab = _source(palette_id)['lab']()
     candidates = list(allowed) if allowed is not None else None
     best_idx, _ = _nearest_in(lab, ref_lab, candidates)
     return best_idx[inverse_indices]
@@ -611,11 +622,11 @@ def palette_js_source():
         'verified': bool(meta.get('verified')),
         'size': floss_size(),
     }
-    palettes = {PALETTE_YARN: palette}
-    if palette_size(PALETTE_DMC):
-        palettes[PALETTE_DMC] = get_palette(PALETTE_DMC)
-    if palette_size(PALETTE_PANTONE):
-        palettes[PALETTE_PANTONE] = get_palette(PALETTE_PANTONE)
+    palettes = {}
+    for row in _PALETTE_SOURCES:
+        entries = get_palette(row['id'])
+        if entries:
+            palettes[row['id']] = entries
     catalog = palette_catalog()
     dump = lambda obj: json.dumps(obj, ensure_ascii=False, separators=(',', ':'))
     return (

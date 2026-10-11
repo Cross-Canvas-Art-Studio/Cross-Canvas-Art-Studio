@@ -14,6 +14,11 @@
     return document.getElementById(id);
   }
 
+  // Shared helpers from tool-common.js (loaded before this script).
+  var T = window.StitchTool;
+  var clamp = T.clamp, baseName = T.baseName, toast = T.toast,
+      downloadBlob = T.downloadBlob;
+
   var MAX_DIM = 8192;
 
   var state = {
@@ -31,27 +36,10 @@
     fitScale: 1,
   };
 
-  function clamp(v, lo, hi) {
-    return Math.max(lo, Math.min(hi, v));
-  }
-  function baseName(name) {
-    return (name || "image").replace(/\.[^.]+$/, "").replace(/[^\w-]+/g, "-");
-  }
   function fmtBytes(n) {
     if (n < 1024) return n + " B";
     if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
     return (n / (1024 * 1024)).toFixed(2) + " MB";
-  }
-
-  var toastTimer = null;
-  function toast(msg, kind) {
-    var t = els.toast;
-    t.textContent = msg;
-    t.className = "toast show " + (kind || "");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () {
-      t.className = "toast";
-    }, 3200);
   }
 
   function cacheEls() {
@@ -65,7 +53,6 @@
       "infoOriginal", "infoOutput", "infoEstimate",
       "exportDimsHint", "exportSizeHint", "downloadBtn", "downloadOrigBtn",
       "iconSizeList", "roundedIcons", "downloadIconsBtn",
-      "toast", "helpBtn", "helpModal", "helpClose", "footerYear",
     ].forEach(function (id) {
       els[id] = $(id);
     });
@@ -179,17 +166,7 @@
 
   // ---------- display ----------
   function computeFit() {
-    var wrap = els.canvasWrap;
-    var availW = Math.max(80, wrap.clientWidth - 24);
-    var availH = Math.max(80, wrap.clientHeight - 24);
-    var aspect = state.outputCanvas.width / state.outputCanvas.height;
-    var w = availW;
-    var h = w / aspect;
-    if (h > availH) {
-      h = availH;
-      w = h * aspect;
-    }
-    state.fitScale = w / state.outputCanvas.width;
+    state.fitScale = T.fitScaleFor(state.outputCanvas, els.canvasWrap);
   }
 
   function render() {
@@ -226,19 +203,6 @@
   }
 
   // ---------- export ----------
-  function downloadBlob(blob, filename, msg) {
-    var a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(function () {
-      URL.revokeObjectURL(a.href);
-      a.remove();
-    }, 0);
-    toast(msg, "ok");
-  }
-
   function download() {
     if (!state.outputCanvas) return;
     var d = outputDims();
@@ -347,37 +311,7 @@
 
   // ---------- events ----------
   function bindEvents() {
-    els.dropZone.addEventListener("click", function () {
-      els.imageInput.click();
-    });
-    els.dropZone.addEventListener("keydown", function (e) {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        els.imageInput.click();
-      }
-    });
-    ["dragenter", "dragover"].forEach(function (ev) {
-      els.dropZone.addEventListener(ev, function (e) {
-        e.preventDefault();
-        els.dropZone.classList.add("dragover");
-      });
-    });
-    ["dragleave", "drop"].forEach(function (ev) {
-      els.dropZone.addEventListener(ev, function (e) {
-        e.preventDefault();
-        els.dropZone.classList.remove("dragover");
-      });
-    });
-    els.dropZone.addEventListener("drop", function (e) {
-      var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-      if (f) loadFile(f);
-    });
-    els.imageInput.addEventListener("change", function () {
-      if (els.imageInput.files && els.imageInput.files[0]) {
-        loadFile(els.imageInput.files[0]);
-      }
-      els.imageInput.value = "";
-    });
+    T.wireDropZone(els.dropZone, els.imageInput, loadFile);
     els.removeImageBtn.addEventListener("click", removeImage);
 
     // resize inputs
@@ -474,17 +408,9 @@
     els.downloadIconsBtn.addEventListener("click", exportIcons);
 
     // help modal
-    els.helpBtn.addEventListener("click", function () {
-      els.helpModal.classList.add("active");
-    });
-    els.helpClose.addEventListener("click", function () {
-      els.helpModal.classList.remove("active");
-    });
-    els.helpModal.addEventListener("click", function (e) {
-      if (e.target === els.helpModal) els.helpModal.classList.remove("active");
-    });
+    T.wireHelpModal();
 
-    els.footerYear.textContent = new Date().getFullYear();
+    T.wireFooterYear();
     window.addEventListener("resize", function () {
       if (state.outputCanvas) render();
     });

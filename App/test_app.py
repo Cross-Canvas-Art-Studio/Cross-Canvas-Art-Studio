@@ -905,12 +905,7 @@ class TestAnnotationsAndNotes(unittest.TestCase):
 
 
 class TestPalettes(unittest.TestCase):
-    """Two palettes, two index spaces, one catalog -- and no drift between them.
-
-    The DMC palette is its own index space (a 500-colour library cannot honour
-    the yarn palette's distinct-glyph-per-colour guarantee), so these tests pin
-    down that the two never get confused for one another.
-    """
+    """Two palettes, two index spaces, one catalog -- and no drift between them."""
 
     def setUp(self):
         palette_manager.load_floss_table()
@@ -947,8 +942,7 @@ class TestPalettes(unittest.TestCase):
             self.assertTrue(0 <= entry['symbol'] < palette_manager.SYMBOL_COUNT)
 
     def test_yarn_symbol_guarantee_is_untouched(self):
-        # The distinct-glyph guarantee is scoped to the yarn palette; adding the
-        # DMC palette must not weaken it.
+        # Adding the DMC palette must not weaken the yarn distinct-glyph rule.
         symbols = [e['symbol'] for e in palette_manager.get_palette('yarn')]
         self.assertEqual(len(symbols), len(set(symbols)))
         self.assertGreaterEqual(palette_manager.SYMBOL_COUNT,

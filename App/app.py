@@ -21,7 +21,7 @@ import ipaddress
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 
-from flask import Flask, request, jsonify, render_template, send_from_directory
+from flask import Flask, request, jsonify, render_template, send_from_directory, Response
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -55,6 +55,8 @@ import project_manager
 import crypto_manager
 import user_manager
 import auth_manager
+import seo_files
+import page_context
 from llm_manager import LLMManager
 
 try:  # libmagic may be unavailable on some dev machines; degrade gracefully.
@@ -363,6 +365,23 @@ def health_check():
     return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat() + 'Z'})
 
 
+# --- Crawler files ---------------------------------------------------------
+# Served from the site root (not /static/) so the Flask app and the static
+# GitHub Pages build answer crawlers identically. See seo_files.py for why
+# these are generated rather than checked in as plain files.
+
+@app.route('/robots.txt')
+def robots_txt():
+    return Response(seo_files.robots_txt(config),
+                    content_type='text/plain; charset=utf-8')
+
+
+@app.route('/sitemap.xml')
+def sitemap_xml():
+    return Response(seo_files.sitemap_xml(config),
+                    content_type='application/xml; charset=utf-8')
+
+
 # --- PWA assets ------------------------------------------------------------
 # The service worker must be served from the site ROOT, otherwise its scope is
 # limited to /static/ and it cannot control the pages. The static (GitHub Pages)
@@ -395,54 +414,35 @@ for _pwa_name in _PWA_ASSETS:
 
 @app.route('/')
 def index():
-    _seo = config.get('seo', {})
     return render_template(
         'index.html',
-        app_title=config.get('app', {}).get('title', 'Stitchee'),
-        seo_title=_seo.get('title', 'Stitchee \u2014 Free Cross-Stitch Pattern Maker and Yarn Canvas Designer'),
-        seo_description=_seo.get('description', 'Turn photos and ideas into cross-stitch yarn canvas patterns.'),
-        seo_url=_seo.get('url', ''),
-        seo_image=_seo.get('image', ''),
-        seo_site_name=_seo.get('site_name', 'Stitchee'),
-        require_auth=REQUIRE_AUTH,
-        ai_enabled=AI_ENABLED,
+        **page_context.page_context(
+            config, 'index',
+            require_auth=REQUIRE_AUTH,
+            ai_enabled=AI_ENABLED,
+        ),
     )
-
-
-@app.route('/pixelator')
-def pixelator():
-    return _tool_page('pixelator', 'pixelator.html')
-
-
-@app.route('/resizer')
-def resizer():
-    return _tool_page('resizer', 'resizer.html')
-
-
-@app.route('/palette')
-def palette():
-    return _tool_page('palette', 'palette.html')
-
-
-@app.route('/ascii')
-def ascii_page():
-    return _tool_page('ascii', 'ascii.html')
 
 
 def _tool_page(tool_key, template):
     """Render a client-side tool page from its config.json entry."""
-    _t = config.get(tool_key, {})
-    _seo = config.get('seo', {})
     return render_template(
         template,
-        app_title=_t.get('title', tool_key.title()),
-        seo_title=_t.get('seo_title', ''),
-        seo_description=_t.get('seo_description', ''),
-        seo_url=_t.get('seo_url') or (_seo.get('url', '').rstrip('/') + '/' + tool_key),
-        seo_image=_seo.get('image', ''),
-        seo_site_name=_seo.get('site_name', 'Stitchee'),
-        require_auth=REQUIRE_AUTH,
-        ai_enabled=AI_ENABLED,
+        **page_context.page_context(
+            config, tool_key,
+            require_auth=REQUIRE_AUTH,
+            ai_enabled=AI_ENABLED,
+        ),
+    )
+
+
+# The four client-side tool pages, registered from the single registry in
+# page_context (page_context.TOOLS) so a new tool is added in one place.
+for _route, _template, _tool_key, _script in page_context.TOOLS:
+    app.add_url_rule(
+        '/' + _route,
+        endpoint='tool_' + _tool_key,
+        view_func=(lambda _t=_template, _k=_tool_key: _tool_page(_k, _t)),
     )
 
 
@@ -464,6 +464,7 @@ def get_app_config():
             'allowed_extensions': sorted(ALLOWED_EXTENSIONS),
         },
         'palette': palette_manager.get_palette(),
+        'palettes': palette_manager.palette_catalog(),
         'floss': {
             'enabled': bool(floss_cfg.get('enabled', True)) and floss_size > 0,
             'brand': floss_cfg.get('brand') or floss_meta.get('brand') or 'DMC',
@@ -488,6 +489,19 @@ def get_app_config():
             auth_manager.get_current_user()
         ) if ALLOW_AUTH and auth_manager.get_current_user() else None,
         'server_api_keys': api_keys_info,
+    })
+
+
+@app.route('/api/palette/<palette_id>')
+def get_palette_route(palette_id):
+    """Return one palette's entries. The yarn palette ships in /api/config; the
+    larger DMC library is fetched on demand when the user switches to it."""
+    if not palette_manager.is_palette_id(palette_id):
+        return jsonify({'error': 'Unknown palette'}), 404
+    return jsonify({
+        'id': palette_id,
+        'label': palette_manager.palette_label(palette_id),
+        'palette': palette_manager.get_palette(palette_id),
     })
 
 
@@ -786,8 +800,15 @@ def analyze_image():
     max_size = int(GRID_CFG.get('max_size', 500))
     width = clamp_int(form.get('width'), min_size, max_size, int(GRID_CFG.get('default_width', 60)))
     height = clamp_int(form.get('height'), min_size, max_size, int(GRID_CFG.get('default_height', 80)))
+    # Which palette the design is generated against: the yarn palette (default)
+    # or the full DMC library. An unknown id falls back to the default rather
+    # than erroring, so an old client keeps working.
+    palette_id = form.get('palette') or palette_manager.DEFAULT_PALETTE_ID
+    if not palette_manager.is_palette_id(palette_id):
+        palette_id = palette_manager.DEFAULT_PALETTE_ID
+    palette_max = palette_manager.palette_size(palette_id)
     max_colors = clamp_int(form.get('max_colors'), int(GRID_CFG.get('min_colors', 2)),
-                           palette_manager.palette_size(), int(GRID_CFG.get('default_max_colors', 16)))
+                           palette_max, int(GRID_CFG.get('default_max_colors', 16)))
     alpha_threshold = clamp_int(form.get('alpha_threshold'), 0, 255,
                                 int(GRID_CFG.get('alpha_threshold', 128)))
     resample = form.get('resample', 'smooth')
@@ -796,7 +817,8 @@ def analyze_image():
         result = image_manager.analyze(
             image_bytes, width, height,
             max_colors=max_colors, alpha_threshold=alpha_threshold, resample=resample,
-            min_size=min_size, max_size=max_size, palette_max=palette_manager.palette_size(),
+            min_size=min_size, max_size=max_size, palette_max=palette_max,
+            palette_id=palette_id,
         )
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
@@ -917,7 +939,8 @@ def create_project():
             pages=data.get('pages'),
             frac=data.get('frac'), back=data.get('back'),
             blend=data.get('blend'),
-            annots=data.get('annots'), cell_notes=data.get('cellNotes'))
+            annots=data.get('annots'), cell_notes=data.get('cellNotes'),
+            palette=data.get('palette'))
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
     return jsonify({'success': True, 'project': meta}), 201
@@ -952,7 +975,8 @@ def update_project(project_id):
             pages=data.get('pages'),
             frac=data.get('frac'), back=data.get('back'),
             blend=data.get('blend'),
-            annots=data.get('annots'), cell_notes=data.get('cellNotes'))
+            annots=data.get('annots'), cell_notes=data.get('cellNotes'),
+            palette=data.get('palette'))
     except PermissionError as exc:
         return jsonify({'error': str(exc)}), 403
     except ValueError as exc:

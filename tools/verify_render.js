@@ -1771,6 +1771,68 @@ function checkSkein() {
 
 checkSkein();
 
+// ---- palette remap ---------------------------------------------------------
+// Switching palettes must remap stitches by COLOUR, never keep the raw index:
+// index 1 means a different thread in each palette, so keeping it would silently
+// recolour the chart.
+function checkPaletteRemap() {
+  const from = [
+    { index: 0, code: "WHT", name: "White", hex: "#FFFFFF", symbol: 0 },
+    { index: 1, code: "BLK", name: "Black", hex: "#000000", symbol: 1 },
+  ];
+  const to = [
+    { index: 0, code: "B5200", name: "Snow White", hex: "#FFFFFF", symbol: 0 },
+    { index: 1, code: "310", name: "Black", hex: "#000000", symbol: 1 },
+    { index: 2, code: "666", name: "Bright Red", hex: "#E31D42", symbol: 2 },
+  ];
+
+  const c = new CrossStitchCanvas(makeCanvas(), {});
+  c.setPalette(from);
+  c.loadGrid(2, 1, [[0, 1]]);
+  const changed = c.remapPalette(to);
+  check(
+    "remapPalette returns a changed-cell count",
+    typeof changed === "number",
+    String(changed),
+  );
+  check(
+    "remapPalette keeps the colour, not the index",
+    c.cells[0] === 0 && c.cells[1] === 1,
+    c.cells[0] + "," + c.cells[1],
+  );
+  check(
+    "remapPalette installs the new palette",
+    c.hexFor(0) === "#FFFFFF" && c.codeFor(0) === "B5200",
+    c.codeFor(0),
+  );
+
+  // A colour that exists only in the source palette snaps to the nearest new one.
+  const c2 = new CrossStitchCanvas(makeCanvas(), {});
+  c2.setPalette([
+    { index: 0, code: "RED", name: "Red", hex: "#E01B22", symbol: 0 },
+  ]);
+  c2.loadGrid(1, 1, [[0]]);
+  c2.remapPalette(to);
+  check(
+    "an unmatched colour lands on the nearest new colour",
+    c2.cells[0] === 2,
+    String(c2.cells[0]),
+  );
+
+  // The backstitch and blend layers name palette colours too, so they are
+  // remapped with the cells rather than left pointing at the old palette.
+  const c3 = new CrossStitchCanvas(makeCanvas(), {});
+  c3.setPalette(from);
+  c3.loadGrid(1, 1, [[0]]);
+  c3.setBack(new Uint8Array([1, 0, 0, 0])); // one edge in colour 0
+  c3.setBlend(new Uint8Array([2])); // partner = index 1
+  c3.remapPalette(to);
+  check("backstitch colour is remapped", c3.back[0] === 1, String(c3.back[0]));
+  check("blend partner is remapped", c3.blend[0] === 2, String(c3.blend[0]));
+}
+
+checkPaletteRemap();
+
 console.log(
   failures === 0
     ? "\nAll render-layer checks passed."

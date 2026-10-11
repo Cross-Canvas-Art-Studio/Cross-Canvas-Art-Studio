@@ -19,6 +19,11 @@
     return document.getElementById(id);
   }
 
+  // Shared helpers from tool-common.js (loaded before this script).
+  var T = window.StitchTool;
+  var clamp = T.clamp, clamp255 = T.clamp255, baseName = T.baseName,
+      toast = T.toast, medianCut = T.medianCut, nearestColor = T.nearestColor;
+
   var MIN_PIXEL = 1;
   var MAX_PIXEL = 128;
   var PRESETS = [4, 8, 16, 32, 64];
@@ -50,28 +55,6 @@
     dragging: false,
   };
 
-  // ---------- utilities ----------
-  function clamp(v, lo, hi) {
-    return Math.max(lo, Math.min(hi, v));
-  }
-  function clamp255(v) {
-    return v < 0 ? 0 : v > 255 ? 255 : v;
-  }
-  function baseName(name) {
-    return (name || "image").replace(/\.[^.]+$/, "").replace(/[^\w-]+/g, "-");
-  }
-
-  var toastTimer = null;
-  function toast(msg, kind) {
-    var t = els.toast;
-    t.textContent = msg;
-    t.className = "toast show " + (kind || "");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () {
-      t.className = "toast";
-    }, 3200);
-  }
-
   function cacheEls() {
     [
       "dropZone", "imageInput", "uploadPreview", "removeImageBtn",
@@ -88,7 +71,6 @@
       "compareDivider", "compareHint",
       "infoOriginal", "infoGrid", "infoBlock", "infoColors",
       "exportScale", "pixelExportOptions", "depixelExportLabel", "exportDimsHint", "downloadPngBtn", "downloadOrigBtn",
-      "toast", "helpBtn", "helpModal", "helpClose", "footerYear",
     ].forEach(function (id) {
       els[id] = $(id);
     });
@@ -406,64 +388,6 @@
     ctx.putImageData(imgData, 0, 0);
   }
 
-  function nearestColor(palette, r, g, b) {
-    var best = palette[0];
-    var bestD = Infinity;
-    for (var i = 0; i < palette.length; i++) {
-      var c = palette[i];
-      var dr = r - c[0], dg = g - c[1], db = b - c[2];
-      var dist = dr * dr + dg * dg + db * db;
-      if (dist < bestD) {
-        bestD = dist;
-        best = c;
-        if (dist === 0) break;
-      }
-    }
-    return best;
-  }
-
-  function bucketRange(b) {
-    var minR = 255, maxR = 0, minG = 255, maxG = 0, minB = 255, maxB = 0;
-    for (var i = 0; i < b.length; i++) {
-      var c = b[i];
-      if (c[0] < minR) minR = c[0]; if (c[0] > maxR) maxR = c[0];
-      if (c[1] < minG) minG = c[1]; if (c[1] > maxG) maxG = c[1];
-      if (c[2] < minB) minB = c[2]; if (c[2] > maxB) maxB = c[2];
-    }
-    return [maxR - minR, maxG - minG, maxB - minB];
-  }
-
-  function medianCut(samples, maxColors) {
-    var buckets = [samples];
-    while (buckets.length < maxColors) {
-      var bi = -1, bestW = -1;
-      for (var i = 0; i < buckets.length; i++) {
-        var b = buckets[i];
-        if (b.length < 2) continue;
-        var rng = bucketRange(b);
-        var w = Math.max(rng[0], rng[1], rng[2]);
-        if (w > bestW) { bestW = w; bi = i; }
-      }
-      if (bi < 0) break;
-      var bucket = buckets.splice(bi, 1)[0];
-      var rr = bucketRange(bucket);
-      var axis = rr[0] >= rr[1] && rr[0] >= rr[2] ? 0 : rr[1] >= rr[2] ? 1 : 2;
-      bucket.sort(function (a, b2) { return a[axis] - b2[axis]; });
-      var mid = Math.floor(bucket.length / 2);
-      buckets.push(bucket.slice(0, mid), bucket.slice(mid));
-    }
-    var pal = [];
-    buckets.forEach(function (b) {
-      if (!b.length) return;
-      var r = 0, g = 0, bl = 0;
-      for (var i = 0; i < b.length; i++) {
-        r += b[i][0]; g += b[i][1]; bl += b[i][2];
-      }
-      pal.push([Math.round(r / b.length), Math.round(g / b.length), Math.round(bl / b.length)]);
-    });
-    return pal;
-  }
-
   function countColors(canvas) {
     var d = canvas.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, canvas.width, canvas.height).data;
     var set = Object.create(null);
@@ -478,17 +402,7 @@
 
   // ---------- display ----------
   function computeFit() {
-    var wrap = els.canvasWrap;
-    var availW = Math.max(80, wrap.clientWidth - 24);
-    var availH = Math.max(80, wrap.clientHeight - 24);
-    var aspect = state.sourceCanvas.width / state.sourceCanvas.height;
-    var w = availW;
-    var h = w / aspect;
-    if (h > availH) {
-      h = availH;
-      w = h * aspect;
-    }
-    state.fitScale = w / state.sourceCanvas.width;
+    state.fitScale = T.fitScaleFor(state.sourceCanvas, els.canvasWrap);
   }
 
   function drawGrid(ctx, ds, x0, x1, cssH) {
@@ -622,16 +536,7 @@
         toast("Export failed", "error");
         return;
       }
-      var a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(function () {
-        URL.revokeObjectURL(a.href);
-        a.remove();
-      }, 0);
-      toast(msg, "ok");
+      T.downloadBlob(blob, filename, msg);
     }, "image/png");
   }
 
@@ -749,37 +654,7 @@
 
   function bindEvents() {
     // drop zone / file input
-    els.dropZone.addEventListener("click", function () {
-      els.imageInput.click();
-    });
-    els.dropZone.addEventListener("keydown", function (e) {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        els.imageInput.click();
-      }
-    });
-    ["dragenter", "dragover"].forEach(function (ev) {
-      els.dropZone.addEventListener(ev, function (e) {
-        e.preventDefault();
-        els.dropZone.classList.add("dragover");
-      });
-    });
-    ["dragleave", "drop"].forEach(function (ev) {
-      els.dropZone.addEventListener(ev, function (e) {
-        e.preventDefault();
-        els.dropZone.classList.remove("dragover");
-      });
-    });
-    els.dropZone.addEventListener("drop", function (e) {
-      var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-      if (f) loadFile(f);
-    });
-    els.imageInput.addEventListener("change", function () {
-      if (els.imageInput.files && els.imageInput.files[0]) {
-        loadFile(els.imageInput.files[0]);
-      }
-      els.imageInput.value = "";
-    });
+    T.wireDropZone(els.dropZone, els.imageInput, loadFile);
     els.removeImageBtn.addEventListener("click", removeImage);
 
     // processing mode
@@ -907,18 +782,10 @@
     els.downloadOrigBtn.addEventListener("click", downloadOriginal);
 
     // help modal
-    els.helpBtn.addEventListener("click", function () {
-      els.helpModal.classList.add("active");
-    });
-    els.helpClose.addEventListener("click", function () {
-      els.helpModal.classList.remove("active");
-    });
-    els.helpModal.addEventListener("click", function (e) {
-      if (e.target === els.helpModal) els.helpModal.classList.remove("active");
-    });
+    T.wireHelpModal();
 
     // misc
-    els.footerYear.textContent = new Date().getFullYear();
+    T.wireFooterYear();
     setMode("pixelate");
     window.addEventListener("resize", function () {
       if (state.sourceCanvas) render();

@@ -15,16 +15,12 @@
 (function () {
   "use strict";
 
-  // ── Palette ──
-  // The authoritative palette is generated from palette_manager.py and injected
-  // as window.StitchPalette by .github/scripts/build_site.py, so the static build
-  // can never drift from the server palette (it used to: this file was a hand
-  // copy, and it was already missing per-entry fields). The inline table below
-  // is only a fallback for running this file standalone.
-  var PALETTE =
-    window.StitchPalette && window.StitchPalette.length
-      ? window.StitchPalette
-      : [
+  // ── Palettes ──
+  // The authoritative palettes are generated from palette_manager.py and injected
+  // as window.StitchPalettes (id -> entries) by .github/scripts/build_site.py, so
+  // the static build can never drift from the server. The inline table below is
+  // only a fallback for running this file standalone.
+  var FALLBACK_YARN = [
     // Neutrals
     { index: 0, code: "WHT", name: "White", hex: "#FFFFFF", family: "Neutral" },
     { index: 1, code: "SNW", name: "Snow", hex: "#F7F4EC", family: "Neutral" },
@@ -271,29 +267,79 @@
     { index: 51, code: "PLM", name: "Plum", hex: "#5E2B69", family: "Purple" },
     { index: 52, code: "GRP", name: "Grape", hex: "#3F1D5A", family: "Purple" },
   ];
-  // Keep PALETTE[index] lookup valid regardless of which source was used.
-  var PALETTE_BY_INDEX = {};
-  PALETTE.forEach(function (e, i) {
-    if (typeof e.index !== "number") e.index = i;
-    PALETTE_BY_INDEX[e.index] = e;
-  });
+  // ── Palette registry ──
+  // window.StitchPalettes is {yarn:[...], dmc:[...]}; fall back to the injected
+  // single palette (or the inline yarn table) so this file still runs alone.
+  var PALETTES = {};
+  if (window.StitchPalettes) {
+    Object.keys(window.StitchPalettes).forEach(function (id) {
+      PALETTES[id] = window.StitchPalettes[id];
+    });
+  }
+  if (!PALETTES.yarn) {
+    PALETTES.yarn =
+      window.StitchPalette && window.StitchPalette.length
+        ? window.StitchPalette
+        : FALLBACK_YARN;
+  }
 
-  // Precompute RGB arrays — index matches PALETTE position == palette index
-  var PAL_RGB = PALETTE.map(function (e) {
-    var h = e.hex.replace("#", "");
-    return [
-      parseInt(h.slice(0, 2), 16),
-      parseInt(h.slice(2, 4), 16),
-      parseInt(h.slice(4, 6), 16),
-    ];
-  });
+  var PALETTE_CATALOG =
+    window.StitchPaletteCatalog && window.StitchPaletteCatalog.length
+      ? window.StitchPaletteCatalog
+      : [
+          {
+            id: "yarn",
+            label: "Yarn",
+            size: PALETTES.yarn.length,
+            default: true,
+            max_colors: 52,
+          },
+        ];
+
+  // Per-palette lookups: index -> entry, plus parallel RGB + index arrays for
+  // the nearest-colour search. An index is only valid within its own palette.
+  var PAL_LOOKUP = {};
+  function buildPaletteLookup(id) {
+    var entries = PALETTES[id] || [];
+    var byIndex = {};
+    var rgb = [];
+    var order = [];
+    entries.forEach(function (e, i) {
+      if (typeof e.index !== "number") e.index = i;
+      byIndex[e.index] = e;
+      var h = (e.hex || "#000000").replace("#", "");
+      rgb.push([
+        parseInt(h.slice(0, 2), 16),
+        parseInt(h.slice(2, 4), 16),
+        parseInt(h.slice(4, 6), 16),
+      ]);
+      order.push(e.index);
+    });
+    PAL_LOOKUP[id] = {
+      entries: entries,
+      byIndex: byIndex,
+      rgb: rgb,
+      order: order,
+    };
+  }
+  Object.keys(PALETTES).forEach(buildPaletteLookup);
+  function paletteLookup(id) {
+    return PAL_LOOKUP[id] || PAL_LOOKUP.yarn;
+  }
+
+  // Back-compat aliases for the yarn palette.
+  var PALETTE = PALETTES.yarn;
+  var PALETTE_BY_INDEX = paletteLookup("yarn").byIndex;
+  var PAL_RGB = paletteLookup("yarn").rgb;
 
   // ── Nearest palette index by Euclidean RGB distance ──
-  function nearestPalIdx(r, g, b) {
+  function nearestPalIdx(r, g, b, id) {
+    var look = paletteLookup(id);
+    var rgb = look.rgb;
     var best = 0,
       bestDist = Infinity;
-    for (var i = 0; i < PAL_RGB.length; i++) {
-      var p = PAL_RGB[i];
+    for (var i = 0; i < rgb.length; i++) {
+      var p = rgb[i];
       var dr = r - p[0],
         dg = g - p[1],
         db = b - p[2];
@@ -303,7 +349,7 @@
         best = i;
       }
     }
-    return PALETTE_BY_INDEX[best].index;
+    return look.order[best];
   }
 
   // ── llmAPIManager stub (api-manager.js is excluded from static build) ──
@@ -397,6 +443,7 @@
         allowed_extensions: [".bmp", ".gif", ".jpeg", ".jpg", ".png", ".webp"],
       },
       palette: PALETTE,
+      palettes: PALETTE_CATALOG,
       floss: window.StitchFloss || { enabled: false, brand: "DMC", verified: false, size: 0 },
       skein: { enabled: true, used_strands: 2, waste_factor: 0.15, stitches_per_skein_at_14ct: 1700 },
       llm: { default_provider: "ollama", providers: {} },
@@ -433,6 +480,18 @@
       2,
       Math.min(52, parseInt(fd.get("max_colors") || "16", 10)),
     );
+    // Which palette to map onto: the yarn palette (default) or the DMC library.
+    var paletteId = fd.get("palette") || "yarn";
+    var look = paletteLookup(paletteId);
+    var catalogItem = PALETTE_CATALOG.filter(function (c) {
+      return c.id === paletteId;
+    })[0];
+    if (catalogItem && catalogItem.max_colors) {
+      maxClrs = Math.max(
+        2,
+        Math.min(catalogItem.max_colors, parseInt(fd.get("max_colors") || "16", 10)),
+      );
+    }
 
     if (!file) {
       return resp({ error: "No image file" }, 400);
@@ -468,7 +527,12 @@
               }
               var key = (pix[o] << 16) | (pix[o + 1] << 8) | pix[o + 2];
               if (!(key in cache)) {
-                cache[key] = nearestPalIdx(pix[o], pix[o + 1], pix[o + 2]);
+                cache[key] = nearestPalIdx(
+                  pix[o],
+                  pix[o + 1],
+                  pix[o + 2],
+                  paletteId,
+                );
               }
               row.push(cache[key]);
             }
@@ -503,8 +567,8 @@
               var bestD = Infinity,
                 bestI = sorted[0];
               sorted.slice(0, maxClrs).forEach(function (ai) {
-                var ar = PAL_RGB[ri],
-                  br = PAL_RGB[ai];
+                var ar = look.rgb[ri],
+                  br = look.rgb[ai];
                 var d =
                   (ar[0] - br[0]) * (ar[0] - br[0]) +
                   (ar[1] - br[1]) * (ar[1] - br[1]) +
@@ -564,6 +628,7 @@
       id: p.id,
       title: p.title,
       kind: p.kind || "pattern",
+      palette: p.palette || "yarn",
       width: p.width,
       height: p.height,
       color_count: Object.keys(colors).length,
@@ -593,6 +658,7 @@
       title: body.title || "Untitled",
       notes: body.notes || "",
       kind: body.kind === "chart" ? "chart" : "pattern",
+      palette: body.palette || "yarn",
       source: body.source || null,
       fit: body.fit || null,
       pages: body.pages || null,
@@ -634,6 +700,7 @@
       title: body.title || store[id].title,
       notes: body.notes !== undefined ? body.notes : store[id].notes,
       kind: body.kind !== undefined ? body.kind : store[id].kind,
+      palette: body.palette !== undefined ? body.palette : store[id].palette,
       source: body.source !== undefined ? body.source : store[id].source,
       fit: body.fit !== undefined ? body.fit : store[id].fit,
       pages: body.pages !== undefined ? body.pages : store[id].pages,
@@ -677,6 +744,22 @@
     }
     if (url === "/api/analyze-image") {
       return handleAnalyzeImage(init);
+    }
+
+    var palM = url.match(/^\/api\/palette\/([^/]+)$/);
+    if (palM) {
+      var palId = decodeURIComponent(palM[1]);
+      if (!PALETTES[palId]) {
+        return resp({ error: "Unknown palette" }, 404);
+      }
+      var palItem = PALETTE_CATALOG.filter(function (c) {
+        return c.id === palId;
+      })[0];
+      return resp({
+        id: palId,
+        label: (palItem && palItem.label) || palId,
+        palette: PALETTES[palId],
+      });
     }
 
     if (url === "/api/projects") {

@@ -80,7 +80,7 @@ def _atomic_write_json(path, data):
             os.remove(tmp_path)
 
 
-def _sanitize_grid(grid):
+def _sanitize_grid(grid, palette_id=palette_manager.DEFAULT_PALETTE_ID):
     """Validate and coerce a grid into a rectangular list-of-lists of ints."""
     if not isinstance(grid, list) or not grid:
         raise ValueError('Design grid is empty')
@@ -91,7 +91,7 @@ def _sanitize_grid(grid):
     if width == 0 or width > MAX_GRID_SIZE:
         raise ValueError('Design width is invalid')
 
-    palette_max = palette_manager.palette_size()
+    palette_max = palette_manager.palette_size(palette_id)
     clean = []
     for row in grid:
         if not isinstance(row, list) or len(row) != width:
@@ -109,13 +109,20 @@ def _sanitize_grid(grid):
     return clean, width, height
 
 
-def _legend_for_grid(grid):
+def _sanitize_palette(palette_id):
+    """Coerce a stored palette id to a known one, defaulting to the yarn palette."""
+    palette_id = str(palette_id or '').strip()
+    return palette_id if palette_manager.is_palette_id(palette_id) \
+        else palette_manager.DEFAULT_PALETTE_ID
+
+
+def _legend_for_grid(grid, palette_id=palette_manager.DEFAULT_PALETTE_ID):
     counts = {}
     for row in grid:
         for idx in row:
             if idx >= 0:
                 counts[idx] = counts.get(idx, 0) + 1
-    return palette_manager.build_legend(counts)
+    return palette_manager.build_legend(counts, palette_id)
 
 
 def _finite_number(value):
@@ -324,9 +331,11 @@ def count_projects():
 
 def create_project(title, grid, owner=None, description='', notes='',
                    kind='pattern', source=None, fit=None, pages=None,
-                   frac=None, back=None, blend=None, annots=None, cell_notes=None):
+                   frac=None, back=None, blend=None, annots=None, cell_notes=None,
+                   palette=None):
     """Persist a new project. Returns the saved metadata dict. Raises ValueError."""
-    clean_grid, width, height = _sanitize_grid(grid)
+    palette_id = _sanitize_palette(palette)
+    clean_grid, width, height = _sanitize_grid(grid, palette_id)
     if count_projects() >= MAX_PROJECTS:
         raise ValueError('Project storage is full; delete an old project first')
     clean_frac = _sanitize_layer_runs(frac, width * height)
@@ -335,10 +344,14 @@ def create_project(title, grid, owner=None, description='', notes='',
 
     project_id = uuid.uuid4().hex
     now = datetime.utcnow().isoformat() + 'Z'
-    legend = _legend_for_grid(clean_grid)
+    legend = _legend_for_grid(clean_grid, palette_id)
     document = {
         'id': project_id,
         'title': (title or 'Untitled Design').strip()[:120],
+        # Which palette the grid indices refer to: 'yarn' (the curated craft
+        # palette) or 'dmc' (the full floss library). Absent on documents saved
+        # before this existed, which are all yarn.
+        'palette': palette_id,
         'description': (description or '').strip()[:500],
         'notes': str(notes or '').strip()[:MAX_NOTES_LENGTH],
         # 'chart' = an imported chart marked up over its own artwork; 'pattern'
@@ -376,7 +389,7 @@ def create_project(title, grid, owner=None, description='', notes='',
 def update_project(project_id, title, grid, owner=None, is_admin=False,
                    description=None, notes=None, kind=None, source=None, fit=None,
                    pages=None, frac=None, back=None, blend=None, annots=None,
-                   cell_notes=None):
+                   cell_notes=None, palette=None):
     """Overwrite an existing project the caller may access. Raises ValueError."""
     existing = get_project(project_id)
     if existing is None:
@@ -384,14 +397,19 @@ def update_project(project_id, title, grid, owner=None, is_admin=False,
     if not can_access(existing, owner, is_admin):
         raise PermissionError('You do not have access to this project')
 
-    clean_grid, width, height = _sanitize_grid(grid)
+    # The grid indices are only meaningful against one palette, so validate them
+    # against whichever palette the document will carry after this update.
+    palette_id = (_sanitize_palette(palette) if palette is not None
+                  else _sanitize_palette(existing.get('palette')))
+    clean_grid, width, height = _sanitize_grid(grid, palette_id)
     now = datetime.utcnow().isoformat() + 'Z'
     existing.update({
         'title': (title or existing.get('title') or 'Untitled Design').strip()[:120],
+        'palette': palette_id,
         'width': width,
         'height': height,
         'grid': clean_grid,
-        'legend': _legend_for_grid(clean_grid),
+        'legend': _legend_for_grid(clean_grid, palette_id),
         'updated_at': now,
     })
     if description is not None:
@@ -486,6 +504,7 @@ def _metadata(document):
         'title': document.get('title'),
         'description': document.get('description', ''),
         'kind': document.get('kind', 'pattern'),
+        'palette': document.get('palette', palette_manager.DEFAULT_PALETTE_ID),
         'width': document.get('width'),
         'height': document.get('height'),
         'color_count': len(document.get('legend', [])),

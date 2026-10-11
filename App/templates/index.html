@@ -1,112 +1,49 @@
-<!DOCTYPE html>
-<html lang="en" data-require-auth="{{ 'true' if require_auth else 'false' }}" data-ai-enabled="{{ 'true' if ai_enabled else 'false' }}">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ seo_title }}</title>
-    <meta name="description" content="{{ seo_description }}">
-    <link rel="canonical" href="{{ seo_url }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%237c3aed'/%3E%3Cpath d='M8 8l16 16M24 8L8 24' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
-    <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
-    <link rel="manifest" href="/manifest.webmanifest">
-    <meta name="theme-color" content="#0f1117">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="Stitchee">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta property="og:type" content="website">
-    <meta property="og:site_name" content="{{ seo_site_name }}">
-    <meta property="og:title" content="{{ seo_title }}">
-    <meta property="og:description" content="{{ seo_description }}">
-    <meta property="og:url" content="{{ seo_url }}">
-    <meta property="og:image" content="{{ seo_image }}">
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="{{ seo_title }}">
-    <meta name="twitter:description" content="{{ seo_description }}">
-    <meta name="twitter:image" content="{{ seo_image }}">
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebApplication",
-      "name": "{{ seo_site_name }}",
-      "url": "{{ seo_url }}",
-      "description": "{{ seo_description }}",
-      "applicationCategory": "MultimediaApplication",
-      "operatingSystem": "Web",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "CAD"
-      }
-    }
-    </script>
-</head>
-<body id="top">
-    <div class="app-shell">
-    <header class="app-header">
-        <div class="brand">
-            <span class="brand-logo" aria-hidden="true">
-                <svg viewBox="0 0 32 32" width="28" height="28">
-                    <rect width="32" height="32" rx="6" fill="url(#g)"></rect>
-                    <defs>
-                        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-                            <stop offset="0" stop-color="#a855f7"></stop>
-                            <stop offset="1" stop-color="#7c3aed"></stop>
-                        </linearGradient>
-                    </defs>
-                    <path d="M9 9l14 14M23 9L9 23" stroke="#fff" stroke-width="3" stroke-linecap="round"></path>
-                </svg>
-            </span>
-            <div class="brand-text">
-                <h1>{{ app_title }}<span class="visually-hidden"> — Free cross-stitch pattern maker and yarn canvas designer</span></h1>
-                <p id="brandSubtitle">Cross-stitch yarn canvas designer</p>
-            </div>
-        </div>
-        <nav class="app-switcher" aria-label="App selector">
-            <a class="app-switcher-tab active" href="/" aria-current="page">Stitchee</a>
-            <a class="app-switcher-tab" href="/pixelator">Pixelator</a>
-            <a class="app-switcher-tab" href="/resizer">Resizer</a>
-            <a class="app-switcher-tab" href="/palette">Palette</a>
-            <a class="app-switcher-tab" href="/ascii">ASCII</a>
-        </nav>
-        <div class="header-actions">
-            <a class="ext-tool" href="https://fontstudio.stitchee.ca/" target="_blank" rel="noopener" aria-label="Font Builder Studio" title="Font Builder Studio &mdash; browser-based font editor (opens in a new tab)">
-                <span class="ext-tool-logo" aria-hidden="true">
-                    <svg viewBox="0 0 32 32" width="24" height="24">
-                        <defs>
-                            <linearGradient id="fbg" x1="0" y1="0" x2="1" y2="1">
-                                <stop offset="0" stop-color="#a855f7"></stop>
-                                <stop offset="1" stop-color="#7c3aed"></stop>
-                            </linearGradient>
-                        </defs>
-                        <rect width="32" height="32" rx="6" fill="url(#fbg)"></rect>
-                        <text x="16" y="23" font-size="19" text-anchor="middle" fill="#fff" font-family="serif">A</text>
-                    </svg>
-                </span>
-                <span class="ext-tool-name">Font Builder Studio</span>
-            </a>
-            <button id="installBtn" class="btn-ghost install-btn" type="button" title="Install Stitchee as an app" hidden>Install app</button>
-            <button id="helpBtn" class="btn-ghost" type="button" title="How it works">Help</button>
-            <div id="authHeader" class="auth-header" style="display:none"></div>
-        </div>
-    </header>
-
-    <main class="layout">
+{% extends "base.html" %}
+{% block content %}
         <!-- ============ LEFT: PALETTE + LEGEND ============ -->
         <aside class="sidebar" aria-label="Palette and legend">
             <section class="panel">
                 <div class="panel-head">
-                    <h2>Yarn palette</h2>
+                    <h2>Colour palette</h2>
                     <button id="shadeCardBtn" class="btn-ghost shade-card-btn" type="button" title="Shade card: every yarn colour with its code and DMC floss">Shades</button>
                     <input type="search" id="paletteSearch" placeholder="Filter…" class="mini-search">
                 </div>
+                <!-- Which palette the swatches paint from. Saves with the
+                     project: an index only means something inside one palette. -->
+                <div class="palette-source-row">
+                    <label for="paletteSource" class="palette-source-label">Palette</label>
+                    <select id="paletteSource" class="mini-select" aria-label="Palette source"
+                            title="Which palette to paint with: the curated yarn colours, the full DMC floss library, or Pantone (when compiled locally)"></select>
+                </div>
+                <!-- Swatch order. "By shade" sorts by colour. -->
+                <div class="palette-source-row">
+                    <label for="paletteSort" class="palette-source-label">Order</label>
+                    <select id="paletteSort" class="mini-select" aria-label="Palette order"
+                            title="List the palette by its own numbering, or order the shades by colour">
+                        <option value="number">By number</option>
+                        <option value="grouped">By shade</option>
+                    </select>
+                </div>
+                <!-- Colour families. Big palettes are too tall to list, so the
+                     panel renders one family; the filter box searches instead. -->
+                <div id="paletteFamilies" class="palette-chips" role="group" aria-label="Colour families"></div>
                 <div class="selected-yarn">
                     <span class="swatch lg" id="selectedSwatch"></span>
                     <div>
                         <strong id="selectedName">&mdash;</strong>
                     </div>
                 </div>
-                <div id="codeFormats" class="code-formats" aria-label="Colour label format"></div>
+                <!-- Label format. The dropdown shows the chosen format with the
+                     selected colour's value; "All" adds the button list. -->
+                <div class="palette-source-row">
+                    <label for="codeFormatSelect" class="palette-source-label">Label</label>
+                    <select id="codeFormatSelect" class="mini-select" aria-label="Colour label format"
+                            title="Which value is written on each stitch of the chart"></select>
+                    <label class="check" title="Show every label format as its own button">
+                        <input type="checkbox" id="codeFormatAll"> All
+                    </label>
+                </div>
+                <div id="codeFormats" class="code-formats" aria-label="Colour label format" hidden></div>
                 <!-- Blended threads: two flosses held together in one stitch, which
                      is how a chart shows a colour you cannot buy. Lives here
                      because it is a property of the colour you are painting with. -->
@@ -239,9 +176,9 @@
                     <div class="tool-cluster" id="stitchCluster">
                         <span class="tool-cluster-label">Stitch</span>
                         <div class="tool-group" id="brushGroup">
-                            <label class="brush-size-label" style="display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text-faint);">
+                            <label class="brush-size-label" title="Brush size in cells">
                                 Size:
-                                <select id="brushSize" style="background: var(--bg-3); color: var(--text); border: 1px solid var(--border-2); border-radius: 4px; padding: 2px 4px; font-size: 12px; cursor: pointer;">
+                                <select id="brushSize">
                                     <option value="1">1px</option>
                                     <option value="2">2px</option>
                                     <option value="3">3px</option>
@@ -449,15 +386,7 @@
 
                 <!-- Upload image -->
                 <div class="source-panel" id="sourceUpload">
-                    <div class="drop-zone" id="dropZone" tabindex="0">
-                        <input type="file" id="imageInput" accept="image/*" hidden>
-                        <div class="drop-inner">
-                            <span class="drop-icon" aria-hidden="true">&#128247;</span>
-                            <p><strong>Drop an image</strong> or click to browse</p>
-                            <p class="hint">PNG, JPG, GIF, BMP, WEBP</p>
-                        </div>
-                        <img id="uploadPreview" alt="Selected image preview" hidden>
-                    </div>
+                    {% include "_dropzone.html" %}
                     <label class="slider-label">Max yarn colours: <output id="imgMaxColorsVal">16</output>
                         <input type="range" id="imgMaxColors" min="2" max="52" value="16">
                     </label>
@@ -607,7 +536,7 @@
                 </div>
             </section>
 
-            <section class="panel">
+            <section class="panel" data-collapsed>
                 <div class="panel-head">
                     <h2>Export</h2>
                 </div>
@@ -623,7 +552,7 @@
                 </div>
             </section>
 
-            <section class="panel">
+            <section class="panel" data-collapsed>
                 <div class="panel-head">
                     <h2>Projects</h2>
                 </div>
@@ -642,8 +571,8 @@
                     placeholder="Reminders, thread substitutions, colour changes…"></textarea>
             </section>
         </aside>
-    </main>
-    </div>
+{% endblock %}
+{% block after_shell %}
 
     <!-- ============ ABOUT / SEO CONTENT (visually hidden) ============ -->
     <section class="site-about visually-hidden" id="about" aria-labelledby="aboutHeading">
@@ -663,9 +592,11 @@
                     nearest yarn colour in your palette.</p>
                 </div>
                 <div class="feature">
-                    <h3>Yarn colour matching</h3>
-                    <p>Choose from a rich palette of real yarn colours, or filter to find the exact
-                    shade you have in your stash.</p>
+                    <h3>Yarn, DMC or Pantone colour matching</h3>
+                    <p>Paint from a rich yarn palette, or switch to the full DMC floss library
+                    (487 stranded + 36 Light Effects) and match every cell to a real thread code.
+                    Pantone swatches and their nearest DMC codes are available too when the local
+                    colour database is compiled.</p>
                 </div>
                 <div class="feature">
                     <h3>Printable legend</h3>
@@ -680,41 +611,20 @@
             </div>
         </div>
     </section>
-
-    <footer class="app-footer">
-        <div class="footer-inner">
-            <p class="footer-blurb visually-hidden">Stitchee · Cross Canvas Art Studio — turn photos and ideas into
-            printable cross-stitch yarn canvas patterns, free and straight in your browser.</p>
-            <nav class="footer-nav" aria-label="Footer">
-                <a href="https://github.com/Cross-Canvas-Art-Studio/Cross-Canvas-Art-Studio" target="_blank" rel="noopener">GitHub</a>
-            </nav>
-            <p class="footer-meta">&copy; <span id="footerYear">2026</span> Stitchee. Projects are stored in your browser only.</p>
-        </div>
-    </footer>
-
-    <div id="toast" class="toast" role="status" aria-live="polite"></div>
-
-    <!-- Help modal -->
-    <div id="helpModal" class="app-modal" aria-hidden="true" role="dialog" aria-modal="true">
-        <div class="app-modal-dialog">
-            <div class="app-modal-header">
-                <h2>How it works</h2>
-                <button class="icon-btn" id="helpClose" type="button" title="Close" aria-label="Close help modal">&times;</button>
-            </div>
-            <div class="app-modal-body">
-                <ol class="help-steps">
+{% endblock %}
+{% block help_steps %}
                     <li><strong>Choose a canvas size</strong> — up to 500&times;500 stitches.</li>
                     <li><strong>Image tab</strong> — upload a picture; it pixelates and matches colours.</li>
                     <li><strong>Trace overlay</strong> — lay a photo over the chart, fade it with the opacity slider, then switch it off to see your stitches. Use the <em>Align</em> tool to move it and stretch it by its corner and edge points until the cells line up.</li>
                     <li><strong>Blank tab</strong> — start empty and paint by hand.</li>
-                    <li><strong>Custom mode</strong> — pickc a colour and click a cell to stitch it; <em>right-click</em> to clear it.</li>
+                    <li><strong>My chart tab</strong> — mark up a chart you already own. Stitchee reads the grid printed on the artwork, sizes the canvas to it and lays that artwork <em>under</em> a blank grid, so you mark your progress on the original instead of regenerating it. Pick every sheet at once and they join on one seamless canvas. <em>Read chart colours</em> samples the colours off the artwork; <em>Convert to pattern</em> pixelates it the way the Image tab does. An export contains only your own marks — your chart's artwork is never included.</li>
+                    <li><strong>Custom mode</strong> — pick a colour and click a cell to stitch it; <em>right-click</em> to clear it.</li>
+                    <li><strong>Palette</strong> — switch between the curated yarn colours, the full DMC floss library, and Pantone (when the local colour database is compiled); the choice saves with the project and existing stitches are rematched to the nearest colour.</li>
                     <li><strong>Navigate</strong> — <em>middle-click drag</em> pans the chart, <em>Ctrl + scroll</em> zooms it, and clicking any sidebar heading collapses that panel.</li>
                     <li><strong>Legend</strong> — shows exactly which yarns and stitch count of each.</li>
                     <li><strong>Export / Save</strong> — download a PNG or JSON, or save it on the server.</li>
-                </ol>
-            </div>
-        </div>
-    </div>
+{% endblock %}
+{% block modals %}
 
     <!-- Shade card modal -->
     <div id="shadeCardModal" class="app-modal" aria-hidden="true" role="dialog" aria-modal="true">
@@ -725,11 +635,19 @@
             </div>
             <div class="app-modal-body">
                 <p class="hint">Every colour in the palette with its code and nearest DMC floss. Click one to paint with it.</p>
+                <!-- Search by code, name, hex, RGB or DMC number. The grid below
+                     scrolls so this stays in view. -->
+                <div class="shade-card-toolbar">
+                    <input type="search" id="shadeCardSearch" class="mini-search shade-card-search"
+                           placeholder="Search code, name, hex, RGB or DMC&hellip;" aria-label="Search the shade card">
+                    <span class="hint" id="shadeCardCount"></span>
+                </div>
                 <div id="shadeCardBody" class="shade-card"></div>
             </div>
         </div>
     </div>
-
+{% endblock %}
+{% block scripts %}
     <script src="{{ url_for('static', filename='api-manager.js') }}"></script>
     <script src="{{ url_for('static', filename='auth-widget.js') }}"></script>
     <script src="{{ url_for('static', filename='symbols.js') }}"></script>
@@ -740,5 +658,4 @@
     <script src="{{ url_for('static', filename='image-store.js') }}"></script>
     <script src="{{ url_for('static', filename='app.js') }}"></script>
     <script src="{{ url_for('static', filename='pwa.js') }}"></script>
-</body>
-</html>
+{% endblock %}

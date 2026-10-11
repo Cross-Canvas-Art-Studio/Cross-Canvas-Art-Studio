@@ -13,6 +13,11 @@
     return document.getElementById(id);
   }
 
+  // Shared helpers from tool-common.js (loaded before this script).
+  var T = window.StitchTool;
+  var clamp = T.clamp, baseName = T.baseName, escapeHtml = T.escapeHtml,
+      toast = T.toast, copyText = T.copyText, downloadBlob = T.downloadBlob;
+
   var CHARSETS = {
     classic: "@%#*+=-:. ",
     detailed:
@@ -208,31 +213,6 @@
     "§": [" ####", "#    ", " ### ", "    #", "#### "],
   };
 
-  function clamp(v, lo, hi) {
-    return Math.max(lo, Math.min(hi, v));
-  }
-  function baseName(name) {
-    return (name || "image").replace(/\.[^.]+$/, "").replace(/[^\w-]+/g, "-");
-  }
-  function escapeHtml(s) {
-    return s
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-  }
-
-  var toastTimer = null;
-  function toast(msg, kind) {
-    var t = els.toast;
-    t.textContent = msg;
-    t.className = "toast show " + (kind || "");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () {
-      t.className = "toast";
-    }, 3200);
-  }
-
   function cacheEls() {
     [
       "sourceImage", "sourceText", "imageSettings",
@@ -244,7 +224,6 @@
       "canvasEmpty", "asciiWrap", "asciiOut",
       "infoOriginal", "infoAscii",
       "downloadTxtBtn", "downloadHtmlBtn",
-      "toast", "helpBtn", "helpModal", "helpClose", "footerYear",
     ].forEach(function (id) {
       els[id] = $(id);
     });
@@ -465,50 +444,9 @@
   }
 
   // ---------- clipboard / export ----------
-  function copyText(text, msg) {
-    function done() {
-      toast(msg || "Copied", "ok");
-    }
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done, function () {
-        fallbackCopy(text);
-        done();
-      });
-    } else {
-      fallbackCopy(text);
-      done();
-    }
-  }
-
-  function fallbackCopy(text) {
-    var ta = document.createElement("textarea");
-    ta.value = text;
-    ta.style.position = "fixed";
-    ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.select();
-    try {
-      document.execCommand("copy");
-    } catch (e) { /* noop */ }
-    ta.remove();
-  }
-
   function copyAscii() {
     if (!state.text) return;
     copyText(state.text, "ASCII art copied");
-  }
-
-  function downloadBlob(blob, filename, msg) {
-    var a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(function () {
-      URL.revokeObjectURL(a.href);
-      a.remove();
-    }, 0);
-    toast(msg, "ok");
   }
 
   function downloadTxt() {
@@ -538,37 +476,7 @@
   }
 
   function bindEvents() {
-    els.dropZone.addEventListener("click", function () {
-      els.imageInput.click();
-    });
-    els.dropZone.addEventListener("keydown", function (e) {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        els.imageInput.click();
-      }
-    });
-    ["dragenter", "dragover"].forEach(function (ev) {
-      els.dropZone.addEventListener(ev, function (e) {
-        e.preventDefault();
-        els.dropZone.classList.add("dragover");
-      });
-    });
-    ["dragleave", "drop"].forEach(function (ev) {
-      els.dropZone.addEventListener(ev, function (e) {
-        e.preventDefault();
-        els.dropZone.classList.remove("dragover");
-      });
-    });
-    els.dropZone.addEventListener("drop", function (e) {
-      var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-      if (f) loadFile(f);
-    });
-    els.imageInput.addEventListener("change", function () {
-      if (els.imageInput.files && els.imageInput.files[0]) {
-        loadFile(els.imageInput.files[0]);
-      }
-      els.imageInput.value = "";
-    });
+    T.wireDropZone(els.dropZone, els.imageInput, loadFile);
     els.removeImageBtn.addEventListener("click", removeImage);
 
     // source tabs (Image / Text)
@@ -626,17 +534,9 @@
     els.downloadTxtBtn.addEventListener("click", downloadTxt);
     els.downloadHtmlBtn.addEventListener("click", downloadHtml);
 
-    els.helpBtn.addEventListener("click", function () {
-      els.helpModal.classList.add("active");
-    });
-    els.helpClose.addEventListener("click", function () {
-      els.helpModal.classList.remove("active");
-    });
-    els.helpModal.addEventListener("click", function (e) {
-      if (e.target === els.helpModal) els.helpModal.classList.remove("active");
-    });
+    T.wireHelpModal();
 
-    els.footerYear.textContent = new Date().getFullYear();
+    T.wireFooterYear();
   }
 
   // ---------- source switching ----------
@@ -648,6 +548,14 @@
     document.querySelectorAll("[data-ascii-source]").forEach(function (b) {
       b.classList.toggle("active", b.getAttribute("data-ascii-source") === src);
     });
+    // The empty state speaks for the active source, so it never tells a text
+    // user to upload an image.
+    var empty = els.canvasEmpty && els.canvasEmpty.querySelector("p");
+    if (empty) {
+      empty.textContent = src === "text"
+        ? "Type some text to render it as ASCII art."
+        : "Upload an image to generate ASCII art.";
+    }
     buildAscii();
   }
 

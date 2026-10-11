@@ -1,7 +1,7 @@
 {
-  "name": "Stitchee — Cross-Stitch Pattern Maker",
+  "name": "Stitchee | Cross-Stitch Pattern Maker",
   "short_name": "Stitchee",
-  "description": "Turn photos and ideas into printable cross-stitch yarn canvas patterns — free, in your browser.",
+  "description": "Turn photos and ideas into printable cross-stitch yarn canvas patterns | free, in your browser.",
   "id": "/",
   "start_url": "/",
   "scope": "/",

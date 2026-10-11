@@ -36,19 +36,23 @@ def _clamp(value, low, high, default):
 
 
 def analyze(image_bytes, width, height, max_colors=16, alpha_threshold=128,
-            resample='smooth', min_size=5, max_size=500, palette_max=None):
+            resample='smooth', min_size=5, max_size=500, palette_max=None,
+            palette_id=palette_manager.DEFAULT_PALETTE_ID):
     """Return a design dict {width, height, grid, legend, stats} for an image.
 
     grid is a list of `height` rows, each a list of `width` ints where each int
-    is a global palette index or -1 for an empty (unstitched) cell.
+    is a global palette index or -1 for an empty (unstitched) cell. Indices are
+    expressed in the index space of `palette_id` ('yarn' by default, or 'dmc').
 
     resample picks how source pixels are folded into one stitch: 'smooth'
     (LANCZOS blend), 'balanced' (bilinear) or 'blocky' (nearest neighbour).
     """
+    if not palette_manager.is_palette_id(palette_id):
+        palette_id = palette_manager.DEFAULT_PALETTE_ID
     width = _clamp(width, min_size, max_size, 60)
     height = _clamp(height, min_size, max_size, 80)
     if palette_max is None:
-        palette_max = palette_manager.palette_size()
+        palette_max = palette_manager.palette_size(palette_id)
     max_colors = _clamp(max_colors, 2, palette_max, 16)
     alpha_threshold = _clamp(alpha_threshold, 0, 255, 128)
     if resample not in RESAMPLE_MODES:
@@ -74,13 +78,14 @@ def analyze(image_bytes, width, height, max_colors=16, alpha_threshold=128,
     empty_mask = alpha < alpha_threshold
     idx = np.full(rgb.shape[0], -1, dtype=np.int64)
     if not empty_mask.all():
-        idx[~empty_mask] = palette_manager.nearest_indices(rgb[~empty_mask]).astype(np.int64)
+        idx[~empty_mask] = palette_manager.nearest_indices(
+            rgb[~empty_mask], palette_id=palette_id).astype(np.int64)
 
-    idx = _reduce_colors(idx, rgb, empty_mask, max_colors)
+    idx = _reduce_colors(idx, rgb, empty_mask, max_colors, palette_id)
 
     counts = _count_indices(idx)
     grid = idx.reshape(height, width).tolist()
-    legend = palette_manager.build_legend(counts)
+    legend = palette_manager.build_legend(counts, palette_id)
 
     total_cells = width * height
     stitch_count = int((idx >= 0).sum())
@@ -99,7 +104,7 @@ def analyze(image_bytes, width, height, max_colors=16, alpha_threshold=128,
     }
 
 
-def _reduce_colors(idx, rgb, empty_mask, max_colors):
+def _reduce_colors(idx, rgb, empty_mask, max_colors, palette_id=palette_manager.DEFAULT_PALETTE_ID):
     """Limit the number of distinct yarns to max_colors, remapping the rest."""
     valid = idx[~empty_mask]
     if valid.size == 0:
@@ -114,7 +119,8 @@ def _reduce_colors(idx, rgb, empty_mask, max_colors):
 
     drop_mask = (~empty_mask) & (~np.isin(idx, list(keep_set)))
     if drop_mask.any():
-        remapped = palette_manager.nearest_indices(rgb[drop_mask], allowed=sorted(keep_set))
+        remapped = palette_manager.nearest_indices(
+            rgb[drop_mask], allowed=sorted(keep_set), palette_id=palette_id)
         idx = idx.copy()
         idx[drop_mask] = remapped
     return idx

@@ -18,6 +18,9 @@ The resulting _site/ directory is a fully self-contained static site:
   - Cloudflare Web Analytics is injected into the <head> when CF_ANALYTICS_TOKEN is set.
   - SEO meta (title, description, canonical, OG/Twitter, JSON-LD) comes from App/config.json.
   - The three local scripts are bundled into a single app.bundle.js.
+  - robots.txt and sitemap.xml are generated (see App/seo_files.py) so every
+    crawler, including Google-Extended and the AI crawlers, is explicitly
+    allowed. GitHub Pages emits neither on its own.
   - A CNAME file pins the stitchee.ca custom domain for GitHub Pages.
 """
 
@@ -41,6 +44,56 @@ SRC_STATIC   = os.path.join(ROOT, 'App', 'static')
 SRC_TEMPLATE = os.path.join(ROOT, 'App', 'templates', 'index.html')
 CONFIG_PATH  = os.path.join(ROOT, 'App', 'config.json')
 OUT_DIR      = os.path.join(ROOT, '_site')
+TEMPLATES_DIR = os.path.join(ROOT, 'App', 'templates')
+
+# The build renders the same Jinja templates Flask does (every page extends
+# base.html), so it needs jinja2 and the shared page_context module. App/ holds
+# the sibling modules (palette_manager, page_context, seo_files) - put it on the
+# path once, up front.
+sys.path.insert(0, os.path.join(ROOT, 'App'))
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape  # noqa: E402
+from page_context import TOOLS, page_context as build_page_context  # noqa: E402
+
+
+def _url_for(endpoint, **values):
+    """Stand-in for Flask's url_for: the templates only use endpoint='static'."""
+    if endpoint == 'static':
+        return values.get('filename', '')
+    return ''
+
+
+def _make_template_env():
+    env = Environment(
+        loader=FileSystemLoader(TEMPLATES_DIR),
+        autoescape=select_autoescape(['html', 'xml']),
+        trim_blocks=True,
+        lstrip_blocks=True,
+        keep_trailing_newline=True,
+    )
+    env.globals['url_for'] = _url_for
+    return env
+
+
+# One environment for the whole build.
+TEMPLATE_ENV = _make_template_env()
+
+
+def render_page(template, key):
+    """Render one page template through Jinja, exactly as Flask renders it.
+
+    The static site has no accounts and no AI, so the flags the old string
+    substitution hard-coded are passed here: require_auth=False, ai_enabled=False.
+    """
+    html = TEMPLATE_ENV.get_template(template).render(
+        **build_page_context(FULL_CONFIG, key, require_auth=False, ai_enabled=False)
+    )
+    if '{{' in html or '{%' in html:
+        raise SystemExit(
+            f'ERROR: unresolved template markers remain in {template}. '
+            f'The static build renders Jinja now; a stray tag would ship raw.'
+        )
+    return html
 
 # ── Google Analytics (GA4) ──────────────────────────────────────────────
 # ⬇⬇  ADD YOUR MEASUREMENT ID HERE  ⬇⬇
@@ -137,15 +190,6 @@ def load_full_config():
 
 FULL_CONFIG = load_full_config()
 
-# Client-side tool pages: (route, template, config key, standalone script).
-# Each tool is fully client-side (no API layer), so its script is copied as-is
-# rather than bundled into app.bundle.js.
-TOOLS = [
-    ('pixelator', 'pixelator.html', 'pixelator', 'pixelator.js'),
-    ('resizer',   'resizer.html',   'resizer',   'resizer.js'),
-    ('palette',   'palette.html',   'palette',   'palette.js'),
-    ('ascii',     'ascii.html',     'ascii',     'ascii.js'),
-]
 
 
 def rewrite_static_links(html):
@@ -159,31 +203,13 @@ def rewrite_static_links(html):
 
 
 def transform_tool(route, template, key, script):
-    """Transform a client-side tool template into a static page (same steps as
-    index.html: strip Jinja, replace url_for, rewrite links, cache-bust, GA)."""
-    cfg = FULL_CONFIG.get(key, {})
-    seo = {
-        'title': cfg.get('seo_title', ''),
-        'description': cfg.get('seo_description', ''),
-        'url': cfg.get('seo_url') or (SEO_URL.rstrip('/') + '/' + route),
-        'image': SEO_IMAGE,
-        'site_name': SEO_SITE_NAME,
-    }
-    with open(os.path.join(ROOT, 'App', 'templates', template), 'r', encoding='utf-8') as f:
-        h = f.read()
-    h = h.replace('{{ app_title }}', cfg.get('title', key.title()))
-    h = h.replace("{{ 'true' if require_auth else 'false' }}", "false")
-    h = h.replace("{{ 'true' if ai_enabled else 'false' }}",   "false")
-    h = h.replace('{{ seo_title }}', seo['title'])
-    h = h.replace('{{ seo_description }}', seo['description'])
-    h = h.replace('{{ seo_url }}', seo['url'])
-    h = h.replace('{{ seo_image }}', seo['image'])
-    h = h.replace('{{ seo_site_name }}', seo['site_name'])
-    h = re.sub(
-        r"\{\{ url_for\('static', filename='([^']+)'\) \}\}",
-        lambda m: m.group(1),
-        h,
-    )
+    """Render a client-side tool template into a static page.
+
+    The template extends base.html, so it is rendered through Jinja exactly as
+    Flask renders it; the post-processing (link rewriting, cache-busting,
+    analytics) is unchanged.
+    """
+    h = render_page(template, key)
     h = rewrite_static_links(h)
     h = h.replace('href="style.css"', 'href="style.css?v=' + VERSION + '"')
     # Cache-bust any local script references (the standalone tool script).
@@ -204,6 +230,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 # ── 1. Copy required static assets ──
 STATIC_FILES = [
     'style.css',
+    'tool-common.js',
     'apple-touch-icon.png',
     'og-image.png',
     'stitchee-logo.webp',
@@ -223,30 +250,12 @@ for fname in STATIC_FILES:
     shutil.copy(src, os.path.join(OUT_DIR, fname))
     print(f'  copied  {fname}')
 
-# ── 2. Transform HTML template ──
-with open(SRC_TEMPLATE, 'r', encoding='utf-8') as f:
-    html = f.read()
-
-APP_TITLE = 'Stitchee'
-
-# Replace Jinja template variables
-html = html.replace("{{ app_title }}", APP_TITLE)
-html = html.replace("{{ 'true' if require_auth else 'false' }}", "false")
-html = html.replace("{{ 'true' if ai_enabled else 'false' }}",   "false")
-
-# Replace SEO Jinja variables (title, description, canonical, social)
-html = html.replace("{{ seo_title }}", SEO_TITLE)
-html = html.replace("{{ seo_description }}", SEO_DESCRIPTION)
-html = html.replace("{{ seo_url }}", SEO_URL)
-html = html.replace("{{ seo_image }}", SEO_IMAGE)
-html = html.replace("{{ seo_site_name }}", SEO_SITE_NAME)
-
-# Replace url_for() with plain relative paths
-html = re.sub(
-    r"\{\{ url_for\('static', filename='([^']+)'\) \}\}",
-    lambda m: m.group(1),
-    html,
-)
+# ── 2. Render the designer page ──
+# The templates share a base via {% extends %}, so the build renders them
+# through Jinja exactly as Flask does rather than string-substituting raw
+# files. Everything below (auth-script stripping, script bundling,
+# cache-busting, link rewriting, analytics) is unchanged.
+html = render_page('index.html', 'index')
 
 # Remove api-manager.js and auth-widget.js script tags (not needed in static build)
 html = re.sub(
@@ -368,6 +377,21 @@ for route, template, key, script in TOOLS:
     print(f'  wrote   {template}')
     shutil.copy(os.path.join(SRC_STATIC, script), os.path.join(OUT_DIR, script))
     print(f'  copied  {script}')
+
+# ── 3c. Crawler files: robots.txt + sitemap.xml ──
+# Generated from config.json rather than copied as plain files, so the sitemap
+# can only ever list pages this build actually wrote. App/seo_files.py is the
+# same generator app.py serves, so the two builds cannot drift apart.
+#
+# GitHub Pages adds no robots.txt of its own (a missing file is a 404, which
+# crawlers read as "allow all"), so both files have to be emitted here.
+from seo_files import crawler_files  # noqa: E402  (App/ is on sys.path above)
+
+for _crawler_name, _crawler_text in crawler_files(
+        FULL_CONFIG, lastmod=time.strftime('%Y-%m-%d')).items():
+    with open(os.path.join(OUT_DIR, _crawler_name), 'w', encoding='utf-8') as f:
+        f.write(_crawler_text)
+    print(f'  wrote   {_crawler_name}')
 
 # ── 4. Custom domain file for GitHub Pages (pins the stitchee.ca domain) ──
 with open(os.path.join(OUT_DIR, 'CNAME'), 'w', encoding='utf-8') as f:
