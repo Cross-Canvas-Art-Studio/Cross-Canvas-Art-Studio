@@ -490,23 +490,58 @@
                 <div class="panel-head">
                     <h2>Canvas size</h2>
                 </div>
+                <!-- Width / Height, each as a labelled stepper: [−] [box] [+].
+                     The buttons exist for phones - a bare number input offers no
+                     way to nudge a value without the keyboard, and 5-stitch steps
+                     land on the sizes people actually choose. Typing still works;
+                     the native spinners are hidden so there is only one stepper.
+                     "Preset" is the coarse shortcut for the same reason. The label
+                     sits ABOVE its box so two fields still fit one phone's width. -->
                 <div class="grid-size-row">
-                    <label>Width
-                        <input type="number" id="gridWidth" min="5" max="500" value="60">
-                    </label>
+                    <div class="size-field">
+                        <span class="size-field-label" id="gridWidthLabel">Width</span>
+                        <div class="stepper">
+                            <button id="gridWidthDown" class="step-btn" type="button" aria-label="Decrease width by 5 stitches">&minus;</button>
+                            <input type="number" id="gridWidth" min="5" max="500" value="60" aria-labelledby="gridWidthLabel">
+                            <button id="gridWidthUp" class="step-btn" type="button" aria-label="Increase width by 5 stitches">+</button>
+                        </div>
+                    </div>
                     <button id="arLockBtn" class="ar-lock-btn" type="button" title="Lock aspect ratio" aria-label="Lock aspect ratio">
                         <svg id="arLockIcon" width="11" height="14" viewBox="0 0 11 14" fill="currentColor" aria-hidden="true">
                             <rect x="2" y="6" width="7" height="7" rx="1.2"/>
                             <path id="arLockShackle" d="M2.5 6V4a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
                         </svg>
                     </button>
-                    <label>Height
-                        <input type="number" id="gridHeight" min="5" max="500" value="80">
-                    </label>
+                    <div class="size-field">
+                        <span class="size-field-label" id="gridHeightLabel">Height</span>
+                        <div class="stepper">
+                            <button id="gridHeightDown" class="step-btn" type="button" aria-label="Decrease height by 5 stitches">&minus;</button>
+                            <input type="number" id="gridHeight" min="5" max="500" value="80" aria-labelledby="gridHeightLabel">
+                            <button id="gridHeightUp" class="step-btn" type="button" aria-label="Increase height by 5 stitches">+</button>
+                        </div>
+                    </div>
                     <button id="autoSizeBtn" class="btn-ghost auto-size-btn" type="button"
                         title="Fit grid to uploaded image aspect ratio within current max size" disabled>Auto</button>
                     <span class="hint" id="sizeHint">stitches (max 500)</span>
                     <span class="hint" id="imgDimsHint" hidden></span>
+                </div>
+                <div class="size-preset-row">
+                    <label for="sizePreset">Preset</label>
+                    <select id="sizePreset" class="mini-select" title="Common canvas sizes">
+                        <option value="">Custom</option>
+                        <option value="30x30">30 &times; 30</option>
+                        <option value="40x40">40 &times; 40</option>
+                        <option value="60x60">60 &times; 60</option>
+                        <option value="60x80">60 &times; 80</option>
+                        <option value="80x100">80 &times; 100</option>
+                        <option value="100x100">100 &times; 100</option>
+                        <option value="120x160">120 &times; 160</option>
+                        <option value="150x150">150 &times; 150</option>
+                        <option value="200x200">200 &times; 200</option>
+                        <option value="250x250">250 &times; 250</option>
+                        <option value="300x400">300 &times; 400</option>
+                        <option value="500x500">500 &times; 500 (max)</option>
+                    </select>
                 </div>
                 <div class="unit-row">
                     <label class="unit-label" for="sizeUnit">Unit

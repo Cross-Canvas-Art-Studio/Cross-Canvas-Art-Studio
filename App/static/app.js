@@ -79,7 +79,12 @@
   function cacheEls() {
     [
       "gridWidth",
+      "gridWidthDown",
+      "gridWidthUp",
       "gridHeight",
+      "gridHeightDown",
+      "gridHeightUp",
+      "sizePreset",
       "sizeHint",
       "fabricCount",
       "fabricSizeHint",
@@ -622,9 +627,55 @@
     if (!w || !h) return;
     els.gridWidth.value = w;
     els.gridHeight.value = h;
+    clearSizePreset();
     // Assigning .value does not fire 'change', so the finished-size hint would
     // otherwise keep showing the previous grid's measurements.
     updateFabricSize();
+  }
+
+  // ---- canvas size steppers + presets (mobile ergonomics) ----
+  // A bare number input is awkward on a phone: no keyboard nudge, and the native
+  // spinners are invisible until focus. The +/- buttons and the preset list are
+  // the coarse and medium adjustments; typing still gives the exact value.
+  var SIZE_STEP = 5;
+
+  function setGridInput(input, value) {
+    input.value = clampInt(value, state.gridMin, state.gridMax, 60);
+    // A programmatic .value write fires no event, so re-dispatch the one a
+    // keystroke would. That is what keeps the aspect lock and the finished-size
+    // hint in step without a second copy of their logic that could drift.
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function clearSizePreset() {
+    // The boxes no longer hold a preset's exact pair (a typed value, a project
+    // load, an auto-size), so the dropdown must stop claiming one.
+    if (els.sizePreset) els.sizePreset.value = "";
+  }
+
+  function bindSizeStepper(inputId, downId, upId) {
+    var input = els[inputId];
+    els[downId].addEventListener("click", function () {
+      setGridInput(input, Number(input.value) - SIZE_STEP);
+    });
+    els[upId].addEventListener("click", function () {
+      setGridInput(input, Number(input.value) + SIZE_STEP);
+    });
+  }
+
+  function applySizePreset() {
+    var spec = els.sizePreset.value;
+    if (!spec) return; // "Custom" just describes whatever size is in the boxes
+    var parts = spec.split("x");
+    if (parts.length !== 2) return;
+    // A preset IS the pair, so both boxes are written directly rather than one
+    // axis through setGridInput(): with the aspect lock on, feeding width in
+    // would instantly recompute height and undo half the preset.
+    els.gridWidth.value = clampInt(parts[0], state.gridMin, state.gridMax, 60);
+    els.gridHeight.value = clampInt(parts[1], state.gridMin, state.gridMax, 80);
+    if (state.arLocked) state.arRatio = gridSize().h / gridSize().w;
+    updateFabricSize();
+    toast("Canvas size " + gridSize().w + " \u00d7 " + gridSize().h, "ok");
   }
 
   // ---------- progress tracker ----------
@@ -1866,6 +1917,7 @@
   function applyPatternGrid(pattern) {
     els.gridWidth.value = pattern.cols;
     els.gridHeight.value = pattern.rows;
+    clearSizePreset();
     if (state.arLocked) state.arRatio = pattern.rows / pattern.cols;
     updateFabricSize();
     toast(
@@ -1894,6 +1946,7 @@
     );
     els.gridWidth.value = w;
     els.gridHeight.value = h;
+    clearSizePreset();
     updateFabricSize();
     // Keep the AR lock ratio in sync with the new dimensions.
     if (state.arLocked) {
@@ -4485,6 +4538,7 @@
     els.arLockBtn.addEventListener("click", toggleArLock);
     // Propagate dimension changes when aspect ratio is locked.
     els.gridWidth.addEventListener("input", function () {
+      clearSizePreset(); // a typed value is no longer a preset
       if (state.arLocked && state.arRatio !== null) {
         var w = clampInt(this.value, state.gridMin, state.gridMax, 60);
         els.gridHeight.value = Math.max(
@@ -4495,6 +4549,7 @@
       updateFabricSize();
     });
     els.gridHeight.addEventListener("input", function () {
+      clearSizePreset();
       if (state.arLocked && state.arRatio !== null) {
         var h = clampInt(this.value, state.gridMin, state.gridMax, 80);
         els.gridWidth.value = Math.max(
@@ -4504,6 +4559,11 @@
       }
       updateFabricSize();
     });
+    // +/- steppers and size presets feed the same inputs, so every existing
+    // rule (aspect lock, finished size, clamping) applies unchanged.
+    bindSizeStepper("gridWidth", "gridWidthDown", "gridWidthUp");
+    bindSizeStepper("gridHeight", "gridHeightDown", "gridHeightUp");
+    els.sizePreset.addEventListener("change", applySizePreset);
     // Fabric count drives both the finished size and the skein estimate.
     var onFabricChange = function () {
       updateFabricSize();

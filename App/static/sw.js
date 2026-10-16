@@ -18,10 +18,17 @@
  *
  * Assets are cache-busted per deploy in the static build (style.css?v=<sha>),
  * and revalidated by etag on the Flask build.
+ *
+ * UPDATING: the cache name ends in a build token that each build substitutes at
+ * build time (the static build writes its git sha; Flask writes the newest mtime
+ * under App/). That makes this file's BYTES differ on every deploy, which is the
+ * only thing that makes a browser notice a new worker at all - a byte-identical
+ * sw.js is "no change" however often it is fetched. pwa.js watches for the new
+ * worker and offers the user a reload.
  */
 'use strict';
 
-const CACHE = 'stitchee-v2';
+const CACHE = 'stitchee-v3-__BUILD__';
 // Precached only as an offline fallback; the rest is cached on first use.
 const CORE = ['./', './manifest.webmanifest'];
 

@@ -227,6 +227,28 @@ def transform_tool(route, template, key, script):
 
 os.makedirs(OUT_DIR, exist_ok=True)
 
+
+# ── Per-build version stamp ──
+# GitHub Pages serves assets with max-age=14400 (4h) and asset filenames never
+# change, so returning visitors keep a stale stylesheet/script after each deploy.
+# The stamp is appended to every CSS/JS URL so each deploy gets a fresh asset
+# URL, and it is baked into sw.js so the service worker is never byte-identical
+# to the previous deploy (see the STATIC_FILES loop below for why that matters).
+def build_version():
+    try:
+        sha = subprocess.check_output(
+            ['git', 'rev-parse', '--short', 'HEAD'],
+            cwd=ROOT, stderr=subprocess.DEVNULL,
+        ).decode().strip()
+        if sha:
+            return sha
+    except Exception:
+        pass
+    return time.strftime('%Y%m%d%H%M%S')
+
+
+VERSION = build_version()
+
 # ── 1. Copy required static assets ──
 STATIC_FILES = [
     'style.css',
@@ -247,6 +269,24 @@ for fname in STATIC_FILES:
     src = os.path.join(SRC_STATIC, fname)
     if not os.path.exists(src):
         raise FileNotFoundError(f'Missing: {src}')
+    if fname == 'sw.js':
+        # A browser only installs a new service worker when the SCRIPT BYTES
+        # change - fetching an identical sw.js is reported as "no update"
+        # however often it happens. Without this stamp an installed app would
+        # never learn about a deploy (its worker is network-first, so content
+        # stays fresh, but the page already running in memory does not).
+        with open(src, encoding='utf-8') as fh:
+            worker = fh.read()
+        if '__BUILD__' not in worker:
+            raise SystemExit('ERROR: sw.js no longer carries the __BUILD__ ' +
+                             'token, so the static worker would be byte-' +
+                             'identical to the last deploy and an installed ' +
+                             'app would never see an update.')
+        worker = worker.replace('__BUILD__', VERSION)
+        with open(os.path.join(OUT_DIR, fname), 'w', encoding='utf-8') as fh:
+            fh.write(worker)
+        print(f'  wrote   {fname} (build {VERSION})')
+        continue
     shutil.copy(src, os.path.join(OUT_DIR, fname))
     print(f'  copied  {fname}')
 
@@ -335,24 +375,7 @@ html = html.replace(
 )
 
 # ── 2c. Cache-busting ───────────────────────────────────────────────
-# GitHub Pages serves assets with max-age=14400 (4h) and asset filenames
-# never change, so returning visitors keep a stale stylesheet/script after
-# each deploy (e.g. new footer HTML with old CSS). Append a per-build
-# version to the CSS/JS URLs so every deploy gets a fresh asset URL.
-def build_version():
-    try:
-        sha = subprocess.check_output(
-            ['git', 'rev-parse', '--short', 'HEAD'],
-            cwd=ROOT, stderr=subprocess.DEVNULL,
-        ).decode().strip()
-        if sha:
-            return sha
-    except Exception:
-        pass
-    return time.strftime('%Y%m%d%H%M%S')
-
-
-VERSION = build_version()
+# VERSION is computed before the static-asset copy so sw.js can carry it too.
 html = html.replace('href="style.css"', 'href="style.css?v=' + VERSION + '"')
 html = html.replace('src="app.bundle.js"', 'src="app.bundle.js?v=' + VERSION + '"')
 html = html.replace('src="pwa.js"', 'src="pwa.js?v=' + VERSION + '"')

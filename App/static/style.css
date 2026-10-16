@@ -366,21 +366,87 @@ textarea {
   gap: 6px;
   flex-wrap: wrap;
 }
-.grid-size-row label {
-  flex: 1;
-  min-width: 60px;
+/* Width / Height are labelled steppers ([−] [box] [+]). The label sits ABOVE the
+   box so two fields plus the lock still fit one phone's width. */
+.size-field {
+  flex: 1 1 118px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
-.grid-size-row label input[type="number"] {
-  padding: 4px 6px;
-  margin-top: 3px;
+.size-field-label {
   font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 3px;
 }
-.grid-size-row .times {
-  color: var(--text-faint);
-  padding-bottom: 8px;
+.stepper {
+  display: flex;
+  align-items: stretch;
+}
+.stepper input[type="number"] {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  margin-top: 0;
+  padding: 4px 2px;
+  font-size: 12px;
+  text-align: center;
+  /* Square ends so the buttons butt against the box as one control. */
+  border-radius: 0;
+  border-left: 0;
+  border-right: 0;
+  /* The native spinners would duplicate the +/- buttons, and iOS only reveals
+     them on focus (which reads as a glitch), so the buttons are the only stepper. */
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.stepper input[type="number"]::-webkit-outer-spin-button,
+.stepper input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.step-btn {
+  flex: 0 0 auto;
+  min-width: 34px;
+  min-height: 30px;
+  padding: 0 6px;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  background: var(--bg-3);
+  color: var(--text-dim);
+  border: 1px solid var(--border-2);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+.step-btn:first-child {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+.step-btn:last-child {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.step-btn:hover {
+  color: #fff;
+  border-color: var(--brand);
+}
+.step-btn:active {
+  background: var(--brand-soft);
+  color: var(--brand);
 }
 .grid-size-row .hint {
   flex-basis: 100%;
+}
+.size-preset-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.size-preset-row label {
+  flex: 0 0 84px;
 }
 .unit-row {
   display: flex;
@@ -1519,6 +1585,41 @@ textarea {
   border-color: var(--warn);
 }
 
+/* ---------- "A new version is ready" prompt (pwa.js) ---------- */
+/* Built in JS rather than in the templates so all five pages get it from the one
+   file. Fixed to the bottom centre, above the toast, so it is reachable with a
+   thumb on a phone; it is a small element and only itself takes pointer events,
+   so it never blocks the canvas or the toolbar behind it. */
+.update-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  padding: 8px 8px 8px 14px;
+  background: var(--panel-2);
+  border: 1px solid var(--brand);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.update-banner-text {
+  font-size: 12.5px;
+  color: var(--text);
+}
+.update-banner-btn {
+  padding: 6px 12px;
+  font-size: 12.5px;
+}
+.update-banner-close {
+  font-size: 16px;
+  line-height: 1;
+}
+
 .ai-status {
   font-size: 12px;
   margin-top: 8px;
@@ -2350,20 +2451,47 @@ body.modal-open {
     overflow: visible;
     padding: 8px;
   }
-  .sidebar {
-    position: static;
-    overflow: visible;
+  /* Everything shares ONE grid column, so any item that can grow sideways drags
+     the sidebars with it. Grid/flex items default to min-width:auto (= their
+     min-content width); on mobile these panels are overflow:visible, so the
+     chart's PIXEL width used to widen that shared column far past the viewport.
+     The swatches (grid-template-columns: repeat(9, 1fr)) ballooned to match and
+     the toolbar stopped wrapping and ran off screen, putting its buttons out of
+     reach. min-width:0 lets the column stay viewport-width; .canvas-wrap scrolls
+     the chart instead. */
+  .sidebar,
+  .sidebar.right,
+  .canvas-area,
+  .canvas-wrap {
+    min-width: 0;
   }
+  /* MOBILE STACK ORDER — set the work up before you draw it: the upload +
+     canvas-size panel first (it used to sit BELOW the canvas, so loading a photo
+     meant scrolling past the whole drawing area), then the canvas, then the
+     palette/legend. */
   .sidebar.right {
-    order: 3;
+    order: 1;
   }
   .canvas-area {
     order: 2;
+    min-height: 0;
+    /* Matches the desktop panel and hard-constrains the column. The chart is
+       scrolled by .canvas-wrap, never by the panel. */
+    overflow: hidden;
+  }
+  .sidebar {
+    order: 3;
+    position: static;
     overflow: visible;
-    /* Explicit min-height so the drawing area can't collapse on mobile
-       (auto-height flex panel + grid row sizing ignores the canvas-wrap's
-       min-height, which made the canvas overflow the panel). */
-    min-height: 70vh;
+  }
+  /* A BOUNDED drawing viewport. Zooming used to grow .canvas-wrap (and the page)
+     without limit, so the toolbar scrolled away exactly when the zoom buttons
+     were wanted. Capping the wrap makes the chart scroll INSIDE the canvas and
+     leaves the toolbar where it is; the min-height keeps the area from
+     collapsing when the chart is small. */
+  .canvas-wrap {
+    min-height: min(52vh, 420px);
+    max-height: min(66vh, 620px);
   }
 }
 
@@ -2417,6 +2545,11 @@ body.modal-open {
   .tool {
     min-height: 40px;
     min-width: 40px;
+  }
+  .step-btn {
+    min-width: 42px;
+    min-height: 40px;
+    font-size: 18px;
   }
 }
 

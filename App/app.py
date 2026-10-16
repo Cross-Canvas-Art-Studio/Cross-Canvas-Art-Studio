@@ -395,8 +395,39 @@ _PWA_ASSETS = {
 }
 
 
+def _pwa_build_stamp():
+    """A version string that changes whenever the app's own files change.
+
+    The service worker's cache name embeds it, because a browser only installs a
+    new worker when the SCRIPT BYTES differ - fetching an identical sw.js is
+    reported as "no update" however often it happens. The static build bakes in
+    its git sha; here the newest mtime under the app's own asset and template
+    directories is the equivalent signal, computed once per process.
+    """
+    newest = 0.0
+    roots = [app.static_folder, os.path.join(app.root_path, 'templates')]
+    for root in roots:
+        for dirpath, _dirs, files in os.walk(root):
+            for name in files:
+                try:
+                    newest = max(newest, os.path.getmtime(os.path.join(dirpath, name)))
+                except OSError:
+                    pass
+    return str(int(newest))
+
+
+PWA_BUILD_STAMP = _pwa_build_stamp()
+
+
 def _serve_pwa_asset(filename):
-    resp = send_from_directory(app.static_folder, filename, mimetype=_PWA_ASSETS[filename])
+    if filename == 'sw.js':
+        # Served byte-different on every deploy, so an installed app can notice
+        # the update. See _pwa_build_stamp.
+        with open(os.path.join(app.static_folder, 'sw.js'), encoding='utf-8') as fh:
+            body = fh.read().replace('__BUILD__', PWA_BUILD_STAMP)
+        resp = app.response_class(body, mimetype=_PWA_ASSETS[filename])
+    else:
+        resp = send_from_directory(app.static_folder, filename, mimetype=_PWA_ASSETS[filename])
     resp.headers['Service-Worker-Allowed'] = '/'
     resp.headers.setdefault('Cache-Control', 'no-cache')
     return resp

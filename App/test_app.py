@@ -1552,5 +1552,98 @@ class TestToolbarStructure(unittest.TestCase):
         self.assertIn('--options-bar-h: 52px;', css)
 
 
+class TestMobileLayoutAndPwaUpdates(unittest.TestCase):
+    """Two phone-only bug classes: the chart's pixel size leaking into the rest of
+    the layout column, and an installed app never learning that it was updated."""
+
+    def _read(self, *parts):
+        root = os.path.dirname(os.path.abspath(__file__))
+        path = os.path.join(root, *parts)
+        if not os.path.exists(path):
+            path = os.path.join(os.path.dirname(root), *parts)
+        with open(path, encoding='utf-8') as fh:
+            return fh.read()
+
+    def _mobile_block(self):
+        css = self._read('static', 'style.css')
+        block = css[css.index('@media (max-width: 1100px)'):]
+        return block[:block.index('@media (max-width: 900px)')]
+
+    def test_chart_width_cannot_stretch_the_mobile_column(self):
+        # One grid column is shared by all three panes. A grid/flex item defaults
+        # to min-width:auto (= min-content), so a zoomed chart used to widen that
+        # column far past the viewport: the swatch grid (repeat(9, 1fr)) grew with
+        # it and the toolbar stopped wrapping and ran off screen, putting its
+        # buttons out of reach. min-width:0 is what pins the column to the phone.
+        block = self._mobile_block()
+        self.assertIn('min-width: 0', block)
+        for selector in ('.sidebar,', '.canvas-area,', '.canvas-wrap'):
+            self.assertIn(selector, block, selector)
+
+    def test_mobile_drawing_viewport_is_bounded(self):
+        # Zooming used to grow the wrap (and the page) without limit, scrolling the
+        # toolbar away exactly when the zoom buttons were wanted. A max-height makes
+        # the chart scroll INSIDE the canvas instead.
+        block = self._mobile_block()
+        self.assertIn('max-height:', block)
+        self.assertIn('.canvas-wrap {', block)
+
+    def test_mobile_stack_puts_setup_before_the_canvas(self):
+        # Upload + canvas size first, then the canvas, then the palette/legend.
+        block = self._mobile_block()
+        for order in ('order: 1;', 'order: 2;', 'order: 3;'):
+            self.assertIn(order, block, order)
+
+    def test_canvas_size_has_steppers_and_presets(self):
+        # A bare number input is the wrong control on a phone: no nudge without the
+        # keyboard, and the native spinners only appear on focus.
+        html = self._read('templates', 'index.html')
+        for ident in ('gridWidthDown', 'gridWidthUp', 'gridHeightDown',
+                      'gridHeightUp', 'sizePreset'):
+            self.assertIn('id="%s"' % ident, html, ident)
+        js = self._read('static', 'app.js')
+        self.assertIn('bindSizeStepper("gridWidth"', js)
+        self.assertIn('bindSizeStepper("gridHeight"', js)
+        self.assertIn('els.sizePreset.addEventListener("change", applySizePreset)', js)
+        # The steppers must reuse the typed-input path, not re-implement the aspect
+        # lock and the finished-size hint (a second copy is what drifts).
+        self.assertIn('input.dispatchEvent(new Event("input"', js)
+
+    def test_service_worker_carries_a_per_deploy_build_stamp(self):
+        # A browser only installs a new worker when the script BYTES change, so
+        # without a per-build token an installed app is told "no update" forever.
+        sw = self._read('static', 'sw.js')
+        self.assertIn('__BUILD__', sw)
+        build = self._read('.github', 'scripts', 'build_site.py')
+        self.assertIn("worker.replace('__BUILD__', VERSION)", build)
+        self.assertIn("__BUILD__' not in worker", build)  # guard against a rename
+        app_py = self._read('app.py')
+        self.assertIn("replace('__BUILD__', PWA_BUILD_STAMP)", app_py)
+
+    def test_flask_serves_the_worker_with_the_stamp_substituted(self):
+        from App.app import app
+        app.config['TESTING'] = True
+        resp = app.test_client().get('/sw.js')
+        body = resp.get_data(as_text=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotIn('__BUILD__', body)
+        self.assertIn("const CACHE = 'stitchee-v3-", body)
+        self.assertEqual(resp.headers.get('Service-Worker-Allowed'), '/')
+
+    def test_pwa_prompts_to_reload_and_rechecks_on_resume(self):
+        # An installed PWA is RESUMED, not re-navigated, so "on load" alone is not
+        # enough - the service worker must also be asked, freshly, when the app
+        # comes back to the foreground.
+        js = self._read('static', 'pwa.js')
+        self.assertIn('update-banner', js)
+        self.assertIn("updateViaCache: 'none'", js)
+        self.assertIn("addEventListener('visibilitychange'", js)
+        self.assertIn('registration.update()', js)
+        # ...and the page's own build stamp is the second, worker-independent signal.
+        self.assertIn('pwa\\.js', js)
+        css = self._read('static', 'style.css')
+        self.assertIn('.update-banner {', css)
+
+
 if __name__ == "__main__":
     unittest.main()
