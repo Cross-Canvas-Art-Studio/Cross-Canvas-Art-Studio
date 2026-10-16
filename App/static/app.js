@@ -3681,66 +3681,13 @@
   }
 
   // ---------- collapsible panels ----------
-  // Every sidebar panel that has a heading gets a disclosure control. The
-  // toggle is built around the existing <h2> instead of in the markup, so panel
-  // heads that also carry a search box or a badge keep working untouched.
-  var PANELS_KEY = "stitchee_panels";
-
-  function loadPanelState() {
-    try {
-      return JSON.parse(localStorage.getItem(PANELS_KEY)) || {};
-    } catch (e) {
-      return {};
-    }
-  }
-
-  function savePanelState() {
-    var out = {};
-    Array.prototype.forEach.call(
-      document.querySelectorAll(".panel.toggleable"),
-      function (p) {
-        out[p.getAttribute("data-panel")] = p.classList.contains("collapsed");
-      },
-    );
-    try {
-      localStorage.setItem(PANELS_KEY, JSON.stringify(out));
-    } catch (e) {
-      /* collapsing is a nicety: never block on storage */
-    }
-  }
-
+  // The implementation is SHARED with the four tool pages - it lives in
+  // tool-common.js so a fix lands once. Only the storage key is the designer's
+  // own ("stitchee_panels"), so panels a user already collapsed stay collapsed;
+  // the tools derive a per-page key because "Export" exists on several pages.
   function initCollapsiblePanels() {
-    var saved = loadPanelState();
-    Array.prototype.forEach.call(
-      document.querySelectorAll(".panel > .panel-head"),
-      function (head) {
-        var panel = head.parentElement;
-        var h2 = head.querySelector("h2");
-        if (!h2) return;
-        var title = (h2.textContent || "").trim();
-        var btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "panel-toggle";
-        btn.appendChild(h2); // moves the heading inside the button
-        head.insertBefore(btn, head.firstChild);
-        panel.classList.add("toggleable");
-        panel.setAttribute("data-panel", title);
-        // Default-collapsed panels opt in with `data-collapsed` in the markup;
-        // a stored preference (the user has toggled the panel) always wins.
-        var collapsed = typeof saved[title] === "boolean"
-          ? saved[title]
-          : panel.hasAttribute("data-collapsed");
-        panel.classList.toggle("collapsed", collapsed);
-        btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
-        btn.title = collapsed ? "Expand " + title : "Collapse " + title;
-        btn.addEventListener("click", function () {
-          var now = panel.classList.toggle("collapsed");
-          btn.setAttribute("aria-expanded", now ? "false" : "true");
-          btn.title = now ? "Expand " + title : "Collapse " + title;
-          savePanelState();
-        });
-      },
-    );
+    if (!window.StitchTool) return; // tool-common.js did not load: panels stay open
+    window.StitchTool.initCollapsiblePanels({ key: "stitchee_panels" });
   }
 
   function setStitchStyle(style) {

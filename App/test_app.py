@@ -1594,6 +1594,76 @@ class TestMobileLayoutAndPwaUpdates(unittest.TestCase):
         for order in ('order: 1;', 'order: 2;', 'order: 3;'):
             self.assertIn(order, block, order)
 
+    def test_tool_pages_are_marked_and_lead_with_the_upload(self):
+        # The designer's order (upload+size -> canvas -> palette) is wrong for the
+        # tools, whose upload and controls share the LEFT pane: they need
+        # upload -> canvas -> controls -> export. base.html marks the difference.
+        base = self._read('templates', 'base.html')
+        self.assertIn('layout-tool', base)
+        for template in ('pixelator.html', 'resizer.html', 'palette.html',
+                         'ascii.html'):
+            html = self._read('templates', template)
+            self.assertIn('panel-upload', html, template)
+
+    def test_tool_mobile_order_is_panel_level(self):
+        # Ordering the PANES cannot put the canvas between the upload and the
+        # controls, so the tools drop the left pane's box (display:contents) at
+        # this width only and order its panels instead.
+        block = self._mobile_block()
+        self.assertIn('display: contents', block)
+        self.assertIn('.layout-tool aside.sidebar:not(.right)', block)
+        self.assertIn('.layout-tool .sidebar > .panel {', block)
+        self.assertIn('.layout-tool .sidebar.right {', block)
+        # The designer's pane-order rules must be scoped so they never apply here.
+        self.assertIn('.layout:not(.layout-tool)', block)
+        # The two overrides must come AFTER the catch-all panel rule: equal
+        # specificity means source order alone decides, so moving them above it
+        # silently buries the upload (and the setup tier) below the canvas again.
+        catch_all = block.index('.layout-tool .sidebar > .panel {')
+        self.assertLess(catch_all, block.index('.layout-tool .sidebar > .panel-upload {'))
+        self.assertLess(catch_all, block.index('.layout-tool .sidebar > .panel-setup {'))
+
+    def test_stacked_order_is_the_same_pipeline_on_every_page(self):
+        # upload -> size/colours -> CANVAS -> adjustments/tools -> export.
+        # The canvas is therefore order 3 for the tools and 2 for Stitchee, and
+        # the setup tier has to beat the catch-all (see the test above).
+        block = self._mobile_block()
+        self.assertIn('.layout-tool .sidebar > .panel-setup {', block)
+        self.assertIn('.layout-tool .canvas-area {', block)
+        self.assertIn('order: 5;', block)  # export last
+        self.assertIn('.layout:not(.layout-tool) .canvas-area {', block)
+        # Nothing may order the canvas for BOTH page types at once, or the tools
+        # end up with Stitchee's number.
+        self.assertNotIn('\n  .canvas-area {\n    order:', block)
+
+    def test_only_the_size_and_colour_panels_lead_the_canvas(self):
+        # The tier is a class, not a title, so it is explicit per panel. Counts
+        # are asserted so a panel silently changing sides is caught.
+        expected = {
+            'pixelator.html': 3,  # Processing mode, Pixel size, Colours
+            'resizer.html': 2,    # Resize, Social sizes
+            'palette.html': 1,    # Palette
+            'ascii.html': 0,      # its Width/Colored live in one Settings panel
+        }
+        for template, count in expected.items():
+            html = self._read('templates', template)
+            self.assertEqual(html.count('panel panel-setup'), count, template)
+
+    def test_ascii_has_no_about_panel(self):
+        # Removed deliberately: the ASCII pane is Export + About, and About was
+        # filler that pushed the one useful control further down the page.
+        html = self._read('templates', 'ascii.html')
+        self.assertNotIn('<h2>About</h2>', html)
+
+    def test_every_page_renders_the_right_layout_modifier(self):
+        from App.app import app
+        app.config['TESTING'] = True
+        client = app.test_client()
+        self.assertNotIn('layout-tool', client.get('/').get_data(as_text=True))
+        for path in ('/pixelator', '/resizer', '/palette', '/ascii'):
+            html = client.get(path).get_data(as_text=True)
+            self.assertIn('class="layout layout-tool"', html, path)
+
     def test_canvas_size_has_steppers_and_presets(self):
         # A bare number input is the wrong control on a phone: no nudge without the
         # keyboard, and the native spinners only appear on focus.
@@ -1643,6 +1713,60 @@ class TestMobileLayoutAndPwaUpdates(unittest.TestCase):
         self.assertIn('pwa\\.js', js)
         css = self._read('static', 'style.css')
         self.assertIn('.update-banner {', css)
+
+
+class TestCollapsiblePanels(unittest.TestCase):
+    """Every page's sidebar panels collapse the same way, from ONE implementation."""
+
+    def _read(self, *parts):
+        root = os.path.dirname(os.path.abspath(__file__))
+        path = os.path.join(root, *parts)
+        if not os.path.exists(path):
+            path = os.path.join(os.path.dirname(root), *parts)
+        with open(path, encoding='utf-8') as fh:
+            return fh.read()
+
+    def test_tool_common_owns_the_implementation(self):
+        common = self._read('static', 'tool-common.js')
+        self.assertIn('function initCollapsiblePanels', common)
+        self.assertIn('initCollapsiblePanels: initCollapsiblePanels', common)
+        # Per-PAGE key: "Export" exists on several pages, so one shared key would
+        # collapse it everywhere the moment it was collapsed in one place.
+        self.assertIn('"stitchee_panels_" +', common)
+        self.assertIn('opts.key || panelsKey()', common)
+        # Idempotent, so a double init cannot stack two toggles on one panel.
+        self.assertIn('classList.contains("toggleable")) return', common)
+
+    def test_designer_delegates_instead_of_keeping_a_second_copy(self):
+        app_js = self._read('static', 'app.js')
+        self.assertIn('window.StitchTool.initCollapsiblePanels', app_js)
+        self.assertIn('key: "stitchee_panels"', app_js)
+        # The old local copy must be gone, or the two definitions will drift.
+        self.assertNotIn('PANELS_KEY', app_js)
+        self.assertNotIn('function loadPanelState', app_js)
+        self.assertNotIn('function savePanelState', app_js)
+
+    def test_every_tool_page_initialises_them(self):
+        for name in ('pixelator', 'resizer', 'palette', 'ascii'):
+            js = self._read('static', name + '.js')
+            self.assertIn('T.initCollapsiblePanels()', js, name)
+
+    def test_designer_ships_and_cache_busts_tool_common(self):
+        html = self._read('templates', 'index.html')
+        self.assertIn("filename='tool-common.js'", html)
+        build = self._read('.github', 'scripts', 'build_site.py')
+        self.assertIn("src=\"tool-common.js?v=' + VERSION", build)
+
+    def test_tool_common_is_published_but_never_bundled(self):
+        # build_site.py DELETES every BUNDLE_SCRIPTS file from _site after
+        # bundling, and the four tool pages load tool-common.js as a standalone
+        # file - so adding it to the bundle list would delete the very file they
+        # need, and only at deploy time.
+        build = self._read('.github', 'scripts', 'build_site.py')
+        self.assertIn("'tool-common.js',", build)  # STATIC_FILES: published
+        bundle = build[build.index('BUNDLE_SCRIPTS = ('):]
+        bundle = bundle[:bundle.index(')')]
+        self.assertNotIn('tool-common.js', bundle)
 
 
 if __name__ == "__main__":

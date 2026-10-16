@@ -92,7 +92,7 @@
         </div>
     </header>
 
-    <main class="layout">
+    <main class="layout{% if nav_active != 'stitchee' %} layout-tool{% endif %}">
 {% block content %}{% endblock %}
     </main>
     </div>

@@ -418,6 +418,8 @@
 
   function init() {
     cacheEls();
+    // Sidebar panels get a disclosure control, exactly as on Stitchee.
+    T.initCollapsiblePanels();
     bindEvents();
     // default: PNG -> quality row hidden
     els.qualityRow.classList.remove("visible");

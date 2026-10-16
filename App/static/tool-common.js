@@ -246,6 +246,88 @@
     return w / canvas.width;
   }
 
+  // ---------- collapsible sidebar panels ----------
+  // ONE implementation for every page that has these panels: the four tools and
+  // the Stitchee designer (app.js delegates here, passing its own storage key).
+  // The toggle is built AROUND the existing <h2> rather than added to the markup,
+  // so a panel head that also carries a badge, a search box or a button (Swatches,
+  // Adjust, Colour palette…) keeps working untouched. All the styling lives in
+  // style.css (.panel-toggle / .panel.collapsed), which is also shared, so every
+  // page looks and behaves the same.
+  function panelsKey() {
+    // Per PAGE rather than one global key: "Export" exists on several tools AND
+    // in Stitchee, so a single key would collapse it on every page at once the
+    // moment it was collapsed in one place.
+    var slug = (location.pathname || "/")
+      .split("/")
+      .pop()
+      .replace(/\.html?$/i, "") // Flask serves /pixelator, Pages serves /pixelator.html
+      .replace(/[^a-z0-9]+/gi, "");
+    return "stitchee_panels_" + (slug || "home");
+  }
+
+  function readPanelState(key) {
+    try {
+      return JSON.parse(localStorage.getItem(key)) || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function initCollapsiblePanels(opts) {
+    opts = opts || {};
+    var key = opts.key || panelsKey();
+    var saved = readPanelState(key);
+
+    function save() {
+      var out = {};
+      Array.prototype.forEach.call(
+        document.querySelectorAll(".panel.toggleable"),
+        function (p) {
+          out[p.getAttribute("data-panel")] = p.classList.contains("collapsed");
+        },
+      );
+      try {
+        localStorage.setItem(key, JSON.stringify(out));
+      } catch (e) {
+        /* collapsing is a nicety: never block on storage */
+      }
+    }
+
+    Array.prototype.forEach.call(
+      document.querySelectorAll(".panel > .panel-head"),
+      function (head) {
+        var panel = head.parentElement;
+        var h2 = head.querySelector("h2");
+        if (!h2) return;
+        // Idempotent: calling this twice must not stack two toggles on a panel.
+        if (panel.classList.contains("toggleable")) return;
+        var title = (h2.textContent || "").trim();
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "panel-toggle";
+        btn.appendChild(h2); // moves the heading inside the button
+        head.insertBefore(btn, head.firstChild);
+        panel.classList.add("toggleable");
+        panel.setAttribute("data-panel", title);
+        // Default-collapsed panels opt in with `data-collapsed` in the markup; a
+        // stored preference (the user has toggled this panel) always wins.
+        var collapsed = typeof saved[title] === "boolean"
+          ? saved[title]
+          : panel.hasAttribute("data-collapsed");
+        panel.classList.toggle("collapsed", collapsed);
+        btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+        btn.title = collapsed ? "Expand " + title : "Collapse " + title;
+        btn.addEventListener("click", function () {
+          var now = panel.classList.toggle("collapsed");
+          btn.setAttribute("aria-expanded", now ? "false" : "true");
+          btn.title = now ? "Expand " + title : "Collapse " + title;
+          save();
+        });
+      },
+    );
+  }
+
   window.StitchTool = {
     clamp: clamp,
     clamp255: clamp255,
@@ -264,5 +346,7 @@
     wireHelpModal: wireHelpModal,
     wireFooterYear: wireFooterYear,
     fitScaleFor: fitScaleFor,
+    initCollapsiblePanels: initCollapsiblePanels,
+    panelsKey: panelsKey,
   };
 })();

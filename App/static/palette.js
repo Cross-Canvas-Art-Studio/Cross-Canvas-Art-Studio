@@ -387,6 +387,8 @@
 
   function init() {
     cacheEls();
+    // Sidebar panels get a disclosure control, exactly as on Stitchee.
+    T.initCollapsiblePanels();
     bindEvents();
   }
 

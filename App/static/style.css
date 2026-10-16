@@ -2465,24 +2465,15 @@ body.modal-open {
   .canvas-wrap {
     min-width: 0;
   }
-  /* MOBILE STACK ORDER — set the work up before you draw it: the upload +
-     canvas-size panel first (it used to sit BELOW the canvas, so loading a photo
-     meant scrolling past the whole drawing area), then the canvas, then the
-     palette/legend. */
-  .sidebar.right {
-    order: 1;
+  .sidebar {
+    position: static;
+    overflow: visible;
   }
   .canvas-area {
-    order: 2;
     min-height: 0;
     /* Matches the desktop panel and hard-constrains the column. The chart is
        scrolled by .canvas-wrap, never by the panel. */
     overflow: hidden;
-  }
-  .sidebar {
-    order: 3;
-    position: static;
-    overflow: visible;
   }
   /* A BOUNDED drawing viewport. Zooming used to grow .canvas-wrap (and the page)
      without limit, so the toolbar scrolled away exactly when the zoom buttons
@@ -2492,6 +2483,45 @@ body.modal-open {
   .canvas-wrap {
     min-height: min(52vh, 420px);
     max-height: min(66vh, 620px);
+  }
+  /* STACKED ORDER — one pipeline on every page: bring the source, choose its
+     size and colours, SEE the result, then tune it and take it away. So the
+     canvas sits in the MIDDLE, not at the top: the panels before it decide what
+     it IS, the panels after it act on what you can now see. Desktop keeps its
+     three columns, and nothing here moves markup - it is all `order`. */
+  .layout:not(.layout-tool) .sidebar.right {
+    order: 1; /* Stitchee: upload + canvas size */
+  }
+  .layout:not(.layout-tool) .canvas-area {
+    order: 2;
+  }
+  .layout:not(.layout-tool) .sidebar {
+    order: 3; /* Stitchee: palette + legend last */
+  }
+  /* ---- Client-side tools (Pixelator / Resizer / Palette / ASCII) ----
+     Their upload panel and their setup panels share the LEFT pane, so ordering
+     the panes alone cannot put the canvas between them. display:contents drops
+     that pane's own box AT THIS WIDTH ONLY, promoting each panel to a grid item
+     of .layout, which is what lets the canvas be ordered between the tiers. */
+  .layout-tool aside.sidebar:not(.right) {
+    display: contents;
+  }
+  .layout-tool .sidebar > .panel {
+    order: 4; /* Adjustments / tools: act on the canvas you can now see */
+  }
+  /* The two tiers that LEAD the canvas. Same specificity as the rule above, so
+     they have to come AFTER it to win. */
+  .layout-tool .sidebar > .panel-upload {
+    order: 1;
+  }
+  .layout-tool .sidebar > .panel-setup {
+    order: 2; /* Size / colours: decide what the canvas IS */
+  }
+  .layout-tool .canvas-area {
+    order: 3;
+  }
+  .layout-tool .sidebar.right {
+    order: 5; /* Export / About last: the least useful place to land */
   }
 }
 

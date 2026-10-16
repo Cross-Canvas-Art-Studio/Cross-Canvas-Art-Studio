@@ -378,6 +378,9 @@ html = html.replace(
 # VERSION is computed before the static-asset copy so sw.js can carry it too.
 html = html.replace('href="style.css"', 'href="style.css?v=' + VERSION + '"')
 html = html.replace('src="app.bundle.js"', 'src="app.bundle.js?v=' + VERSION + '"')
+# tool-common.js is NOT bundled (the four tool pages load it standalone), so the
+# designer's copy needs its own cache-buster.
+html = html.replace('src="tool-common.js"', 'src="tool-common.js?v=' + VERSION + '"')
 html = html.replace('src="pwa.js"', 'src="pwa.js?v=' + VERSION + '"')
 print(f'  cache-bust v{VERSION}')
 

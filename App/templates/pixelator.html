@@ -2,7 +2,7 @@
 {% block content %}
         <!-- ============ LEFT: CONTROLS ============ -->
         <aside class="sidebar" aria-label="Pixelator controls">
-            <section class="panel">
+            <section class="panel panel-upload">
                 <div class="panel-head">
                     <h2>Image</h2>
                 </div>
@@ -10,7 +10,7 @@
                 <button id="removeImageBtn" class="btn-ghost full" type="button" hidden>Remove image</button>
             </section>
 
-            <section class="panel">
+            <section class="panel panel-setup">
                 <div class="panel-head">
                     <h2>Processing mode</h2>
                 </div>
@@ -23,7 +23,7 @@
                 <p class="hint mode-description" id="modeDescription">Create crisp block-based pixel art with colour reduction and optional dithering.</p>
             </section>
 
-            <section class="panel" id="pixelateOptions">
+            <section class="panel panel-setup" id="pixelateOptions">
                 <div class="panel-head">
                     <h2>Pixel size</h2>
                 </div>
@@ -79,7 +79,7 @@
                 </label>
             </section>
 
-            <section class="panel" id="pixelateColorOptions">
+            <section class="panel panel-setup" id="pixelateColorOptions">
                 <div class="panel-head">
                     <h2>Colours</h2>
                 </div>
